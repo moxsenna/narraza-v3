@@ -1,0 +1,32 @@
+{
+  "name": "@narraza/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "clean": "rimraf .next"
+  },
+  "dependencies": {
+    "@narraza/application": "workspace:*",
+    "@narraza/db": "workspace:*",
+    "@narraza/shared": "workspace:*",
+    "next": "16.2.10",
+    "next-auth": "5.0.0-beta.32",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint-config-next": "16.2.10",
+    "tailwindcss": "4.3.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&family=Lora:ital,wght@0,400;0,600&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F0EEE9;font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif;color:#24171E;-webkit-font-smoothing:antialiased}a{color:#A62F59;text-decoration:none}a:hover{color:#C13F6B}</style>
+</helmet>
+
+<div style="padding:40px 44px 56px">
+  <div style="margin-bottom:24px">
+    <div style="font-size:15px;font-weight:800">Narraza v3 — Mobile 375px</div>
+    <div style="font-size:12.5px;color:#76656D;margin-top:3px">Bottom nav 5 tab · aksi utama sticky · panel jadi bottom sheet · tap target ≥44px. Desain khusus mobile, bukan desktop yang diperkecil.</div>
+  </div>
+  <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap">
+
+    <div style="flex:none">
+      <div style="font-size:11.5px;font-weight:700;color:#76656D;margin-bottom:8px">1 · Dashboard</div>
+      <div style="width:375px;background:#FFF9F6;border:1px solid #D9CCD2;border-radius:28px;overflow:hidden;box-shadow:0 8px 24px rgba(36,23,30,.08)">
+        <div style="height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11.5px;font-weight:700;color:#3A2931"><span>09.41</span><span>▦ ▲ ▮</span></div>
+        <div style="padding:8px 16px 14px;display:flex;align-items:center;gap:8px">
+          <div style="width:18px;height:18px;background:#C13F6B;border-radius:5px 5px 9px 5px"></div><span style="font-size:16px;font-weight:800;color:#641E35;flex:1">Narraza</span>
+          <span style="height:32px;padding:0 11px;background:#fff;border:1px solid #E8DCE1;border-radius:999px;display:flex;align-items:center;font-size:11.5px;font-weight:650">1.250 kredit</span>
+          <div style="width:32px;height:32px;border-radius:999px;background:#641E35;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">M</div>
+        </div>
+        <div style="padding:0 16px 90px">
+          <div style="background:#641E35;border-radius:16px;padding:16px 18px;margin-bottom:14px">
+            <div style="font-size:10.5px;font-weight:800;color:#EF91AF;letter-spacing:.05em;margin-bottom:3px">LANGKAH BERIKUTNYA</div>
+            <div style="font-size:15px;font-weight:700;color:#fff;line-height:1.35">Lanjutkan Bab 3 — “Kotak di Gudang”</div>
+            <div style="font-size:12px;color:#F7C6D6;margin:3px 0 12px">Adegan 2 dari 3 menunggu ditulis</div>
+            <button style="width:100%;height:46px;background:#fff;border:none;border-radius:12px;font:700 14px 'Plus Jakarta Sans',sans-serif;color:#641E35">Tulis Adegan Ini</button>
+          </div>
+          <div style="background:#fff;border:1px solid #E8DCE1;border-radius:16px;padding:16px;margin-bottom:10px;display:flex;gap:12px">
+            <div style="width:40px;height:54px;border-radius:6px;background:linear-gradient(160deg,#842644,#C13F6B);flex:none"></div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:14.5px;font-weight:700">Serpihan Janji</span><span style="font-size:10.5px;font-weight:650;background:#EDF8F3;color:#267455;border-radius:999px;padding:3px 8px">Terkunci</span></div>
+              <div style="font-size:11.5px;color:#76656D;margin:2px 0 8px">Drama · Bab 3 dari 60 · 2 resmi</div>
+              <div style="height:5px;background:#F1E8EC;border-radius:999px;overflow:hidden"><div style="width:5%;height:100%;background:#C13F6B"></div></div>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8DCE1;border-radius:16px;padding:16px;margin-bottom:10px;display:flex;gap:12px">
+            <div style="width:40px;height:54px;border-radius:6px;background:linear-gradient(160deg,#4A3A42,#6F4B68);flex:none"></div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:14.5px;font-weight:700">Langit Setelah Hujan</span><span style="font-size:10.5px;font-weight:650;background:#FFF5E8;color:#A55E18;border-radius:999px;padding:3px 8px">64% siap</span></div>
+              <div style="font-size:11.5px;color:#76656D;margin:2px 0 8px">Inspiratif · belum ada bab</div>
+              <div style="height:5px;background:#F1E8EC;border-radius:999px;overflow:hidden"><div style="width:0%;height:100%;background:#C13F6B"></div></div>
+            </div>
+          </div>
+          <button style="width:100%;height:52px;border:1.5px dashed #E8DCE1;border-radius:16px;background:transparent;font:650 13.5px 'Plus Jakarta Sans',sans-serif;color:#A62F59">+ Buat proyek baru</button>
+        </div>
+        <div style="position:relative;background:#fff;border-top:1px solid #E8DCE1;display:flex;padding:8px 6px 18px">
+          <div style="flex:1;text-align:center"><div style="width:44px;height:30px;margin:0 auto;background:#FCE6EE;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#A62F59;font-size:13px">●</div><div style="font-size:10px;font-weight:700;color:#842644;margin-top:3px">Beranda</div></div>
+          <div style="flex:1;text-align:center"><div style="width:44px;height:30px;margin:0 auto;display:flex;align-items:center;justify-content:center;color:#A9979F;font-size:13px">▤</div><div style="font-size:10px;font-weight:600;color:#A9979F;margin-top:3px">Rencana</div></div>
+          <div style="flex:1;text-align:center"><div style="width:44px;height:30px;margin:0 auto;display:flex;align-items:center;justify-content:center;color:#A9979F;font-size:13px">✎</div><div style="font-size:10px;font-weight:600;color:#A9979F;margin-top:3px">Tulis</div></div>
+          <div style="flex:1;text-align:center"><div style="width:44px;height:30px;margin:0 auto;display:flex;align-items:center;justify-content:center;color:#A9979F;font-size:13px">✓</div><div style="font-size:10px;font-weight:600;color:#A9979F;margin-top:3px">Cek</div></div>
+          <div style="flex:1;text-align:center"><div style="width:44px;height:30px;margin:0 auto;display:flex;align-items:center;justify-content:center;color:#A9979F;font-size:13px">≡</div><div style="font-size:10px;font-weight:600;color:#A9979F;margin-top:3px">Lainnya</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:none">
+      <div style="font-size:11.5px;font-weight:700;color:#76656D;margin-bottom:8px">2 · Chat Narra <span style="font-weight:500;color:#A9979F">— sinyal cerita jadi sheet</span></div>
+      <div style="width:375px;background:#FFF9F6;border:1px solid #D9CCD2;border-radius:28px;overflow:hidden;box-shadow:0 8px 24px rgba(36,23,30,.08)">
+        <div style="height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11.5px;font-weight:700;color:#3A2931"><span>09.41</span><span>▦ ▲ ▮</span></div>
+        <div style="padding:8px 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #F1E8EC">
+          <span style="color:#76656D;font-size:16px">‹</span>
+          <div style="flex:1"><div style="font-size:14px;font-weight:700">Chat Narra</div><div style="font-size:10.5px;color:#A9979F">draft — belum jadi cerita resmi</div></div>
+          <button style="height:32px;padding:0 11px;background:#FFF5F8;border:1px solid #F7C6D6;border-radius:999px;font:650 11px 'Plus Jakarta Sans',sans-serif;color:#842644">Sinyal 4/6</button>
+        </div>
+        <div style="padding:14px 16px;height:430px;overflow:hidden">
+          <div style="display:flex;gap:8px;margin-bottom:10px"><div style="width:24px;height:24px;border-radius:8px;background:#FCE6EE;color:#A62F59;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">N</div><div style="background:#FFF5F8;border-radius:4px 14px 14px 14px;padding:10px 13px;font-size:13px;line-height:1.55;color:#3A2931">Menarik — konflik tiga arah dalam satu atap. Rahasianya kira-kira tentang apa? Garis besarnya saja.</div></div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><div style="background:#fff;border:1px solid #E8DCE1;border-radius:14px 4px 14px 14px;padding:10px 13px;font-size:13px;line-height:1.55;color:#3A2931;max-width:260px">Tentang masa lalunya sebelum menikah. Sesuatu yang menyakitkan.</div></div>
+          <div style="display:flex;gap:8px;margin-bottom:10px"><div style="width:24px;height:24px;border-radius:8px;background:#FCE6EE;color:#A62F59;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">N</div><div style="background:#FFF5F8;border-radius:4px 14px 14px 14px;padding:10px 13px;font-size:13px;line-height:1.55;color:#3A2931">Aku catat sebagai draft. Siapa yang paling berbahaya kalau tahu duluan?</div></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:32px">
+            <span style="height:38px;padding:0 13px;background:#fff;border:1px solid #F7C6D6;border-radius:999px;font-size:12px;font-weight:600;color:#842644;display:flex;align-items:center">Ibu mertuanya</span>
+            <span style="height:38px;padding:0 13px;background:#fff;border:1px solid #F7C6D6;border-radius:999px;font-size:12px;font-weight:600;color:#842644;display:flex;align-items:center">Suaminya</span>
+            <span style="height:38px;padding:0 13px;background:#fff;border:1px solid #F7C6D6;border-radius:999px;font-size:12px;font-weight:600;color:#842644;display:flex;align-items:center">Dua-duanya</span>
+          </div>
+        </div>
+        <div style="background:#fff;border-top:1px solid #F1E8EC;border-radius:18px 18px 0 0;box-shadow:0 -8px 24px rgba(36,23,30,.08);padding:10px 16px 6px">
+          <div style="width:36px;height:4px;background:#E8DCE1;border-radius:999px;margin:0 auto 10px"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px"><span style="font-size:12px;font-weight:700">Sinyal cerita</span><span style="font-size:11px;font-weight:650;color:#A62F59">4 dari 6</span></div>
+          <div style="height:5px;background:#F1E8EC;border-radius:999px;overflow:hidden;margin-bottom:10px"><div style="width:66%;height:100%;background:#C13F6B"></div></div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;padding-bottom:8px">
+            <span style="font-size:10.5px;font-weight:600;background:#EDF8F3;color:#267455;border-radius:999px;padding:4px 9px">Genre ✓</span>
+            <span style="font-size:10.5px;font-weight:600;background:#EDF8F3;color:#267455;border-radius:999px;padding:4px 9px">Tokoh ✓</span>
+            <span style="font-size:10.5px;font-weight:600;background:#EDF8F3;color:#267455;border-radius:999px;padding:4px 9px">Konflik ✓</span>
+            <span style="font-size:10.5px;font-weight:600;background:#EDF8F3;color:#267455;border-radius:999px;padding:4px 9px">Tone ✓</span>
+            <span style="font-size:10.5px;font-weight:600;background:#FFF9F6;border:1px solid #F1E8EC;color:#A9979F;border-radius:999px;padding:4px 9px">Rahasia</span>
+            <span style="font-size:10.5px;font-weight:600;background:#FFF9F6;border:1px solid #F1E8EC;color:#A9979F;border-radius:999px;padding:4px 9px">Ending</span>
+          </div>
+        </div>
+        <div style="background:#fff;padding:8px 16px 20px;display:flex;gap:8px;border-top:1px solid #F1E8EC">
+          <div style="flex:1;height:44px;border:1px solid #E8DCE1;border-radius:999px;display:flex;align-items:center;padding:0 15px;font-size:12.5px;color:#A9979F">Ceritakan apa saja…</div>
+          <button style="width:44px;height:44px;border-radius:999px;background:#C13F6B;border:none;color:#fff;font-size:15px">➤</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:none">
+      <div style="font-size:11.5px;font-weight:700;color:#76656D;margin-bottom:8px">3 · Rencana Bab</div>
+      <div style="width:375px;background:#FFF9F6;border:1px solid #D9CCD2;border-radius:28px;overflow:hidden;box-shadow:0 8px 24px rgba(36,23,30,.08)">
+        <div style="height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11.5px;font-weight:700;color:#3A2931"><span>09.41</span><span>▦ ▲ ▮</span></div>
+        <div style="padding:8px 16px 12px;border-bottom:1px solid #F1E8EC">
+          <div style="font-size:14px;font-weight:700">Rencana Bab</div>
+          <div style="font-size:10.5px;color:#A9979F;margin-top:1px">Musim 1 · Arc 1: Kotak di Gudang (1–10)</div>
+        </div>
+        <div style="padding:12px 16px 90px;display:flex;flex-direction:column;gap:8px">
+          <div style="background:#fff;border:1px solid #E8DCE1;border-radius:14px;padding:13px 14px;display:flex;gap:11px;align-items:center;opacity:.85">
+            <span style="width:32px;height:32px;border-radius:10px;background:#EDF8F3;color:#267455;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">01</span>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">Pulang ke Rumah Ratna <span style="font-size:9.5px;font-weight:700;background:#EDF8F3;color:#267455;border-radius:999px;padding:2px 7px;margin-left:4px">Resmi</span></div><div style="font-size:11px;color:#76656D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sambutan hangat yang terasa berjarak.</div></div>
+            <span style="display:flex;gap:3px"><span style="width:7px;height:7px;border-radius:999px;background:#3D6FB4"></span><span style="width:7px;height:7px;border-radius:999px;background:#D98B3F"></span></span>
+          </div>
+          <div style="background:#fff;border:2px solid #C13F6B;border-radius:14px;padding:13px 14px">
+            <div style="display:flex;gap:11px;align-items:center;margin-bottom:10px">
+              <span style="width:32px;height:32px;border-radius:10px;background:#FCE6EE;color:#A62F59;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">03</span>
+              <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">Kotak di Gudang <span style="font-size:9.5px;font-weight:700;background:#FCE6EE;color:#A62F59;border-radius:999px;padding:2px 7px;margin-left:4px">Ditulis</span></div><div style="font-size:11px;color:#76656D">Maya menemukan kotak masa lalunya.</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;border-top:1px solid #F1E8EC;padding-top:10px;margin-bottom:10px">
+              <div><div style="font-size:9px;font-weight:800;color:#A9979F">ARAH EMOSI</div><div style="font-size:11px;color:#3A2931;margin-top:1px">Tertekan → panik tersembunyi</div></div>
+              <div><div style="font-size:9px;font-weight:800;color:#A9979F">ENDING HOOK</div><div style="font-size:11px;color:#3A2931;margin-top:1px">Telepon Dewi setelah 7 tahun</div></div>
+              <div><div style="font-size:9px;font-weight:800;color:#A9979F">BREADCRUMB</div><div style="font-size:11px;color:#3A2931;margin-top:1px">Selimut bayi di dalam kotak</div></div>
+              <div><div style="font-size:9px;font-weight:800;color:#A9979F">RAHASIA DITAHAN</div><div style="font-size:11px;color:#3A2931;margin-top:1px">Terlarang sebelum Bab 20</div></div>
+            </div>
+            <button style="width:100%;height:44px;background:#C13F6B;border:none;border-radius:11px;font:700 13px 'Plus Jakarta Sans',sans-serif;color:#fff">Tulis bab ini</button>
+          </div>
+          <div style="background:#fff;border:1px solid #E8DCE1;border-radius:14px;padding:13px 14px;display:flex;gap:11px;align-items:center">
+            <span style="width:32px;height:32px;border-radius:10px;background:#F8F1F4;color:#76656D;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">04</span>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">Tamu dari Masa Lalu</div><div style="font-size:11px;color:#76656D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Dewi datang tanpa kabar.</div></div>
+            <span style="color:#A9979F">▾</span>
+          </div>
+          <div style="border:1px dashed #F2D8B4;background:#FFF5E8;border-radius:12px;padding:10px 13px;font-size:11px;color:#A55E18;line-height:1.5">⚠ Ritme: Bab 6–8 tanpa kemenangan kecil — beri Maya satu kemenangan di Bab 7.</div>
+        </div>
+        <div style="background:#fff;border-top:1px solid #E8DCE1;display:flex;padding:8px 6px 18px">
+          <div style="flex:1;text-align:center;color:#A9979F"><div style="font-size:13px;height:30px;display:flex;align-items:center;justify-content:center">●</div><div style="font-size:10px;font-weight:600;margin-top:-2px">Beranda</div></div>
+          <div style="flex:1;text-align:center"><div style="width:44px;height:30px;margin:0 auto;background:#FCE6EE;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#A62F59;font-size:13px">▤</div><div style="font-size:10px;font-weight:700;color:#842644;margin-top:3px">Rencana</div></div>
+          <div style="flex:1;text-align:center;color:#A9979F"><div style="font-size:13px;height:30px;display:flex;align-items:center;justify-content:center">✎</div><div style="font-size:10px;font-weight:600;margin-top:-2px">Tulis</div></div>
+          <div style="flex:1;text-align:center;color:#A9979F"><div style="font-size:13px;height:30px;display:flex;align-items:center;justify-content:center">✓</div><div style="font-size:10px;font-weight:600;margin-top:-2px">Cek</div></div>
+          <div style="flex:1;text-align:center;color:#A9979F"><div style="font-size:13px;height:30px;display:flex;align-items:center;justify-content:center">≡</div><div style="font-size:10px;font-weight:600;margin-top:-2px">Lainnya</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:none">
+      <div style="font-size:11.5px;font-weight:700;color:#76656D;margin-bottom:8px">4 · Ruang Tulis <span style="font-weight:500;color:#A9979F">— editor penuh, aksi sticky</span></div>
+      <div style="width:375px;background:#FFFDFB;border:1px solid #D9CCD2;border-radius:28px;overflow:hidden;box-shadow:0 8px 24px rgba(36,23,30,.08)">
+        <div style="height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11.5px;font-weight:700;color:#3A2931"><span>09.41</span><span>▦ ▲ ▮</span></div>
+        <div style="padding:8px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #F1E8EC">
+          <span style="color:#76656D;font-size:16px">‹</span>
+          <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bab 3 · Adegan 2</div><div style="font-size:10px;color:#A9979F">Tersimpan otomatis · 712/800 kata</div></div>
+          <span style="font-size:10px;font-weight:700;background:#FCE6EE;color:#A62F59;border-radius:999px;padding:4px 9px;flex:none">Kandidat B</span>
+        </div>
+        <div style="display:flex;gap:6px;padding:9px 16px;border-bottom:1px solid #F1E8EC;overflow:hidden">
+          <span style="height:34px;padding:0 12px;background:#FFF9F6;border:1px solid #F1E8EC;border-radius:999px;font-size:11px;font-weight:600;color:#3A2931;display:flex;align-items:center;white-space:nowrap">Arahan ▾</span>
+          <span style="height:34px;padding:0 12px;background:#FFF9F6;border:1px solid #F1E8EC;border-radius:999px;font-size:11px;font-weight:600;color:#3A2931;display:flex;align-items:center;white-space:nowrap">Tokoh</span>
+          <span style="height:34px;padding:0 12px;background:#FFF9F6;border:1px solid #F1E8EC;border-radius:999px;font-size:11px;font-weight:600;color:#3A2931;display:flex;align-items:center;white-space:nowrap">Fakta aman</span>
+          <span style="height:34px;padding:0 12px;background:#FFF9F6;border:1px solid #F1E8EC;border-radius:999px;font-size:11px;font-weight:600;color:#3A2931;display:flex;align-items:center;white-space:nowrap">Rahasia</span>
+        </div>
+        <div style="padding:18px 20px;height:360px;overflow:hidden;font-family:Lora,Georgia,serif;font-size:15px;line-height:1.85;color:#24171E">
+          <p style="margin:0 0 1.1em">Suara motor itu terdengar terlalu cepat. Maya menghitung — harusnya masih dua jam lagi.</p>
+          <p style="margin:0 0 1.1em">“Dek? Kok gelap-gelapan di gudang?”</p>
+          <p style="margin:0 0 1.1em">Kotak itu kembali ke rak dengan bunyi yang terlalu keras. Maya keluar sambil membawa kardus berisi toples kosong. “Beres-beres, Mas. <span style="background:#FCE6EE;border-bottom:2px solid #C13F6B">Ibu yang minta.</span>”</p>
+          <p style="margin:0">Raka tersenyum dan percaya. Justru itu yang membuat dada Maya sesak…</p>
+        </div>
+        <div style="background:#fff;border-top:1px solid #E8DCE1;padding:10px 16px 22px">
+          <div style="background:#FFF5E8;border:1px solid #F2D8B4;border-radius:10px;padding:8px 11px;font-size:11px;color:#A55E18;margin-bottom:9px">⚠ 1 temuan menghambat — selesaikan sebelum Terima Versi</div>
+          <div style="display:flex;gap:8px">
+            <button style="height:48px;padding:0 14px;background:#fff;border:1px solid #E8DCE1;border-radius:12px;font:650 12.5px 'Plus Jakarta Sans',sans-serif;color:#3A2931">Cek Cerita</button>
+            <button style="flex:1;height:48px;background:#EBB9CB;border:none;border-radius:12px;font:700 13.5px 'Plus Jakarta Sans',sans-serif;color:#fff">Terima Versi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:none">
+      <div style="font-size:11.5px;font-weight:700;color:#76656D;margin-bottom:8px">5 · Cek Cerita <span style="font-weight:500;color:#A9979F">— temuan sebagai bottom sheet</span></div>
+      <div style="width:375px;background:#FFF9F6;border:1px solid #D9CCD2;border-radius:28px;overflow:hidden;box-shadow:0 8px 24px rgba(36,23,30,.08);position:relative">
+        <div style="height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11.5px;font-weight:700;color:#3A2931"><span>09.41</span><span>▦ ▲ ▮</span></div>
+        <div style="padding:8px 16px 12px;border-bottom:1px solid #F1E8EC"><div style="font-size:14px;font-weight:700">Cek Cerita — Bab 3 · Adegan 2</div><div style="font-size:10.5px;color:#A9979F;margin-top:1px">gratis · diperiksa 3 menit lalu</div></div>
+        <div style="padding:12px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;opacity:.45">
+          <div style="background:#FFF0F2;border-radius:12px;padding:10px"><div style="font-size:18px;font-weight:800;color:#B83A4B">1</div><div style="font-size:10px;font-weight:650;color:#B83A4B">Menghambat</div></div>
+          <div style="background:#FFF5E8;border-radius:12px;padding:10px"><div style="font-size:18px;font-weight:800;color:#A55E18">2</div><div style="font-size:10px;font-weight:650;color:#A55E18">Ditinjau</div></div>
+          <div style="background:#EDF8F3;border-radius:12px;padding:10px"><div style="font-size:18px;font-weight:800;color:#267455">5</div><div style="font-size:10px;font-weight:650;color:#267455">Lolos</div></div>
+        </div>
+        <div style="height:120px;opacity:.35;padding:0 16px"><div style="background:#fff;border:1px solid #E8DCE1;border-radius:12px;height:52px;margin-bottom:8px"></div><div style="background:#fff;border:1px solid #E8DCE1;border-radius:12px;height:52px"></div></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -12px 32px rgba(36,23,30,.16);padding:12px 18px 24px">
+          <div style="width:36px;height:4px;background:#E8DCE1;border-radius:999px;margin:0 auto 12px"></div>
+          <span style="font-size:10px;font-weight:800;background:#FFF0F2;color:#B83A4B;border-radius:999px;padding:4px 10px">MENGHAMBAT</span>
+          <div style="font-size:14.5px;font-weight:700;margin:8px 0 8px;line-height:1.4">Rahasia utama hampir bocor — 22 bab terlalu cepat</div>
+          <div style="background:#FFF9F6;border-left:3px solid #B83A4B;border-radius:0 9px 9px 0;padding:8px 12px;font-family:Lora,Georgia,serif;font-size:11.5px;line-height:1.65;color:#3A2931;margin-bottom:10px">“…selimut yang dulu ia jahit untuk anaknya.”</div>
+          <p style="font-size:11.5px;color:#4A3A42;line-height:1.55;margin:0 0 12px">Kalimat ini menjawab rahasia yang kamu jadwalkan terbuka di Bab 25. Pembaca kehilangan misteri utamanya.</p>
+          <button style="width:100%;height:48px;background:#C13F6B;border:none;border-radius:12px;font:700 13.5px 'Plus Jakarta Sans',sans-serif;color:#fff;margin-bottom:8px">Perbaiki otomatis</button>
+          <div style="display:flex;gap:8px">
+            <button style="flex:1;height:44px;background:#fff;border:1px solid #E8DCE1;border-radius:11px;font:650 12px 'Plus Jakarta Sans',sans-serif;color:#76656D">Tandai untuk nanti</button>
+            <button style="flex:1;height:44px;background:#fff;border:1px solid #E8DCE1;border-radius:11px;font:650 12px 'Plus Jakarta Sans',sans-serif;color:#3A2931">Lihat di naskah</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:none">
+      <div style="font-size:11.5px;font-weight:700;color:#76656D;margin-bottom:8px">6 · Paket Publish <span style="font-weight:500;color:#A9979F">— stack, salin per field</span></div>
+      <div style="width:375px;background:#FFF9F6;border:1px solid #D9CCD2;border-radius:28px;overflow:hidden;box-shadow:0 8px 24px rgba(36,23,30,.08)">
+        <div style="height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:11.5px;font-weight:700;color:#3A2931"><span>09.41</span><span>▦ ▲ ▮</span></div>
+        <div style="padding:8px 16px 12px;border-bottom:1px solid #F1E8EC"><div style="font-size:14px;font-weight:700">Paket Publish — Bab 2</div><div style="font-size:10.5px;color:#A9979F;margin-top:1px">dari naskah resmi · tidak mengubah cerita</div></div>
+        <div style="padding:12px 16px 14px;display:flex;flex-direction:column;gap:9px">
+          <div style="background:#fff;border:1px solid #E8DCE1;border-radius:13px;padding:12px 14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:700">Teaser</span><span style="font-size:10.5px;font-weight:650;color:#A62F59">Salin</span></div>
+            <div style="font-size:12px;color:#3A2931;line-height:1.55">Di rumah ini, bahkan piring pun punya aturan. Maya baru saja melanggar salah satunya…</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8DCE1;border-radius:13px;padding:12px 14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:700">Caption promosi</span><span style="font-size:10.5px;font-weight:650;color:#267455">Tersalin ✓</span></div>
+            <div style="font-size:12px;color:#3A2931;line-height:1.55">Kata orang, menantu dan mertua itu soal waktu. Tapi bagaimana kalau mertuamu menunggu bukti? 🍂 #SerpihanJanji</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8DCE1;border-radius:13px;padding:12px 14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:700">Pancingan komentar</span><span style="font-size:10.5px;font-weight:650;color:#A62F59">Salin</span></div>
+            <div style="font-size:12px;color:#3A2931;line-height:1.55">Kalau kamu jadi Maya: cerita sekarang, atau tunggu sampai aman? 👇</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8DCE1;border-radius:13px;padding:12px 14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:11px;font-weight:700">Preview HP</span><span style="font-size:10.5px;color:#A9979F">Bab 2</span></div>
+            <div style="font-family:Lora,Georgia,serif;font-size:11px;line-height:1.75;color:#3A2931;border:1px solid #F1E8EC;border-radius:10px;padding:10px 12px">Sarapan di rumah Bu Ratna punya aturan yang tidak tertulis. Maya mempelajarinya satu per satu — dengan cara yang salah.</div>
+          </div>
+        </div>
+        <div style="background:#fff;border-top:1px solid #E8DCE1;padding:10px 16px 22px;display:flex;gap:8px">
+          <button style="height:48px;padding:0 14px;background:#fff;border:1px solid #E8DCE1;border-radius:12px;font:650 12.5px 'Plus Jakarta Sans',sans-serif;color:#3A2931">Export</button>
+          <button style="flex:1;height:48px;background:#C13F6B;border:none;border-radius:12px;font:700 13.5px 'Plus Jakarta Sans',sans-serif;color:#fff">Salin semua field</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 2600}}"></script>
+</body>
+</html>

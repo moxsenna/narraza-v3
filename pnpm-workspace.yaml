@@ -1,0 +1,39 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# These exact pinned versions (D7) bypass pnpm's minimum-release-age gate; any
+# other/newer version stays gated. Acts as an explicit version allowlist.
+minimumReleaseAgeExclude:
+  - '@auth/core@0.41.3'
+  - '@auth/prisma-adapter@2.11.3'
+  - '@prisma/client-runtime-utils@7.9.0'
+  - '@prisma/client@7.9.0'
+  - '@prisma/config@7.9.0'
+  - '@prisma/debug@7.9.0'
+  - '@prisma/engines@7.9.0'
+  - '@prisma/fetch-engine@7.9.0'
+  - '@prisma/get-platform@7.9.0'
+  - '@typescript-eslint/eslint-plugin@8.65.0'
+  - '@typescript-eslint/parser@8.65.0'
+  - '@typescript-eslint/project-service@8.65.0'
+  - '@typescript-eslint/scope-manager@8.65.0'
+  - '@typescript-eslint/tsconfig-utils@8.65.0'
+  - '@typescript-eslint/type-utils@8.65.0'
+  - '@typescript-eslint/types@8.65.0'
+  - '@typescript-eslint/typescript-estree@8.65.0'
+  - '@typescript-eslint/utils@8.65.0'
+  - '@typescript-eslint/visitor-keys@8.65.0'
+  - next-auth@5.0.0-beta.32
+  - prettier@3.9.6
+  - prisma@7.9.0
+  - typescript-eslint@8.65.0
+
+# Post-install build scripts are blocked by default (supply-chain hygiene);
+# these trusted deps are explicitly allowed to run theirs.
+allowBuilds:
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true

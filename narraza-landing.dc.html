@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFF9F6;color:#24171E;font-family:'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#A62F59;text-decoration:none}a:hover{color:#C13F6B}
+@keyframes nrzPulse{0%,100%{opacity:.35}50%{opacity:1}}
+</style>
+</helmet>
+
+<sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+<div style="min-height:100vh;display:flex;flex-direction:column">
+
+  <header style="position:sticky;top:0;z-index:50;background:rgba(255,249,246,.92);backdrop-filter:blur(8px);border-bottom:1px solid #F1E8EC">
+    <div style="max-width:1240px;margin:0 auto;padding:0 32px;height:68px;display:flex;align-items:center;gap:32px">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:22px;height:22px;background:#C13F6B;border-radius:6px 6px 12px 6px;transform:rotate(0deg)"></div>
+        <span style="font-size:20px;font-weight:800;color:#641E35;letter-spacing:-0.02em">Narraza</span>
+      </div>
+      <nav style="display:flex;gap:24px;flex:1;font-size:14px;font-weight:600;color:#4A3A42">
+        <a href="#cara-kerja" style="color:#4A3A42">Cara kerja</a>
+        <a href="#fitur" style="color:#4A3A42">Fitur</a>
+        <a href="#untuk-siapa" style="color:#4A3A42">Untuk siapa</a>
+        <a href="#kredit" style="color:#4A3A42">Kredit</a>
+      </nav>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button onClick="{{ goMasuk }}" style="height:44px;padding:0 18px;background:#fff;border:1px solid #E8DCE1;border-radius:12px;font:600 14px 'Plus Jakarta Sans',sans-serif;color:#3A2931;cursor:pointer" style-hover="border-color:#F7C6D6">Masuk</button>
+        <button onClick="{{ goDaftar }}" style="height:44px;padding:0 20px;background:#C13F6B;border:none;border-radius:12px;font:650 14px 'Plus Jakarta Sans',sans-serif;color:#fff;cursor:pointer" style-hover="background:#A62F59">Mulai gratis</button>
+      </div>
+    </div>
+  </header>
+
+  <section style="max-width:1240px;margin:0 auto;padding:80px 32px 72px;display:grid;grid-template-columns:1.05fr .95fr;gap:64px;align-items:center">
+    <div>
+      <div style="display:inline-flex;align-items:center;gap:8px;background:#FCE6EE;color:#842644;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:650;margin-bottom:24px">Untuk penulis serial Indonesia</div>
+      <h1 style="font-family:Lora,Georgia,serif;font-size:54px;line-height:1.1;font-weight:600;margin:0 0 20px;color:#24171E;text-wrap:balance">Tulis serial panjang tanpa kehilangan arah.</h1>
+      <p style="font-size:18px;line-height:1.65;color:#4A3A42;margin:0 0 32px;max-width:540px">Ceritakan idemu ke Narra. Narraza membantu menyusun fondasi, merencanakan bab, menjaga rahasia, dan memoles tulisanmu untuk pembaca mobile.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button onClick="{{ goDaftar }}" style="height:52px;padding:0 28px;background:#C13F6B;border:none;border-radius:12px;font:700 16px 'Plus Jakarta Sans',sans-serif;color:#fff;cursor:pointer;box-shadow:0 8px 24px rgba(193,63,107,.25)" style-hover="background:#A62F59">Mulai dari ide</button>
+        <a href="#cara-kerja" style="height:52px;padding:0 24px;background:#fff;border:1px solid #E8DCE1;border-radius:12px;font:650 16px 'Plus Jakarta Sans',sans-serif;color:#3A2931;cursor:pointer;display:inline-flex;align-items:center;box-sizing:border-box" style-hover="border-color:#F7C6D6">Lihat cara kerja</a>
+      </div>
+      <p style="font-size:13px;color:#76656D;margin:18px 0 0">Masuk tanpa kata sandi · Keputusan cerita tetap milikmu · AI membantu, bukan mengambil alih</p>
+    </div>
+    <div style="background:#fff;border:1px solid #E8DCE1;border-radius:24px;padding:24px;box-shadow:0 18px 48px rgba(36,23,30,.12)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <div style="width:26px;height:26px;background:#FCE6EE;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#A62F59">N</div>
+        <span style="font-size:13px;font-weight:650;color:#76656D">Ngobrol dengan Narra</span>
+      </div>
+      <div style="background:#FFF5F8;border-radius:14px 14px 14px 4px;padding:14px 16px;font-size:14.5px;line-height:1.55;color:#3A2931;margin-bottom:10px">Konfliknya kuat: Maya menyimpan rahasia besar dari suaminya. Menurutmu, siapa yang paling terluka kalau rahasia itu terbongkar?</div>
+      <div style="background:#fff;border:1px solid #F1E8EC;border-radius:14px 14px 4px 14px;padding:14px 16px;font-size:14.5px;line-height:1.55;color:#3A2931;margin:0 0 16px 32px">Suaminya. Tapi ibunya juga menyimpan bagian dari rahasia itu…</div>
+      <div style="border-top:1px dashed #E8DCE1;padding-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+          <span style="font-size:13px;font-weight:700;color:#24171E">Fondasi Cerita</span>
+          <span style="font-size:12px;font-weight:650;color:#267455">82% siap</span>
+        </div>
+        <div style="height:6px;background:#F1E8EC;border-radius:999px;overflow:hidden;margin-bottom:12px"><div style="width:82%;height:100%;background:#C13F6B;border-radius:999px"></div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:600;background:#EDF8F3;color:#267455;border-radius:999px;padding:4px 10px">Tokoh utama ✓</span>
+          <span style="font-size:12px;font-weight:600;background:#EDF8F3;color:#267455;border-radius:999px;padding:4px 10px">Konflik ✓</span>
+          <span style="font-size:12px;font-weight:600;background:#FFF5E8;color:#A55E18;border-radius:999px;padding:4px 10px">Arah ending — tinjau</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:#fff;border-top:1px solid #F1E8EC;border-bottom:1px solid #F1E8EC">
+    <div style="max-width:1240px;margin:0 auto;padding:72px 32px">
+      <h2 style="font-family:Lora,Georgia,serif;font-size:34px;font-weight:600;margin:0 0 8px;text-align:center">Menulis panjang itu berat bukan karena idemu jelek</h2>
+      <p style="text-align:center;color:#76656D;font-size:16px;margin:0 0 40px">Tiga masalah yang paling sering menghentikan serial di tengah jalan.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+        <div style="background:#FFF9F6;border:1px solid #F1E8EC;border-radius:16px;padding:24px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:#24171E">“Ideku berantakan.”</div>
+          <p style="font-size:14.5px;line-height:1.6;color:#4A3A42;margin:0">Narra mengubah percakapan santai menjadi fondasi cerita yang rapi: tokoh, konflik, janji pembaca, dan arah ending — tanpa istilah teknis.</p>
+        </div>
+        <div style="background:#FFF9F6;border:1px solid #F1E8EC;border-radius:16px;padding:24px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:#24171E">“AI selalu lupa cerita sebelumnya.”</div>
+          <p style="font-size:14.5px;line-height:1.6;color:#4A3A42;margin:0">Fakta, relasi, dan rahasia disimpan sebagai catatan cerita yang dijaga. Setiap adegan baru ditulis dari catatan itu, bukan dari ingatan kosong.</p>
+        </div>
+        <div style="background:#FFF9F6;border:1px solid #F1E8EC;border-radius:16px;padding:24px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:#24171E">“Rahasia Bab 25 bocor di Bab 3.”</div>
+          <p style="font-size:14.5px;line-height:1.6;color:#4A3A42;margin:0">Jadwal Rahasia menjaga kapan petunjuk boleh muncul dan kapan jawaban boleh terbuka. Cek Otomatis memperingatkan sebelum terlambat.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="cara-kerja" style="max-width:1240px;margin:0 auto;padding:72px 32px">
+    <h2 style="font-family:Lora,Georgia,serif;font-size:34px;font-weight:600;margin:0 0 8px;text-align:center">Dari ide sampai bab yang membuat pembaca ingin lanjut</h2>
+    <p style="text-align:center;color:#76656D;font-size:16px;margin:0 0 44px">Enam langkah. Kamu memutuskan, Narraza menjaga.</p>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px">
+      <sc-for list="{{ steps }}" as="s" hint-placeholder-count="6">
+        <div style="background:#fff;border:1px solid #E8DCE1;border-radius:16px;padding:18px 16px">
+          <div style="width:28px;height:28px;border-radius:999px;background:#FCE6EE;color:#842644;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-bottom:12px">{{ s.n }}</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px">{{ s.t }}</div>
+          <p style="font-size:12.5px;line-height:1.55;color:#76656D;margin:0">{{ s.d }}</p>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top:28px;background:#FFF5F8;border:1px solid #F7C6D6;border-radius:16px;padding:18px 24px;display:flex;gap:12px;align-items:center;justify-content:center">
+      <span style="font-size:14.5px;color:#642E45;font-weight:600">Contoh nyata: ide satu kalimat “istri menyimpan rahasia dari mertuanya” menjadi fondasi, 10 rencana bab, dan Bab 1 siap tinjau — dengan rahasia utama tetap tersimpan sampai Bab 25.</span>
+    </div>
+  </section>
+
+  <section id="fitur" style="background:#fff;border-top:1px solid #F1E8EC;border-bottom:1px solid #F1E8EC">
+    <div style="max-width:1240px;margin:0 auto;padding:72px 32px">
+      <h2 style="font-family:Lora,Georgia,serif;font-size:34px;font-weight:600;margin:0 0 40px;text-align:center">Yang dijaga Narraza untukmu</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+        <sc-for list="{{ features }}" as="f" hint-placeholder-count="6">
+          <div style="border:1px solid #E8DCE1;border-radius:16px;padding:24px;background:#fff" style-hover="border-color:#F7C6D6">
+            <div style="width:36px;height:36px;border-radius:10px;background:{{ f.bg }};margin-bottom:14px"></div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:8px">{{ f.t }}</div>
+            <p style="font-size:14.5px;line-height:1.6;color:#4A3A42;margin:0">{{ f.d }}</p>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <section id="untuk-siapa" style="max-width:1240px;margin:0 auto;padding:72px 32px">
+    <h2 style="font-family:Lora,Georgia,serif;font-size:34px;font-weight:600;margin:0 0 40px;text-align:center">Mulai dari titik manapun kamu berada</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+      <sc-for list="{{ personas }}" as="p" hint-placeholder-count="4">
+        <div style="background:#fff;border:1px solid #E8DCE1;border-radius:16px;padding:22px">
+          <div style="font-size:14.5px;font-weight:700;margin-bottom:8px;color:#842644">{{ p.t }}</div>
+          <p style="font-size:13.5px;line-height:1.6;color:#4A3A42;margin:0">{{ p.d }}</p>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section id="kredit" style="background:#fff;border-top:1px solid #F1E8EC">
+    <div style="max-width:980px;margin:0 auto;padding:72px 32px;text-align:center">
+      <h2 style="font-family:Lora,Georgia,serif;font-size:34px;font-weight:600;margin:0 0 12px">Bayar sesuai yang kamu pakai, tanpa kejutan</h2>
+      <p style="color:#4A3A42;font-size:16px;line-height:1.65;max-width:640px;margin:0 auto 36px">Narraza memakai kredit. Sebelum setiap adegan dibuat, kamu melihat perkiraan biayanya lebih dulu. Kalau proses gagal, kreditmu dikembalikan.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:left">
+        <div style="border:1px solid #E8DCE1;border-radius:16px;padding:22px"><div style="font-weight:700;margin-bottom:6px">Hemat</div><p style="font-size:13.5px;color:#76656D;line-height:1.55;margin:0">Untuk draft cepat dan eksperimen ide. Biaya per adegan paling rendah.</p></div>
+        <div style="border:2px solid #C13F6B;border-radius:16px;padding:22px;position:relative"><span style="position:absolute;top:-11px;left:20px;background:#C13F6B;color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:3px 10px">Disarankan</span><div style="font-weight:700;margin-bottom:6px">Seimbang</div><p style="font-size:13.5px;color:#76656D;line-height:1.55;margin:0">Kualitas dan biaya seimbang untuk penulisan serial rutin.</p></div>
+        <div style="border:1px solid #E8DCE1;border-radius:16px;padding:22px"><div style="font-weight:700;margin-bottom:6px">Terbaik</div><p style="font-size:13.5px;color:#76656D;line-height:1.55;margin:0">Untuk bab penting: reveal besar, ending arc, adegan emosional kunci.</p></div>
+      </div>
+      <p style="font-size:13px;color:#A9979F;margin:24px 0 0">Harga paket kredit akan diumumkan menjelang rilis.</p>
+    </div>
+  </section>
+
+  <section style="max-width:1240px;margin:0 auto;padding:72px 32px">
+    <div style="background:#641E35;border-radius:24px;padding:56px 48px;text-align:center;color:#fff">
+      <h2 style="font-family:Lora,Georgia,serif;font-size:36px;font-weight:600;margin:0 0 14px">AI boleh membantu. Keputusan cerita tetap milikmu.</h2>
+      <p style="font-size:16px;line-height:1.65;color:#F7C6D6;max-width:620px;margin:0 auto 28px">Tidak ada fakta penting yang masuk cerita resmi tanpa persetujuanmu. Tidak ada janji novel sekali klik — yang ada: bantuan yang terarah dan mudah ditinjau.</p>
+      <button onClick="{{ goDaftar }}" style="height:52px;padding:0 32px;background:#fff;border:none;border-radius:12px;font:700 16px 'Plus Jakarta Sans',sans-serif;color:#641E35;cursor:pointer" style-hover="background:#FCE6EE">Mulai cerita pertamamu</button>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid #F1E8EC;padding:28px 32px;max-width:1240px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;width:100%;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px"><div style="width:16px;height:16px;background:#C13F6B;border-radius:4px 4px 8px 4px"></div><span style="font-size:14px;font-weight:700;color:#641E35">Narraza</span><span style="font-size:13px;color:#A9979F;margin-left:8px">Cerita panjang, tetap terarah.</span></div>
+    <div style="display:flex;gap:20px;font-size:13px;color:#76656D"><a href="#" style="color:#76656D">Privasi</a><a href="#" style="color:#76656D">Ketentuan</a><a href="#" style="color:#76656D">Bantuan</a></div>
+  </footer>
+</div>
+</sc-if>
+
+<sc-if value="{{ isAuth }}" hint-placeholder-val="{{ false }}">
+<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;position:relative">
+  <button onClick="{{ goLanding }}" style="position:absolute;top:24px;left:28px;background:none;border:none;font:600 14px 'Plus Jakarta Sans',sans-serif;color:#76656D;cursor:pointer;display:flex;align-items:center;gap:6px;height:44px" style-hover="color:#A62F59">← Kembali</button>
+
+  <div style="display:flex;align-items:center;gap:9px;margin-bottom:28px">
+    <div style="width:22px;height:22px;background:#C13F6B;border-radius:6px 6px 12px 6px"></div>
+    <span style="font-size:20px;font-weight:800;color:#641E35">Narraza</span>
+  </div>
+
+  <div style="width:100%;max-width:420px;background:#fff;border:1px solid #E8DCE1;border-radius:24px;padding:32px;box-shadow:0 8px 24px rgba(36,23,30,.08)">
+
+    <sc-if value="{{ authForm }}" hint-placeholder-val="{{ true }}">
+      <h1 style="font-size:22px;font-weight:700;margin:0 0 6px">{{ authTitle }}</h1>
+      <p style="font-size:14.5px;line-height:1.6;color:#76656D;margin:0 0 24px">Masukkan emailmu. Kami kirim tautan masuk — tanpa kata sandi, jadi tidak ada kata sandi yang bisa lupa.</p>
+      <label style="display:block;font-size:13px;font-weight:650;color:#3A2931;margin-bottom:6px" for="nrz-email">Alamat email</label>
+      <input id="nrz-email" value="{{ email }}" onChange="{{ setEmail }}" placeholder="nama@email.com" style="width:100%;box-sizing:border-box;height:48px;border:1px solid #E8DCE1;border-radius:12px;padding:0 14px;font:400 15px 'Plus Jakarta Sans',sans-serif;color:#24171E;outline:none;margin-bottom:8px" style-focus="border-color:#EF91AF;box-shadow:0 0 0 3px rgba(239,145,175,.35)"></input>
+      <sc-if value="{{ emailError }}" hint-placeholder-val="{{ false }}"><p style="font-size:13px;color:#B83A4B;margin:0 0 8px">Alamat email belum lengkap. Periksa lagi, ya.</p></sc-if>
+      <button onClick="{{ submitEmail }}" style="width:100%;height:48px;background:#C13F6B;border:none;border-radius:12px;font:700 15px 'Plus Jakarta Sans',sans-serif;color:#fff;cursor:pointer;margin-top:8px" style-hover="background:#A62F59">Kirim tautan masuk</button>
+      <p style="font-size:12.5px;color:#A9979F;line-height:1.55;margin:16px 0 0;text-align:center">Dengan melanjutkan kamu menyetujui Ketentuan Layanan dan Kebijakan Privasi Narraza.</p>
+    </sc-if>
+
+    <sc-if value="{{ authSent }}" hint-placeholder-val="{{ false }}">
+      <div style="width:44px;height:44px;border-radius:999px;background:#EDF8F3;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#267455;font-size:20px;font-weight:800">✓</div>
+      <h1 style="font-size:20px;font-weight:700;margin:0 0 6px;text-align:center">Cek emailmu</h1>
+      <p style="font-size:14.5px;line-height:1.6;color:#4A3A42;margin:0 0 20px;text-align:center">Tautan masuk sudah dikirim ke <strong>{{ emailShown }}</strong>. Tautan berlaku 15 menit dan hanya bisa dipakai sekali.</p>
+      <button onClick="{{ resend }}" style="width:100%;height:44px;background:#fff;border:1px solid #E8DCE1;border-radius:12px;font:650 14px 'Plus Jakarta Sans',sans-serif;color:#3A2931;cursor:pointer" style-hover="border-color:#F7C6D6">Kirim ulang tautan</button>
+      <sc-if value="{{ resendCapped }}" hint-placeholder-val="{{ false }}"><p style="font-size:13px;color:#A55E18;background:#FFF5E8;border-radius:10px;padding:10px 12px;margin:12px 0 0;line-height:1.5">Sudah ada 3 tautan aktif untuk email ini. Pakai tautan terbaru di inbox-mu, atau tunggu beberapa menit.</p></sc-if>
+      <p style="font-size:13px;color:#A9979F;margin:16px 0 0;text-align:center">Salah alamat? <a href="#" onClick="{{ backToForm }}">Ganti email</a></p>
+    </sc-if>
+
+    <sc-if value="{{ authVerifying }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:12px 0">
+        <div style="display:flex;gap:6px"><div style="width:10px;height:10px;border-radius:999px;background:#C13F6B;animation:nrzPulse 1s infinite"></div><div style="width:10px;height:10px;border-radius:999px;background:#C13F6B;animation:nrzPulse 1s .2s infinite"></div><div style="width:10px;height:10px;border-radius:999px;background:#C13F6B;animation:nrzPulse 1s .4s infinite"></div></div>
+        <h1 style="font-size:18px;font-weight:700;margin:0">Memeriksa tautan masukmu…</h1>
+        <p style="font-size:14px;color:#76656D;margin:0">Sebentar saja. Jangan tutup halaman ini.</p>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ authConfirm }}" hint-placeholder-val="{{ false }}">
+      <h1 style="font-size:20px;font-weight:700;margin:0 0 6px;text-align:center">Satu langkah lagi</h1>
+      <p style="font-size:14.5px;line-height:1.6;color:#4A3A42;margin:0 0 20px;text-align:center">Tautan valid untuk <strong>{{ emailShown }}</strong>. Tekan tombol di bawah untuk masuk — ini memastikan bukan orang lain yang membuka tautanmu.</p>
+      <button onClick="{{ confirmLogin }}" style="width:100%;height:48px;background:#C13F6B;border:none;border-radius:12px;font:700 15px 'Plus Jakarta Sans',sans-serif;color:#fff;cursor:pointer" style-hover="background:#A62F59">Masuk ke Narraza</button>
+    </sc-if>
+
+    <sc-if value="{{ authSuccess }}" hint-placeholder-val="{{ false }}">
+      <div style="width:44px;height:44px;border-radius:999px;background:#EDF8F3;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#267455;font-size:20px;font-weight:800">✓</div>
+      <h1 style="font-size:20px;font-weight:700;margin:0 0 6px;text-align:center">Kamu sudah masuk</h1>
+      <p style="font-size:14.5px;line-height:1.6;color:#4A3A42;margin:0 0 20px;text-align:center">Selamat datang di Narraza. Cerita pertamamu tinggal beberapa langkah lagi.</p>
+      <a href="narraza-app.dc.html" style="display:flex;align-items:center;justify-content:center;width:100%;height:48px;background:#C13F6B;border-radius:12px;font:700 15px 'Plus Jakarta Sans',sans-serif;color:#fff;text-decoration:none" style-hover="background:#A62F59">Buka dashboard</a>
+    </sc-if>
+
+    <sc-if value="{{ authError }}" hint-placeholder-val="{{ false }}">
+      <div style="width:44px;height:44px;border-radius:999px;background:#FFF0F2;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#B83A4B;font-size:18px;font-weight:800">!</div>
+      <h1 style="font-size:20px;font-weight:700;margin:0 0 6px;text-align:center">Tautan sudah tidak berlaku</h1>
+      <p style="font-size:14.5px;line-height:1.6;color:#4A3A42;margin:0 0 20px;text-align:center">Tautan masuk kedaluwarsa setelah 15 menit atau sudah pernah dipakai. Tidak apa-apa — kirim tautan baru saja.</p>
+      <button onClick="{{ backToForm }}" style="width:100%;height:48px;background:#C13F6B;border:none;border-radius:12px;font:700 15px 'Plus Jakarta Sans',sans-serif;color:#fff;cursor:pointer" style-hover="background:#A62F59">Kirim tautan baru</button>
+    </sc-if>
+  </div>
+
+  <div style="margin-top:24px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center">
+    <span style="font-size:11px;font-weight:700;color:#A9979F;letter-spacing:.06em">DEMO STATE</span>
+    <sc-for list="{{ authStates }}" as="st" hint-placeholder-count="6">
+      <button onClick="{{ st.go }}" style="height:30px;padding:0 12px;border-radius:999px;border:1px solid {{ st.bc }};background:{{ st.bg }};color:{{ st.fg }};font:600 12px 'Plus Jakarta Sans',sans-serif;cursor:pointer">{{ st.label }}</button>
+    </sc-for>
+  </div>
+</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1440}}">
+class Component extends DCLogic {
+  state = { view: 'landing', authStep: 'form', isDaftar: false, email: '', emailError: false, resendCapped: false };
+  renderVals() {
+    const s = this.state;
+    const set = (p) => this.setState(p);
+    const mk = (step, label) => ({
+      label, go: () => set({ view: 'auth', authStep: step, emailError: false }),
+      bg: s.authStep === step && s.view==='auth' ? '#24171E' : '#fff',
+      fg: s.authStep === step && s.view==='auth' ? '#fff' : '#4A3A42',
+      bc: s.authStep === step && s.view==='auth' ? '#24171E' : '#E8DCE1'
+    });
+    return {
+      isLanding: s.view === 'landing',
+      isAuth: s.view === 'auth',
+      authForm: s.authStep === 'form',
+      authSent: s.authStep === 'sent',
+      authVerifying: s.authStep === 'verifying',
+      authConfirm: s.authStep === 'confirm',
+      authSuccess: s.authStep === 'success',
+      authError: s.authStep === 'error',
+      authTitle: s.isDaftar ? 'Buat akun Narraza' : 'Masuk ke Narraza',
+      email: s.email,
+      emailShown: s.email || 'maya@email.com',
+      emailError: s.emailError,
+      resendCapped: s.resendCapped,
+      setEmail: (e) => set({ email: e.target.value, emailError: false }),
+      submitEmail: () => {
+        if (!s.email.includes('@')) { set({ emailError: true }); return; }
+        set({ authStep: 'sent', resendCapped: false });
+      },
+      resend: () => set({ resendCapped: true }),
+      backToForm: () => set({ authStep: 'form', resendCapped: false }),
+      confirmLogin: () => { set({ authStep: 'verifying' }); setTimeout(() => this.setState({ authStep: 'success' }), 1400); },
+      goMasuk: () => set({ view: 'auth', authStep: 'form', isDaftar: false }),
+      goDaftar: () => set({ view: 'auth', authStep: 'form', isDaftar: true }),
+      goLanding: () => set({ view: 'landing' }),
+      authStates: [mk('form','Form email'), mk('sent','Cek email'), mk('confirm','Konfirmasi'), mk('verifying','Memeriksa'), mk('success','Berhasil'), mk('error','Kedaluwarsa')],
+      steps: [
+        { n: '1', t: 'Ngobrol', d: 'Ceritakan idemu ke Narra sesantai chat biasa.' },
+        { n: '2', t: 'Fondasi', d: 'Percakapan menjadi tokoh, konflik, dan janji pembaca.' },
+        { n: '3', t: 'Rencana', d: 'Susun 10 bab pertama dengan hook dan rahasia terjaga.' },
+        { n: '4', t: 'Tulis', d: 'Tulis per adegan dengan arahan yang jelas.' },
+        { n: '5', t: 'Cek', d: 'Cek otomatis: cerita nyambung, rahasia aman.' },
+        { n: '6', t: 'Publish', d: 'Teaser, caption, dan bab siap dibaca di HP.' }
+      ],
+      features: [
+        { t: 'Fondasi Cerita', bg: '#FCE6EE', d: 'Tokoh, konflik, janji pembaca, dan arah ending tersimpan rapi. Dikunci saat kamu siap — bukan sebelum itu.' },
+        { t: 'Fakta yang Dikunci', bg: '#F1E8EC', d: 'Fakta penting buatan AI selalu berupa usulan dulu. Kamu yang menerima, mengubah, atau menolak.' },
+        { t: 'Jadwal Rahasia', bg: '#EFE6EE', d: 'Atur kapan petunjuk muncul dan kapan jawaban terbuka. Rahasiamu tidak bocor sebelum waktunya.' },
+        { t: 'Ruang Tulis', bg: '#FFF5E8', d: 'Editor per adegan dengan arahan, versi yang bisa dibandingkan, dan perbaikan terarah — bukan textarea kosong.' },
+        { t: 'Cek Otomatis', bg: '#EDF8F3', d: 'Cerita nyambung, pengetahuan tokoh sesuai, ending bab cukup kuat — diperiksa sebelum kamu menerima versi.' },
+        { t: 'Paket Publish', bg: '#EFF5FD', d: 'Teaser, sinopsis, caption promosi, dan preview HP dari bab yang sudah kamu setujui.' }
+      ],
+      personas: [
+        { t: 'Belum pernah menulis', d: 'Tidak perlu tahu istilah premis atau plot. Jawab pertanyaan ringan Narra, dan lihat ceritamu terbentuk.' },
+        { t: 'Punya ide kasar', d: 'Satu kalimat konflik cukup. Narraza membantu mengubahnya menjadi konsep, karakter, dan rencana bab.' },
+        { t: 'Sudah punya draft', d: 'Bawa draftmu. Narraza membacanya, menemukan tokoh dan fakta, lalu membantu melanjutkan dengan konsisten.' },
+        { t: 'Penulis berpengalaman', d: 'Kontrol penuh atas fondasi, fakta, reveal, outline, dan setiap perubahan cerita resmi.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "@narraza/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./env/web": "./src/env/web.ts",
+    "./env/worker": "./src/env/worker.ts",
+    "./env/outbox": "./src/env/outbox.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run --passWithNoTests",
+    "clean": "rimraf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "4.1.10"
+  }
+}

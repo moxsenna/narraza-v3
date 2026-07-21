@@ -1,0 +1,23 @@
+{
+  "name": "@narraza/application",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run --passWithNoTests",
+    "clean": "rimraf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@narraza/core": "workspace:*",
+    "@narraza/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "4.1.10"
+  }
+}

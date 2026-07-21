@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+
+/*
+ * Narraza v3 — Tailwind v4 CSS-first theme.
+ * M0 seeds only the brand primitives needed for the scaffold; the full semantic
+ * token set (bg-canvas, text-primary, border-default, status-*) from design.md
+ * §25 is built in M6 (W6.1). Brand color fix per D19: brand-900 = #641E35.
+ */
+@theme {
+  --color-brand-900: #641e35;
+  --color-brand-700: #8a2a49;
+  --color-brand-500: #b04a6a;
+
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Lora', ui-serif, Georgia, serif;
+}
+
+html,
+body {
+  min-height: 100%;
+}
