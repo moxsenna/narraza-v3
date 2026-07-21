@@ -18,6 +18,7 @@ next-env.d.ts
 
 # prisma
 prisma/*.db
+packages/db/src/generated/
 
 # testing
 coverage/

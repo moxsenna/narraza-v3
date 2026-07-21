@@ -1,0 +1,126 @@
+// Narraza v3 — M0 baseline schema (W0.3, D21).
+// Full table set (Lampiran B) arrives in M1 as expand-only migrations.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../packages/db/src/generated"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  pending_verification
+  active
+  suspended
+  deleted
+
+  @@map("user_status")
+}
+
+enum UiMode {
+  pemula
+  mahir
+
+  @@map("ui_mode")
+}
+
+enum AiTier {
+  hemat
+  seimbang
+  terbaik
+
+  @@map("ai_tier")
+}
+
+enum EmailTokenPurpose {
+  verify_email
+  reset_password
+
+  @@map("email_token_purpose")
+}
+
+model User {
+  id              String     @id @default(cuid(2))
+  email           String     @unique // normalized lowercase
+  passwordHash    String     @map("password_hash")
+  status          UserStatus @default(pending_verification)
+  emailVerifiedAt DateTime?  @map("email_verified_at")
+  uiMode          UiMode     @default(pemula) @map("ui_mode")
+  tier            AiTier     @default(seimbang)
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  sessions          Session[]
+  emailActionTokens EmailActionToken[]
+
+  @@map("users")
+}
+
+// Field names sessionToken/expires stay Auth.js-adapter-compatible (D8/D21):
+// when Google OAuth lands, the Auth.js Prisma adapter reads this same table.
+// `expires` = sliding idle expiry (S6.2: idle 14d); absolute cap 30d separate.
+model Session {
+  id                String    @id @default(cuid(2))
+  sessionToken      String    @unique @map("session_token")
+  userId            String    @map("user_id")
+  expires           DateTime  @map("expires_at")
+  absoluteExpiresAt DateTime  @map("absolute_expires_at")
+  lastActiveAt      DateTime  @default(now()) @map("last_active_at")
+  revokedAt         DateTime? @map("revoked_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// D21: replaces EmailLoginChallenge. One row per issued verify/reset token;
+// only the peppered hash is stored. Consume is an atomic conditional UPDATE.
+model EmailActionToken {
+  id         String            @id @default(cuid(2))
+  userId     String            @map("user_id")
+  purpose    EmailTokenPurpose
+  tokenHash  String            @unique @map("token_hash")
+  expiresAt  DateTime          @map("expires_at")
+  consumedAt DateTime?         @map("consumed_at")
+  revokedAt  DateTime?         @map("revoked_at")
+  createdAt  DateTime          @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("email_action_tokens")
+}
+
+// Generic fixed-window counters + lockout rows (D10/D21). Key is a peppered
+// HMAC of the identifier/IP — raw identifiers never stored here.
+model RateLimitCounter {
+  id             String   @id
+  kind           String
+  keyHash        String   @map("key_hash")
+  windowStartsAt DateTime @map("window_starts_at")
+  count          Int      @default(0)
+  expiresAt      DateTime @map("expires_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([kind, keyHash, windowStartsAt])
+  @@index([expiresAt])
+  @@map("rate_limit_counters")
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid(2))
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("audit_events")
+}

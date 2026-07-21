@@ -12,7 +12,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/node_modules/**',
       '**/*.tsbuildinfo',
-      'packages/db/generated/**',
+      'packages/db/src/generated/**',
       'apps/web/.next/**',
       // Design artifacts, not source (prototypes + legacy helper).
       '*.dc.html',

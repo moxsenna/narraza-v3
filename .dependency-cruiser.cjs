@@ -91,6 +91,9 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
+    // Prisma's generated client has internal circular imports by design; it is
+    // build output, not authored source.
+    exclude: { path: 'packages/db/src/generated' },
     tsPreCompilationDeps: true,
     tsConfig: { fileName: 'tsconfig.json' },
     enhancedResolveOptions: {

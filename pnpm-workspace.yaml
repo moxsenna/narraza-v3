@@ -28,12 +28,17 @@ minimumReleaseAgeExclude:
   - prettier@3.9.6
   - prisma@7.9.0
   - typescript-eslint@8.65.0
+  - '@prisma/adapter-pg@7.9.0'
+  - '@prisma/driver-adapter-utils@7.9.0'
 
 # Post-install build scripts are blocked by default (supply-chain hygiene);
 # these trusted deps are explicitly allowed to run theirs.
 allowBuilds:
   '@prisma/engines': true
+  cpu-features: true # ssh2 native crypto accel (testcontainers, dev-only)
   esbuild: true
   prisma: true
+  protobufjs: true # testcontainers docker client
   sharp: true
+  ssh2: true # testcontainers docker connection
   unrs-resolver: true

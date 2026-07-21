@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      # 5434 on host: 5432/1025 are occupied by other local stacks on this machine
+      - '5434:5432'
+    environment:
+      POSTGRES_USER: narraza
+      POSTGRES_PASSWORD: narraza
+      POSTGRES_DB: narraza
+    volumes:
+      - narraza-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U narraza -d narraza']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '1026:1025' # SMTP
+      - '8026:8025' # Web UI + API (e2e reads links from here)
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  narraza-pg:

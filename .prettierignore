@@ -9,6 +9,7 @@ test-results
 **/*.tsbuildinfo
 prisma/migrations
 **/next-env.d.ts
+packages/db/src/generated
 
 # Design artifacts / prototypes — not formatted
 *.dc.html
