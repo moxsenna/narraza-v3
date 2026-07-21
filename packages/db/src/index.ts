@@ -5,6 +5,13 @@
 export const DB_PACKAGE = '@narraza/db' as const;
 
 export { createPrismaClient, type PrismaClient } from './client.js';
+export {
+  createDbAuthAdapters,
+  type DbAuthAdapters,
+  type SessionConfig,
+  type SessionStore,
+  type ValidatedSession,
+} from './auth/index.js';
 export { Prisma } from './generated/client.js';
 export type {
   User,

@@ -34,7 +34,6 @@ async function main(): Promise<void> {
       ADVISORY_LOCK_KEY,
     ]);
     locked = true;
-    // eslint-disable-next-line no-console
     console.error('[migrate] advisory lock acquired; running prisma migrate deploy');
 
     const here = path.dirname(fileURLToPath(import.meta.url));
@@ -48,7 +47,6 @@ async function main(): Promise<void> {
     if (result.status !== 0) {
       throw new Error(`prisma migrate deploy failed with exit code ${result.status ?? 'null'}`);
     }
-    // eslint-disable-next-line no-console
     console.error('[migrate] migrations applied');
   } finally {
     if (locked) {
@@ -62,7 +60,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  // eslint-disable-next-line no-console
   console.error('[migrate] failed:', err);
   process.exit(1);
 });

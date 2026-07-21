@@ -16,11 +16,11 @@ CREATE TABLE "users" (
     "email" TEXT NOT NULL,
     "password_hash" TEXT NOT NULL,
     "status" "user_status" NOT NULL DEFAULT 'pending_verification',
-    "email_verified_at" TIMESTAMP(3),
+    "email_verified_at" TIMESTAMPTZ(3),
     "ui_mode" "ui_mode" NOT NULL DEFAULT 'pemula',
     "tier" "ai_tier" NOT NULL DEFAULT 'seimbang',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -30,11 +30,11 @@ CREATE TABLE "sessions" (
     "id" TEXT NOT NULL,
     "session_token" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "absolute_expires_at" TIMESTAMP(3) NOT NULL,
-    "last_active_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "revoked_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(3) NOT NULL,
+    "absolute_expires_at" TIMESTAMPTZ(3) NOT NULL,
+    "last_active_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "revoked_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
 );
@@ -45,10 +45,10 @@ CREATE TABLE "email_action_tokens" (
     "user_id" TEXT NOT NULL,
     "purpose" "email_token_purpose" NOT NULL,
     "token_hash" TEXT NOT NULL,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "consumed_at" TIMESTAMP(3),
-    "revoked_at" TIMESTAMP(3),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(3) NOT NULL,
+    "consumed_at" TIMESTAMPTZ(3),
+    "revoked_at" TIMESTAMPTZ(3),
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "email_action_tokens_pkey" PRIMARY KEY ("id")
 );
@@ -58,10 +58,10 @@ CREATE TABLE "rate_limit_counters" (
     "id" TEXT NOT NULL,
     "kind" TEXT NOT NULL,
     "key_hash" TEXT NOT NULL,
-    "window_starts_at" TIMESTAMP(3) NOT NULL,
+    "window_starts_at" TIMESTAMPTZ(3) NOT NULL,
     "count" INTEGER NOT NULL DEFAULT 0,
-    "expires_at" TIMESTAMP(3) NOT NULL,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "expires_at" TIMESTAMPTZ(3) NOT NULL,
+    "updated_at" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "rate_limit_counters_pkey" PRIMARY KEY ("id")
 );
@@ -74,7 +74,7 @@ CREATE TABLE "audit_events" (
     "entity_type" TEXT,
     "entity_id" TEXT,
     "metadata" JSONB,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "audit_events_pkey" PRIMARY KEY ("id")
 );

@@ -103,7 +103,7 @@ Toolchain: Node ≥ 22 (dikembangkan di v24.15.0) · pnpm 11.9.0.
 | `typescript` | **5.9.3** | ⚠️ **Bukan latest.** Latest stable = 7.0.2 (native compiler), tetapi `typescript-eslint` belum mendukung TS 7 (peer `typescript <6.1.0`; runtime error eksplisit — lihat typescript-eslint#10940). 5.9.3 = stable tertinggi yang didukung seluruh toolchain. **Revisit** saat typescript-eslint merilis dukungan TS 7. |
 | `@prisma/client` / `prisma` | 7.9.0 | D7 minta ≥6 ✓ |
 | `tailwindcss` / `@tailwindcss/postcss` | 4.3.3 | v4 CSS-first ✓ |
-| `next-auth` | **5.0.0-beta.32** | ⚠️ Auth.js v5 masih kanal beta di tanggal pin; D7 eksplisit meminta v5. + `@auth/prisma-adapter` 2.11.3, `@auth/core` 0.41.3 |
+| `next-auth` | **5.0.0-beta.32** (rencana) | ⚠️ Auth.js v5 masih kanal beta di tanggal pin. **Belum dipasang di M0** — lihat §6.1.1: M0 memakai session DB kustom karena kebijakan sesi (absolute+idle+revoke) tidak cocok dengan model single-`expires` Auth.js, dan Credentials provider v5 tidak mendukung database session. next-auth + `@auth/prisma-adapter` dipasang saat Google OAuth (follow-up D21). |
 | `zod` | 4.4.3 | |
 | `vitest` | 4.1.10 | |
 | `@playwright/test` | 1.61.1 | (ditambahkan saat harness e2e W0.4/W0.6) |
@@ -393,12 +393,16 @@ Max 3 active tokens per (user, purpose); issuing a new one does not revoke all (
 
 **Google OAuth (tracked follow-up, not M0):** Auth.js OAuth provider, additive `Account` table. Account-linking by email only when Google's `email_verified` claim is true — Fable-class work when implemented (account-takeover risk class).
 
-**Adapter [D8]:** Auth.js Prisma adapter (User/Session) diimplementasikan di `packages/db` dan di-inject ke konfigurasi Auth.js; apps/web tidak pernah import `@prisma/client` langsung (ditegakkan test `web-boundary`).
+**Adapter [D8]:** apps/web tidak pernah import `@prisma/client` langsung; semua akses DB (termasuk sesi) lewat public API `packages/db` (ditegakkan test `web-boundary`).
+
+#### 6.1.1 Implementasi sesi M0 (catatan) [D21]
+
+M0 memakai **session DB kustom** di `packages/db/src/auth/session-store.ts`, bukan lifecycle `@auth/prisma-adapter`. Alasan: kebijakan §6.2 (absolute 30d **dan** sliding idle 14d **dan** revoke server-side **dan** throttle tulis `lastActiveAt`) tidak muat di model single-`expires` Auth.js, dan Credentials provider Auth.js v5 tidak mendukung database session dengan bersih. Invariant D8 yang ditegakkan (`web-boundary`: web→DB hanya lewat `packages/db`) tetap terjaga. Saat Google OAuth (follow-up D21) dibangun, adapter Auth.js + tabel `Account` ditambahkan berdampingan; kolom sesi sudah dibuat Auth.js-compatible.
 
 ### 6.2 Session
 
 Absolute 30d; idle 14d; activity write ≤1/6h.  
-`lastActiveAt`, `expiresAt`, `revokedAt`. Active user status required.
+`lastActiveAt`, `expiresAt` (idle), `absoluteExpiresAt`, `revokedAt`. Active user status required.
 
 ### 6.3 Secrets least privilege
 

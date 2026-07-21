@@ -4,11 +4,15 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
-  "types": "./src/index.ts",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -b",
+    "build": "prisma generate && tsc -b",
+    "pretest": "prisma generate",
     "test": "pnpm run test:integration",
     "test:integration": "vitest run --passWithNoTests",
     "generate": "prisma generate",
@@ -34,5 +38,6 @@
     "prisma": "7.9.0",
     "tsx": "4.23.1",
     "vitest": "4.1.10"
-  }
+  },
+  "main": "./dist/index.js"
 }

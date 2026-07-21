@@ -2,11 +2,12 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Consume workspace packages from source (Just-in-Time). Keeps DB access behind
-  // @narraza/db (D8) while still giving web live reload of shared/application code.
-  transpilePackages: ['@narraza/shared', '@narraza/application', '@narraza/db'],
-  // Prisma client is server-only; never let it be bundled into the client graph.
-  serverExternalPackages: ['@prisma/client', '@auth/prisma-adapter'],
+  // Workspace packages are consumed as compiled dist (their exports point there):
+  // Turbopack can't map NodeNext .js imports back to .ts source, and the Prisma
+  // generated client uses .js imports too. Build order (deps first) is handled by
+  // pnpm -r. Web still reaches the DB only via @narraza/db (D8 / web-boundary).
+  // Server-only native/node packages that must not enter the client bundle.
+  serverExternalPackages: ['@prisma/client', '@node-rs/argon2', 'nodemailer'],
   typedRoutes: true,
 };
 

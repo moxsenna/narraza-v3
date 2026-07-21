@@ -4,12 +4,25 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./env/web": "./src/env/web.ts",
-    "./env/worker": "./src/env/worker.ts",
-    "./env/outbox": "./src/env/outbox.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./env/web": {
+      "types": "./dist/env/web.d.ts",
+      "default": "./dist/env/web.js"
+    },
+    "./env/worker": {
+      "types": "./dist/env/worker.d.ts",
+      "default": "./dist/env/worker.js"
+    },
+    "./env/outbox": {
+      "types": "./dist/env/outbox.d.ts",
+      "default": "./dist/env/outbox.js"
+    }
   },
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -b",
     "test": "pnpm run test:unit",
@@ -20,6 +33,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/node": "26.1.1",
     "vitest": "4.1.10"
   }
 }

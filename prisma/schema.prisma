@@ -1,5 +1,9 @@
 // Narraza v3 — M0 baseline schema (W0.3, D21).
 // Full table set (Lampiran B) arrives in M1 as expand-only migrations.
+//
+// All timestamps are timestamptz (@db.Timestamptz): the auth raw SQL compares
+// column values against now() (which is timestamptz), so storing tz-naive
+// timestamps would introduce session-timezone-dependent bugs.
 
 generator client {
   provider     = "prisma-client"
@@ -47,11 +51,11 @@ model User {
   email           String     @unique // normalized lowercase
   passwordHash    String     @map("password_hash")
   status          UserStatus @default(pending_verification)
-  emailVerifiedAt DateTime?  @map("email_verified_at")
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(3)
   uiMode          UiMode     @default(pemula) @map("ui_mode")
   tier            AiTier     @default(seimbang)
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   sessions          Session[]
   emailActionTokens EmailActionToken[]
@@ -66,11 +70,11 @@ model Session {
   id                String    @id @default(cuid(2))
   sessionToken      String    @unique @map("session_token")
   userId            String    @map("user_id")
-  expires           DateTime  @map("expires_at")
-  absoluteExpiresAt DateTime  @map("absolute_expires_at")
-  lastActiveAt      DateTime  @default(now()) @map("last_active_at")
-  revokedAt         DateTime? @map("revoked_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
+  expires           DateTime  @map("expires_at") @db.Timestamptz(3)
+  absoluteExpiresAt DateTime  @map("absolute_expires_at") @db.Timestamptz(3)
+  lastActiveAt      DateTime  @default(now()) @map("last_active_at") @db.Timestamptz(3)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -85,10 +89,10 @@ model EmailActionToken {
   userId     String            @map("user_id")
   purpose    EmailTokenPurpose
   tokenHash  String            @unique @map("token_hash")
-  expiresAt  DateTime          @map("expires_at")
-  consumedAt DateTime?         @map("consumed_at")
-  revokedAt  DateTime?         @map("revoked_at")
-  createdAt  DateTime          @default(now()) @map("created_at")
+  expiresAt  DateTime          @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime?         @map("consumed_at") @db.Timestamptz(3)
+  revokedAt  DateTime?         @map("revoked_at") @db.Timestamptz(3)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -96,16 +100,16 @@ model EmailActionToken {
   @@map("email_action_tokens")
 }
 
-// Generic fixed-window counters + lockout rows (D10/D21). Key is a peppered
+// Generic fixed-window counters + lockout markers (D10/D21). Key is a peppered
 // HMAC of the identifier/IP — raw identifiers never stored here.
 model RateLimitCounter {
   id             String   @id
   kind           String
   keyHash        String   @map("key_hash")
-  windowStartsAt DateTime @map("window_starts_at")
+  windowStartsAt DateTime @map("window_starts_at") @db.Timestamptz(3)
   count          Int      @default(0)
-  expiresAt      DateTime @map("expires_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@unique([kind, keyHash, windowStartsAt])
   @@index([expiresAt])
@@ -119,7 +123,7 @@ model AuditEvent {
   entityType String?  @map("entity_type")
   entityId   String?  @map("entity_id")
   metadata   Json?
-  createdAt  DateTime @default(now()) @map("created_at")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([userId, createdAt])
   @@map("audit_events")
