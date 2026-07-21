@@ -13,16 +13,24 @@
     "test": "pnpm -r test",
     "test:unit": "pnpm -r --filter \"./packages/**\" test:unit",
     "test:integration": "pnpm -r --filter \"./packages/**\" test:integration",
+    "test:contract": "vitest run tests/contract --passWithNoTests",
+    "test:tooling": "vitest run tests/e2e/mailpit.test.ts tests/security/client-bundle-scanner.test.ts",
+    "e2e": "playwright test",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --build",
     "arch": "depcruise --config .dependency-cruiser.cjs packages apps",
+    "build:packages": "pnpm -r --filter \"./packages/**\" --workspace-concurrency=1 build",
     "db:migrate": "pnpm --filter @narraza/db migrate",
-    "db:generate": "pnpm --filter @narraza/db generate"
+    "db:generate": "pnpm --filter @narraza/db generate",
+    "migration:drift": "node scripts/check-migration-drift.mjs",
+    "security:env-boundary": "vitest run packages/shared/src/env/env-boundary.test.ts",
+    "security:client-bundle": "node scripts/scan-client-bundle.mjs apps/web/.next/static"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.61.1",
     "@types/node": "26.1.1",
     "dependency-cruiser": "18.1.0",
     "eslint": "10.7.0",
@@ -30,6 +38,7 @@
     "prettier": "3.9.6",
     "rimraf": "6.1.3",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.65.0"
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
   }
 }

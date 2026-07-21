@@ -1,29 +1,52 @@
-import { redirect } from 'next/navigation';
-import { getCurrentUser } from '../../server/auth/session';
-import { logoutAction } from '../../server/auth/actions';
+import { APP_MESSAGES_ID } from '../../messages/app-id';
 
-// Minimal authenticated landing to prove the W0.4 flow end-to-end. The real app
-// shell (header, sidebar, dashboard states) is W0.5 / M6.
-export default async function AppHome() {
-  const user = await getCurrentUser();
-  if (!user) redirect('/masuk');
+export default function AppHome() {
+  const copy = APP_MESSAGES_ID.dashboard;
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Narraza</p>
-      <h1 className="mt-1 font-serif text-3xl font-bold text-brand-900">Kamu sudah masuk</h1>
-      <p className="mt-3 text-neutral-600">
-        Masuk sebagai <span className="font-semibold text-neutral-900">{user.email}</span>. Shell
-        aplikasi dan dashboard dibangun berikutnya (W0.5).
-      </p>
-      <form action={logoutAction} className="mt-8">
-        <button
-          type="submit"
-          className="h-11 rounded-xl border border-neutral-300 px-4 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+    <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14 lg:px-10 lg:py-16">
+      <section aria-labelledby="dashboard-empty-title" className="mx-auto max-w-3xl text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#fce6ee]">
+          <span aria-hidden="true" className="h-7 w-7 rounded-[7px_7px_14px_7px] bg-brand-500" />
+        </div>
+        <p className="mt-6 text-xs font-extrabold tracking-[0.14em] text-brand-700">
+          {copy.eyebrow}
+        </p>
+        <h1
+          id="dashboard-empty-title"
+          className="mt-2 text-balance font-serif text-3xl font-semibold sm:text-4xl"
         >
-          Keluar
-        </button>
-      </form>
+          {copy.title}
+        </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#4a3a42]">
+          {copy.description}
+        </p>
+
+        <div className="mt-9 grid gap-4 text-left sm:grid-cols-3">
+          {copy.paths.map((path) => (
+            <button
+              key={path.title}
+              type="button"
+              disabled
+              aria-disabled="true"
+              aria-label={`${path.title} — ${copy.unavailableLabel}`}
+              className="min-h-44 cursor-not-allowed rounded-2xl border border-[#e8dce1] bg-white p-5 text-left opacity-75"
+            >
+              <span className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-[#3a2931]">{path.title}</span>
+                {'soon' in path && path.soon ? (
+                  <span className="rounded-full bg-[#f8f1f4] px-2.5 py-1 text-xs font-bold text-[#6f4b68]">
+                    {copy.soon}
+                  </span>
+                ) : null}
+              </span>
+              <span className="mt-3 block text-sm leading-6 text-[#76656d]">
+                {path.description}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
