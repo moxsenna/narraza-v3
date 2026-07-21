@@ -2,7 +2,7 @@
 
 **Tanggal:** 21 Juli 2026
 **Status:** Siap dieksekusi setelah review pemilik produk
-**Sumber kebenaran (urut prioritas):** `DECISIONS.md` (D1–D20) > `narraza-v3-prd-rilis-1.md` > `verification-matrix.md` > `narraza-v3-design-spec.md` (S1–S10) > `design.md` > prototipe (`narraza-landing.dc.html`, `narraza-app.dc.html`, `narraza-mobile.dc.html`).
+**Sumber kebenaran (urut prioritas):** `DECISIONS.md` (D1–D21) > `narraza-v3-prd-rilis-1.md` > `verification-matrix.md` > `narraza-v3-design-spec.md` (S1–S10) > `design.md` > prototipe (`narraza-landing.dc.html`, `narraza-app.dc.html`, `narraza-mobile.dc.html`).
 
 **Definisi selesai dokumen ini:** setiap halaman dan setiap demo-state di prototipe berjalan dengan mekanisme backend sungguhan (bukan mock di production), seluruh baris verification matrix hijau di CI, dan sistem live di VPS production dengan backup, alert, dan runbook.
 
@@ -42,11 +42,14 @@ Setiap milestone memiliki **exit gate** — checklist yang harus 100% terpenuhi 
 | Fungsi / state                                                                                                                                                | Mekanisme                                                                                     | M                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------- |
 | Landing: hero (CTA "Mulai dari ide" + "Lihat cara kerja"), masalah, cara kerja, fitur, untuk siapa, contoh alur, kredit, trust + FAQ privasi (D17), CTA akhir | Halaman statis RSC, konten dari copy library; FAQ privasi sesuai design.md §22.5              | M0 (kerangka) → M6 (final)          |
-| Auth `form` — input email, kirim tautan                                                                                                                       | Server Action `requestLoginLink`: rate limit (D10), cap 3 challenge, kirim via Resend/Mailpit | M0                                  |
-| Auth `sent` — "cek email", kirim ulang + cooldown                                                                                                             | Cooldown 60 dtk/identifier ditampilkan; batas 5/jam                                           | M0                                  |
-| Auth `confirm` — halaman konfirmasi (two-step)                                                                                                                | GET simpan pending HttpOnly cookie + clean URL; tombol POST                                   | M0                                  |
-| Auth `verifying` → `success`                                                                                                                                  | POST consume atomik → session Auth.js → redirect dashboard                                    | M0                                  |
-| Auth `error` — kedaluwarsa/invalid                                                                                                                            | Pesan ramah + CTA minta tautan baru                                                           | M0                                  |
+| Auth `daftar` — email + password + konfirmasi password                                                                                                        | Server Action `registerAccount`: kebijakan password (D21), hash argon2id, rate limit registrasi, kirim email verifikasi via Resend/Mailpit | M0                                  |
+| Auth `sent` (verifikasi) — "cek email", kirim ulang + cooldown                                                                                                | Cooldown 60 dtk/identifier ditampilkan; batas 5/jam; cap 3 token aktif (D21)                   | M0                                  |
+| Auth `confirm` verifikasi — halaman konfirmasi (two-step)                                                                                                     | GET simpan pending HttpOnly cookie + clean URL; tombol POST                                   | M0                                  |
+| Auth `verifying` → `success` (verifikasi)                                                                                                                     | POST consume atomik → set emailVerifiedAt+status active → session Auth.js → redirect dashboard | M0                                  |
+| Auth `masuk` — email + password                                                                                                                                | Server Action `login`: argon2 verify, brute-force lockout (D21) → session Auth.js              | M0                                  |
+| Auth `lupa-password` — request reset                                                                                                                          | Server Action `requestPasswordReset`: respons generik anti-enumeration, kirim token via Resend/Mailpit | M0                                  |
+| Auth `reset` — form password baru (two-step, sama pola verifikasi)                                                                                            | POST consume atomik → update passwordHash, cabut semua sesi lama → redirect masuk (D21)        | M0                                  |
+| Auth `error` — kedaluwarsa/invalid/salah password                                                                                                             | Pesan ramah + CTA sesuai konteks (minta tautan baru / coba lagi)                               | M0                                  |
 | Halaman Privasi & Ketentuan                                                                                                                                   | Statis (D17)                                                                                  | M0 (placeholder) → M7 (final legal) |
 | 404 / error berbranding                                                                                                                                       | `not-found.tsx` + `error.tsx` dengan jalan kembali (pelajaran lama Y2)                        | M0                                  |
 
@@ -225,7 +228,7 @@ Semua layar kunci (dashboard, rencana, tulis, cek, publish) satu kolom, aksi pri
 - **Integration** (vitest + testcontainers postgres): application + db; tiap file test = schema terisolasi (template DB) supaya paralel.
 - **Contract**: zod parse fixtures untuk semua DTO + AI output contracts.
 - **Architecture**: dependency-cruiser rules = `web-boundary`, `core-boundary`, `application-boundary`, `ai-boundary`, `worker-boundary`, `command-no-ai`, `env-boundary`(+unit).
-- **E2E** (Playwright): project desktop 1280 + mobile 375 (D20); Mailpit API untuk magic link; mock AI deterministik.
+- **E2E** (Playwright): project desktop 1280 + mobile 375 (D20); Mailpit API untuk verifikasi email & reset password (D21); mock AI deterministik.
 - **Migration**: job CI `migrate-empty`, `migrate-upgrade` (fixture N-1), `prisma-migrate-diff` drift.
 - **Deploy-test** (pipeline release, bukan PR): `migration-runner-lock`, `readiness-migration-version`, `deploy-checksum`.
 
@@ -239,7 +242,7 @@ Semua layar kunci (dashboard, rencana, tulis, cek, publish) satu kolom, aksi pri
 
 ## 4. M0 — Repo, scaffold, auth, shell kosong
 
-**Tujuan:** fondasi kerja: monorepo jalan, CI hijau pertama, login magic link end-to-end nyata, shell app kosong yang sudah benar strukturnya.
+**Tujuan:** fondasi kerja: monorepo jalan, CI hijau pertama, daftar+verifikasi+login email/password end-to-end nyata (D21), shell app kosong yang sudah benar strukturnya.
 
 ### Workstream
 
@@ -252,25 +255,28 @@ Semua layar kunci (dashboard, rencana, tulis, cek, publish) satu kolom, aksi pri
 
 **W0.2 Env & config**
 
-1. `packages/shared/env`: zod schema per proses — `webEnv` (AUTH_SECRET, DATABASE_URL_WEB, RESEND_API_KEY, EMAIL_FROM, RATE_LIMIT_PEPPER, EMAIL_CHALLENGE_PEPPER, APP_URL, MICRO_IDR_PER_CREDIT, param D12 yang relevan), `workerEnv` (DATABASE_URL_WORKER, OPENROUTER_API_KEY, GEMINI_API_KEY, AI_ENABLE_MOCK, param job D12), `outboxEnv`.
+1. `packages/shared/env`: zod schema per proses — `webEnv` (AUTH_SECRET, DATABASE_URL_WEB, RESEND_API_KEY, EMAIL_FROM, RATE_LIMIT_PEPPER, EMAIL_TOKEN_PEPPER, APP_URL, MICRO_IDR_PER_CREDIT, param D12/D21 yang relevan), `workerEnv` (DATABASE_URL_WORKER, OPENROUTER_API_KEY, GEMINI_API_KEY, AI_ENABLE_MOCK, param job D12), `outboxEnv`.
 2. Test `env-boundary`: schema web TIDAK memiliki field kunci AI; worker tidak punya AUTH_SECRET.
 3. `docker-compose.dev.yml` postgres+mailpit; `.env.example` per proses.
 
 **W0.3 Prisma baseline + migration runner**
 
-1. Schema M0: `User` (status aktif, uiMode, tier), `Session`, `EmailLoginChallenge` (tokenHash, expiresAt, consumedAt, revokedAt), `AuditEvent`.
+1. Schema M0: `User` (status aktif, uiMode, tier, passwordHash, emailVerifiedAt), `Session`, `EmailActionToken` (purpose: verify_email\|reset_password; tokenHash, expiresAt, consumedAt, revokedAt), `AuditEvent` (D21).
 2. Skrip `migrate` dengan PG advisory lock (dasar `migration-runner-lock`).
 3. CI job Migration: migrate empty DB + drift check.
 
-**W0.4 Auth magic link two-step (S6, D10)**
+**W0.4 Auth email + password, dua tahap verifikasi (S6, D21)**
 
-1. `requestLoginLink(email)`: normalisasi identifier; rate limit (60s cooldown, 5/jam/identifier, 20/jam/IP — tabel `RateLimitCounter` dengan pepper hash); cap 3 challenge aktif (revoke terlama); simpan tokenHash (pepper); kirim email (Resend prod / SMTP Mailpit dev).
-2. `GET /masuk/konfirmasi?token=` → set pending HttpOnly cookie + redirect clean URL; `POST consume` → atomik: validasi hash+expiry, tandai consumed, revoke siblings, buat session Auth.js DB, redirect `/app`.
-3. Session policy: absolute 30d, idle 14d, `lastActiveAt` write ≤1×/6 jam (middleware).
-4. `authorizeActiveUser` helper (guard semua Server Action ke depan).
-5. UI: `/masuk` (state form/sent + cooldown), `/masuk/konfirmasi` (confirm/verifying/success/error) — sesuai §2.1.
+1. `registerAccount(email, password)`: normalisasi identifier; validasi kebijakan password (≥10 char, tak sama dgn email, deny-list umum); hash argon2id (param via env); user baru `status=pending_verification`; rate limit registrasi per IP.
+2. `EmailActionToken` (purpose `verify_email`/`reset_password`): rate limit isu token (60s cooldown, 5/jam/identifier, 20/jam/IP — tabel `RateLimitCounter` dengan pepper hash, dihitung terpisah per purpose); cap 3 token aktif per (user, purpose) (revoke terlama); simpan tokenHash (pepper `EMAIL_TOKEN_PEPPER`); kirim email (Resend prod / SMTP Mailpit dev).
+3. `GET /verifikasi/konfirmasi?token=` → pending HttpOnly cookie + clean URL; `POST consume` → atomik: validasi hash+expiry, tandai consumed, revoke siblings, set `emailVerifiedAt`+`status=active`, buat session Auth.js DB, redirect `/app`.
+4. `login(email, password)`: argon2 verify constant-time; `pending_verification` → blokir + aksi kirim ulang verifikasi; kredensial salah → tolak generik; brute-force lockout (10 gagal/jam/identifier → lockout 15 menit, 30 gagal/jam/IP) via `RateLimitCounter`; sukses → session Auth.js.
+5. `requestPasswordReset(email)` → respons generik (anti user-enumeration); bila akun ada, isu `EmailActionToken(purpose=reset_password)` (rate limit sama poin 2). `GET /reset-password/konfirmasi?token=` → pending cookie + clean URL; `POST consume` → atomik: update passwordHash, tandai consumed, revoke sibling reset token, **revoke SEMUA sesi aktif user**, redirect `/masuk` (tanpa auto-login).
+6. Session policy: absolute 30d, idle 14d, `lastActiveAt` write ≤1×/6 jam (middleware) — tidak berubah dari desain lama.
+7. `authorizeActiveUser` helper (guard semua Server Action ke depan) — tidak berubah.
+8. UI: `/daftar` (form), `/verifikasi` (sent/confirm/verifying/success/error), `/masuk` (form + lockout state), `/lupa-password` (form), `/reset-password` (sent/confirm/form-baru/success/error) — sesuai §2.1.
 
-- Tes: `auth-magic-link` (e2e via Mailpit), `challenge-cap`, `magic-link-rate-limit`, `session-idle-policy`, `active-user-guard`.
+- Tes: `auth-register-verify` (e2e via Mailpit), `auth-login` (integration+e2e), `login-lockout` (integration), `auth-password-reset` (e2e), `email-token-cap`, `email-token-rate-limit`, `session-idle-policy`, `active-user-guard`.
 
 **W0.5 Shell & halaman statis**
 
@@ -285,7 +291,7 @@ Semua layar kunci (dashboard, rencana, tulis, cek, publish) satu kolom, aksi pri
 
 ### Exit gate M0
 
-- [ ] Login → dashboard berfungsi di dev dengan Mailpit; e2e auth hijau.
+- [ ] Daftar → verifikasi email (Mailpit) → login → dashboard berfungsi di dev; lupa password → reset → login ulang berfungsi; e2e auth hijau.
 - [ ] 8 CI job hijau di `master`; branch protection aktif.
 - [ ] `env-boundary`, `migrate-empty`, arch boundaries hijau.
 - [ ] Versi stack tercatat di design spec §1.3.
@@ -583,7 +589,7 @@ Semua layar kunci (dashboard, rencana, tulis, cek, publish) satu kolom, aksi pri
 
 **W6.4 E2E penuh**
 
-1. `vertical-slice` (desktop) + `vertical-slice-mobile` (375px): magic link → proyek → intake → konsep → fondasi lock → outline → beat write (mock) → kandidat → cek → terima → naskah → publish → kredit konsisten.
+1. `vertical-slice` (desktop) + `vertical-slice-mobile` (375px): daftar+verifikasi email+login → proyek → intake → konsep → fondasi lock → outline → beat write (mock) → kandidat → cek → terima → naskah → publish → kredit konsisten.
 2. `foundation-lock`, `job-recovery`, `credit-summary`, `no-internal-strings` (scan DOM seluruh halaman), `idor`.
 
 ### Exit gate M6
@@ -609,7 +615,7 @@ Semua layar kunci (dashboard, rencana, tulis, cek, publish) satu kolom, aksi pri
 
 **W7.2 Email produksi**
 
-1. Domain + Resend: SPF, DKIM, DMARC; template email magic link final (copy + brand); uji inbox placement (Gmail/Yahoo).
+1. Domain + Resend: SPF, DKIM, DMARC; template email verifikasi + reset password final (copy + brand); uji inbox placement (Gmail/Yahoo).
 
 **W7.3 AI nyata (sandbox)**
 
@@ -647,7 +653,7 @@ Semua layar kunci (dashboard, rencana, tulis, cek, publish) satu kolom, aksi pri
 **Tujuan:** live, terpantau, dan DoD PRD §11 ditandatangani.
 
 1. Provision VPS production (spek sama staging; secrets terpisah; peppers baru), DNS + TLS, deploy artifact yang SAMA dengan yang lulus staging (checksum identik).
-2. Smoke production: readiness, magic link nyata, 1 proyek uji internal end-to-end (lalu dihapus via purge path — sekaligus menguji purge).
+2. Smoke production: readiness, daftar+verifikasi email+login nyata, 1 proyek uji internal end-to-end (lalu dihapus via purge path — sekaligus menguji purge).
 3. Seed: paket grant kredit pengguna baru; konfigurasi fair-use; verifikasi model policy production.
 4. Halaman legal final (Privasi/Ketentuan) direview & dipublikasikan.
 5. Monitoring hari-1: alert aktif, cek rekonsiliasi ledger manual hari pertama, error budget review harian selama minggu pertama.
@@ -661,7 +667,7 @@ Semua layar kunci (dashboard, rencana, tulis, cek, publish) satu kolom, aksi pri
 
 ## 13. Lampiran B — Daftar tabel schema (baseline M1)
 
-Identity & auth: `users`, `sessions`, `email_login_challenges`, `rate_limit_counters`.
+Identity & auth: `users`, `sessions`, `email_action_tokens`, `rate_limit_counters`.
 Project & planning: `projects`, `intake_sessions`, `intake_messages`, `concept_sets`, `concepts`, `foundations`, `characters`, `character_states`, `character_beliefs`, `roadmaps`, `arcs`, `chapters`, `beats`.
 Knowledge & reveal: `facts`, `fact_disclosures`, `reader_fact_states`, `reveals`, `reveal_breadcrumbs`.
 Prose: `prose_versions`, `prose_working_drafts`, `prose_evidence`.

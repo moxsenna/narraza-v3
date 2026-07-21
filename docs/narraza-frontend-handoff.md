@@ -5,7 +5,7 @@ Sumber kebenaran: DECISIONS.md > PRD Rilis 1 (narraza-v3-prd-rilis-1.md) > verif
 
 Artefak desain:
 
-- `narraza-landing.dc.html` — landing page + seluruh state autentikasi magic link.
+- `narraza-landing.dc.html` — landing page + seluruh state autentikasi. **Catatan (D21):** prototipe ini masih menunjukkan flow magic link lama; UI implementasi mengikuti §1.1 dan §2 di dokumen ini (email+password), bukan prototipe untuk layar auth. Refresh visual prototipe menyusul sebagai task terpisah.
 - `narraza-app.dc.html` — prototipe aplikasi penuh (desktop), semua halaman proyek + demo-state switcher per halaman.
 - `narraza-mobile.dc.html` — layar kunci mobile 375px dengan bottom nav.
 
@@ -15,7 +15,7 @@ Artefak desain:
 
 Dari PRD + spec S1–S10 + verification matrix, requirement yang punya representasi UI:
 
-1. **Auth**: magic link dua tahap (kirim → cek email → konfirmasi POST), maks 3 challenge aktif, sesi idle 14 hari. Tanpa password → tidak ada "lupa kata sandi"; diganti penjelasan passwordless.
+1. **Auth (D21)**: daftar email+password → verifikasi email dua tahap (kirim → cek email → konfirmasi POST) sebelum akun aktif penuh, maks 3 token aktif per purpose, sesi idle 14 hari. Login = form email+password langsung (tanpa round-trip email). "Lupa kata sandi" ADA: request → cek email → konfirmasi POST → password baru → semua sesi lama dicabut.
 2. **Dashboard**: `ProjectProgressView` = satu-satunya sumber stage, blocker, next action, counts. CTA dashboard dan redirect memakai reducer yang sama. Tidak ada status "sedang menulis" palsu.
 3. **Intake → Konsep**: percakapan dengan Narra; hasil tangkapan berlabel draft (bukan canon); 3 konsep alternatif; accept konsep → foundation **draft** (belum lock).
 4. **Fondasi**: confirm dan lock terpisah; lock butuh dialog konfirmasi dengan konsekuensi; Kesiapan Fondasi = persentase + checklist + rekomendasi (bukan skor tanpa penjelasan).
@@ -35,7 +35,8 @@ Dari PRD + spec S1–S10 + verification matrix, requirement yang punya represent
 ```
 Publik
 ├─ Landing (hero, masalah, cara kerja, fitur, untuk siapa, contoh alur, kredit, trust, CTA)
-└─ Masuk / Daftar (magic link) → Cek email → Verifikasi (loading|sukses|kedaluwarsa|error)
+└─ Masuk (email+password) / Daftar (email+password) → [Daftar] Cek email → Verifikasi (loading|sukses|kedaluwarsa|error)
+                                                    → [Lupa password] Cek email → Reset (form password baru|sukses|kedaluwarsa|error)
 
 Global (setelah masuk)
 ├─ Dashboard (daftar proyek, kredit ringkas, aktivitas)
@@ -60,7 +61,7 @@ Proyek  (sidebar dikelompokkan)
 
 ## 4. User flow per persona
 
-1. **Pemula 0-skill**: Landing → Mulai dari ide → magic link → Dashboard kosong → Buat Proyek "Aku belum punya ide" → Chat Narra (quick reply, sinyal cerita terkumpul) → 3 Konsep → pilih → Fondasi draft → lengkapi via rekomendasi → Lock (dialog) → Susun 10 Bab → Ruang Tulis (arahan adegan terisi otomatis) → generate (quote → job) → pilih kandidat → Cek Cerita → Terima Versi → Tutup Bab → Paket Publish.
+1. **Pemula 0-skill**: Landing → Mulai dari ide → daftar email+password → verifikasi email → Dashboard kosong → Buat Proyek "Aku belum punya ide" → Chat Narra (quick reply, sinyal cerita terkumpul) → 3 Konsep → pilih → Fondasi draft → lengkapi via rekomendasi → Lock (dialog) → Susun 10 Bab → Ruang Tulis (arahan adegan terisi otomatis) → generate (quote → job) → pilih kandidat → Cek Cerita → Terima Versi → Tutup Bab → Paket Publish.
 2. **Punya ide kasar**: Buat Proyek "Aku punya ide kasar" → chat langsung menceritakan premis → sama seperti di atas, lebih cepat ke konsep.
 3. **Punya draft**: Buat Proyek "Aku sudah punya draft" → Import (paste/upload) → analisis → kartu hasil ekstraksi (karakter/fakta/timeline/gaya/plot hole) → semua sebagai usulan → approve → lanjut outline/menulis.
 4. **Penulis berpengalaman**: mode Mahir → edit fondasi/fakta/reveal langsung (author_private) → outline manual + reorder → Ruang Tulis dengan panel bahan aman & inspector → review diff operasi proposal → override temuan yang diizinkan server.
@@ -128,7 +129,9 @@ Token warna, radius, shadow, tipe: lihat design.md §9–§11, §25 (sudah final
 | publish-artifact                                                  | Paket Publish berlabel "tidak mengubah cerita resmi"                                            |
 | proposal-dto / no-internal-strings                                | Tidak ada ID/istilah internal di seluruh copy                                                   |
 | idor / active-user-guard                                          | State "Proyek tidak ditemukan" generik                                                          |
-| auth-magic-link / challenge-cap                                   | Layar cek email + batas kirim ulang (maks 3 tautan aktif)                                       |
+| auth-register-verify / email-token-cap                            | Layar cek email (verifikasi) + batas kirim ulang (maks 3 token aktif)                           |
+| auth-login / login-lockout                                        | Form masuk email+password; blokir sementara setelah percobaan gagal berulang                    |
+| auth-password-reset                                                | Layar cek email (reset) → form password baru → semua sesi lama dicabut                          |
 | credit-summary                                                    | Header kredit = angka halaman Kredit                                                            |
 
 ## 8. Asumsi desain (di luar dokumen)

@@ -50,8 +50,11 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Cancel queued releases slot + reservation                                       | S8       | `cancel-queued`                   | integration         |
 | Manual retry creates new job                                                    | S8       | `retry-new-job`                   | integration         |
 | Active user required                                                            | S6       | `active-user-guard`               | unit                |
-| Magic link two-step consume                                                     | S6       | `auth-magic-link`                 | e2e                 |
-| Challenge DoS policy (max 3 active)                                             | S6       | `challenge-cap`                   | integration         |
+| Register + email verify two-step atomic consume                                 | S6/D21   | `auth-register-verify`            | e2e                 |
+| Password login: correct/wrong credential, unverified account blocked            | S6/D21   | `auth-login`                      | integration,e2e     |
+| Login brute-force lockout (max attempts/identifier + per-IP)                    | D21      | `login-lockout`                   | integration         |
+| Password reset: atomic consume, revokes all prior sessions                      | S6/D21   | `auth-password-reset`             | e2e                 |
+| Email token DoS policy (max 3 active per user+purpose)                          | S6/D21   | `email-token-cap`                 | integration         |
 | Idle session 14d; activity update max once per 6h                               | S6       | `session-idle-policy`             | integration         |
 | Tombstone mid provider call records cost, does not publish proposal             | S6/S8    | `tombstone-mid-attempt`           | integration         |
 | IDOR → NOT_FOUND                                                                | S6       | `idor`                            | e2e                 |
@@ -92,7 +95,7 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Failed job without usable output → zero user charge (full release)              | D4       | `failed-job-zero-charge`          | integration         |
 | Foundation readiness deterministic from weighted checklist                      | D5       | `foundation-readiness`            | unit                |
 | Credit display rounding: floor available, ceil held/quote; single conversion fn | D6       | `credit-rounding`                 | unit                |
-| Magic link rate limit (cooldown + per-identifier + per-IP)                      | D10      | `magic-link-rate-limit`           | integration         |
+| Email token rate limit (cooldown + per-identifier + per-IP, per purpose)        | D10/D21  | `email-token-rate-limit`          | integration         |
 | Adversarial prose cannot alter directives or clear deterministic blockers       | D13      | `prompt-injection-guard`          | unit                |
 | Restricted packet routed only to model-policy allowlist                         | D14      | `model-policy-allowlist`          | unit                |
 | Vertical slice guided at 375px viewport                                         | D20      | `vertical-slice-mobile`           | e2e                 |

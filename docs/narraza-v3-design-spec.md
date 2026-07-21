@@ -1,6 +1,6 @@
 # Narraza v3 — Design Specification (Rilis 1)
 
-**Date:** 2026-07-18 (baseline) · 2026-07-21 (patch keputusan D1–D20)  
+**Date:** 2026-07-18 (baseline) · 2026-07-21 (patch keputusan D1–D21)  
 **Status:** LOCKED (S1–S10) + patch dari `DECISIONS.md` — siap untuk implementation plan  
 **Product:** Narraza — AI Serial Fiction Production OS  
 **Tagline:** Build long fiction without losing the plot.
@@ -27,7 +27,7 @@ Audit UX produksi legacy (2 reviewer independen, 22 Jun 2026, `narraza old/narra
 | Hosting       | VPS (no Cloudflare)                                                                        |
 | Stack         | Next.js modular monolith + Postgres                                                        |
 | AI            | Multi-provider + fallback (OpenRouter primary, Gemini fallback)                            |
-| Auth          | Email magic link (custom two-step)                                                         |
+| Auth          | Email + password (custom, dua tahap verifikasi email); Google OAuth tambahan direncanakan **[D21]** |
 | UX modes      | Guided + Advanced from day one (Advanced = controls that exist, not full power-user suite) |
 | UI posture    | Modern SaaS (Notion/Linear)                                                                |
 | Pain focus    | Continuity, generic prose, outline obedience, UX trust, simpler architecture               |
@@ -83,8 +83,8 @@ Core never imports AI, Prisma, Next, or HTTP. Application depends on ports only.
 | Web         | Next.js App Router (versi stabil terbaru, pin di M0 **[D7]**), React, TS strict, Tailwind v4 + shadcn                                                                               |
 | API surface | Server Actions + route handlers as adapters only                                                                                                                                    |
 | DB          | Postgres 16 + Prisma ≥6 (pin di M0 **[D7]**)                                                                                                                                        |
-| Auth        | Auth.js v5 sessions + Narraza custom passwordless; adapter di packages/db **[D8]**                                                                                                  |
-| Email       | Resend (produksi) · Mailpit (dev/CI/e2e) **[D10]**                                                                                                                                  |
+| Auth        | Auth.js v5 sessions + Narraza custom email+password (argon2id); adapter di packages/db **[D8][D21]**                                                                                |
+| Email       | Resend (produksi) · Mailpit (dev/CI/e2e) — verifikasi email & reset password **[D10][D21]**                                                                                        |
 | AI          | packages/ai — OpenRouter + Gemini, capability contracts; model-policy allowlist **[D14]**                                                                                           |
 | Jobs        | Postgres `generation_jobs` + lease (no Redis rilis 1)                                                                                                                               |
 | Deploy      | VPS Ubuntu, nginx TLS, PM2 **2 proses: web + worker** (outbox consumer = modul dalam worker sampai ada channel eksternal; `apps/worker-outbox` tetap entrypoint terpisah) **[D11]** |
@@ -372,17 +372,26 @@ Only tiers: Hemat | Seimbang | Terbaik. Never raw model IDs to client.
 
 ## 6. Auth & security (S6 LOCKED)
 
-### 6.1 Passwordless (custom) + Auth.js sessions
+### 6.1 Email + password (custom) + Auth.js sessions [D21]
 
 ```
 Auth.js: session cookie, auth(), revoke, Prisma User/Session
-Narraza: EmailLoginChallenge (tokenHash only), two-step confirm
+Narraza: User.passwordHash (argon2id) + User.emailVerifiedAt
+         EmailActionToken (tokenHash only; purpose = verify_email | reset_password)
 ```
 
-Flow: GET token → pending HttpOnly cookie → clean URL → POST consume atomic → session.  
-Max 3 active challenges per identifier; issue does not revoke all (DoS); after successful consume, revoke siblings; at cap revoke oldest.
+**Register:** `registerAccount(email, password)` → validate + hash (argon2id, params via env) → `User.status = pending_verification` → issue `EmailActionToken(purpose=verify_email)` → two-step confirm (GET token → pending HttpOnly cookie → clean URL → POST consume atomic) → set `emailVerifiedAt`, `status=active` → session created directly (no separate login step). UI states `sent/confirm/verifying/success/error` unchanged from the original passwordless design.
 
-**Rate limit [D10]:** cooldown kirim ulang 60 detik/identifier; maks 5 permintaan/jam/identifier; maks 20 permintaan/jam/IP (semua via env). Email produksi: Resend. Dev/CI: Mailpit — e2e membaca link dari Mailpit API.
+**Login:** email + password → argon2 verify (constant-time) → `pending_verification` blocks with resend-verification action; wrong credential rejected without revealing which field failed → session created.
+**Brute-force lockout (new attack surface vs. magic link):** max 10 failed attempts/hour/identifier → 15min lockout; max 30 failed/hour/IP.
+
+**Forgot password:** request → generic response (no user enumeration) → if account exists, `EmailActionToken(purpose=reset_password)` → same two-step confirm → new password form → atomic consume: update `passwordHash`, mark consumed, revoke sibling reset tokens, **revoke all active sessions for that user** → redirect to login (no auto-login).
+
+Max 3 active tokens per (user, purpose); issuing a new one does not revoke all (DoS); after successful consume, revoke siblings; at cap revoke oldest.
+
+**Rate limit [D10/D21]:** cooldown kirim ulang 60 detik/identifier; maks 5 permintaan/jam/identifier; maks 20 permintaan/jam/IP (semua via env, per purpose). Email produksi: Resend. Dev/CI: Mailpit — e2e membaca link dari Mailpit API.
+
+**Google OAuth (tracked follow-up, not M0):** Auth.js OAuth provider, additive `Account` table. Account-linking by email only when Google's `email_verified` claim is true — Fable-class work when implemented (account-takeover risk class).
 
 **Adapter [D8]:** Auth.js Prisma adapter (User/Session) diimplementasikan di `packages/db` dan di-inject ke konfigurasi Auth.js; apps/web tidak pernah import `@prisma/client` langsung (ditegakkan test `web-boundary`).
 
@@ -399,7 +408,7 @@ Absolute 30d; idle 14d; activity write ≤1/6h.
 | Gen worker | DATABASE_URL_WORKER, OpenRouter, Gemini |
 | Outbox     | DATABASE_URL_OUTBOX + channel only      |
 
-Peppers: `RATE_LIMIT_PEPPER`, `EMAIL_CHALLENGE_PEPPER` ≠ AUTH_SECRET.
+Peppers: `RATE_LIMIT_PEPPER`, `EMAIL_TOKEN_PEPPER` ≠ AUTH_SECRET. [D21]
 
 ### 6.4 Client data classes
 
@@ -546,7 +555,7 @@ DB + artifacts + manifest; RPO 24h / RTO 4h; restore drill required before claim
 
 ### 10.5 DoD vertical slice
 
-Magic link → project → intake → concepts → foundation lock → outline → beat write job → proposals → validate/repair → accept → credit consistency → no service_restricted leak → IDOR 404 → job recovery after refresh.  
+Register + verify email → login → project → intake → concepts → foundation lock → outline → beat write job → proposals → validate/repair → accept → credit consistency → no service_restricted leak → IDOR 404 → job recovery after refresh.  
 Vertical slice dijalankan di desktop dan viewport mobile 375px. **[D20]**  
 Plus verification-matrix coverage and architecture gates.
 
@@ -573,7 +582,8 @@ M0 scaffold/auth → M1 core/schema → M2 UoW/CRUD → M3 jobs/credit → M4 AI
 | CreditQuote one-time                          | S9     | credit-quote           | integration  |
 | Working draft CAS conflict                    | S9     | working-draft          | integration  |
 | Architecture boundaries                       | S1     | dependency-cruiser     | unit         |
-| Magic link two-step                           | S6     | auth-magic-link        | e2e          |
+| Register + verify email two-step               | S6     | auth-register-verify   | e2e          |
+| Password login (incl. lockout)                 | S6/D21 | auth-login / login-lockout | e2e/integration |
 | Vertical slice                                | S10    | vertical-slice         | e2e          |
 
 Full matrix lives in `docs/verification-matrix.md` and is updated with every invariant change.
@@ -627,7 +637,7 @@ Documented at end of each section during lock; non-exhaustive highlights:
 | S9 UI                  | LOCKED |
 | S10 Delivery / DoD     | LOCKED |
 
-Patch keputusan 2026-07-21 (D1–D20, `docs/DECISIONS.md`) diterapkan atas mandat pemilik produk; S1–S10 tetap LOCKED.
+Patch keputusan 2026-07-21 (D1–D21, `docs/DECISIONS.md`) diterapkan atas mandat pemilik produk; S1–S10 tetap LOCKED.
 
 **Next:** writing-plans → implementation plan M0–M8.  
 **No implementation until implementation plan direview.**

@@ -3,7 +3,7 @@
 **Versi:** 1.1  
 **Tanggal:** 21 Juli 2026 (revisi keputusan; baseline 19 Juli 2026)  
 **Status:** Baseline untuk implementation planning  
-**Sumber:** Design Specification S1-S10 (LOCKED), Verification Matrix, dan DECISIONS.md (D1-D20)
+**Sumber:** Design Specification S1-S10 (LOCKED), Verification Matrix, dan DECISIONS.md (D1-D21)
 
 > **Tagline:** Build long fiction without losing the plot.
 
@@ -64,7 +64,7 @@ Payment, KBM export, voice lock, draft import, collaboration, BYOK, raw prompt e
 
 ## 7. Alur End-to-End
 
-1. Request dan confirm magic link dua tahap.
+1. Daftar (email+password) → verifikasi email dua tahap → masuk.
 2. Buat project dan lihat next action dari backend progress reducer.
 3. Intake rough idea.
 4. Pilih satu dari tiga concept alternatives.
@@ -81,9 +81,12 @@ Payment, KBM export, voice lock, draft import, collaboration, BYOK, raw prompt e
 
 ### Authentication
 
-- Custom email magic link two-step dengan Auth.js database sessions.
-- Maksimal tiga challenge aktif per identifier; issue baru tidak merevoke semua.
-- Rate limit magic link: cooldown kirim ulang 60 detik/identifier, maks 5 permintaan/jam/identifier, maks 20/jam/IP (D10).
+- Custom email + password dengan Auth.js database sessions (D21); Google OAuth direncanakan sebagai tambahan pasca-M0.
+- Daftar → verifikasi email wajib dua tahap (token atomik) sebelum akun aktif penuh; consume langsung membuat session.
+- Login: password salah ditolak tanpa membocorkan field mana yang salah; brute-force lockout 10 percobaan gagal/jam/identifier (15 menit) + 30/jam/IP.
+- Lupa password: reset via email, respons generik anti user-enumeration; consume mengganti password dan mencabut SEMUA sesi aktif user.
+- Maksimal tiga token email aktif (verifikasi/reset) per identifier per purpose; issue baru tidak merevoke semua.
+- Rate limit token email: cooldown kirim ulang 60 detik/identifier, maks 5 permintaan/jam/identifier, maks 20/jam/IP (D10/D21).
 - Email produksi via Resend; dev/CI via Mailpit (e2e membaca link dari Mailpit API).
 - Active-user guard dan tenant-scoped ownership pada seluruh use case.
 - IDOR menghasilkan NOT_FOUND.

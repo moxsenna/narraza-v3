@@ -62,11 +62,13 @@ Web tidak pernah import `@prisma/client` langsung. Adapter Auth.js (User/Session
 
 Serializable-everywhere berisiko retry storm pada hot row (baris project di-bump setiap accept). Default UnitOfWork: `read committed` + `SELECT ... FOR UPDATE` eksplisit + CAS (semua sudah didesain di S4/S8). Serializable hanya untuk use case yang ditandai eksplisit membutuhkannya. Retry serialization/lock: maks 3, backoff jitter, requestId sama.
 
-### D10 — Email: Resend (produksi), Mailpit (dev/CI/e2e) + rate limit magic link
+### D10 — Email: Resend (produksi), Mailpit (dev/CI/e2e) + rate limit
+
+> **[D21] Mekanisme login (magic link) di keputusan ini digantikan email+password.** Pilihan provider email & angka rate-limit di bawah tetap berlaku — sekarang untuk verifikasi email & reset password, bukan login. Lihat D21.
 
 - Provider produksi: **Resend** (API sederhana, deliverability baik dari VPS). Fallback masa depan: SES.
-- Dev/CI: **Mailpit** — e2e Playwright membaca magic link dari Mailpit API.
-- Rate limit (default via env): cooldown kirim ulang 60 detik/identifier; maks 5 permintaan/jam/identifier; maks 20 permintaan/jam/IP; tetap maks 3 challenge aktif (revoke terlama saat cap). Invariant baru: `magic-link-rate-limit`.
+- Dev/CI: **Mailpit** — e2e Playwright membaca tautan dari Mailpit API.
+- Rate limit (default via env): cooldown kirim ulang 60 detik/identifier; maks 5 permintaan/jam/identifier; maks 20 permintaan/jam/IP; tetap maks 3 token aktif (revoke terlama saat cap).
 
 ### D11 — Rilis 1 deploy 2 proses PM2: `web` dan `worker`
 
@@ -130,6 +132,47 @@ Menutup temuan v2 lama X3. Wajib ada di Rilis 1: halaman Kebijakan Privasi + Ket
 ### D20 — Vertical slice e2e juga berjalan di viewport 375px
 
 Target pengguna menulis lewat HP; mobile bukan warga kelas dua. Invariant baru: `vertical-slice-mobile`. (Menutup gap review v2 lama yang tidak sempat menguji mobile.)
+
+## Revisi pasca-baseline
+
+### D21 — Auth: email + password menggantikan magic link; Google OAuth sebagai tambahan terlacak
+
+**Mensupersede mekanisme login di D10** (provider email Resend/Mailpit di D10 tetap berlaku — sekarang dipakai untuk verifikasi email & reset password, bukan login). Keputusan pemilik produk (21 Jul 2026, pasca-review M0): email+password lebih familiar untuk target pengguna dibanding passwordless-only; Google OAuth akan ditambahkan sebagai jalur masuk kedua di iterasi berikutnya (tidak menghambat M0).
+
+**Daftar (register):**
+
+- `registerAccount(email, password)`: validasi format email; kebijakan password ≥10 karakter, tidak sama dengan email/local-part, ditolak bila ada di deny-list password umum — panjang di atas kompleksitas per NIST 800-63B, tanpa aturan wajib simbol/angka.
+- Hash: **argon2id** (parameter default OWASP saat ini: m=19456 KiB, t=2, p=1 — via env, bukan angka ajaib).
+- User baru berstatus `pending_verification`; tidak bisa memakai aplikasi penuh sampai email diverifikasi.
+- Verifikasi: `EmailActionToken` (purpose=`verify_email`) dikirim via Resend/Mailpit (D10 tetap berlaku); alur dua tahap sama seperti magic link lama — GET set pending HttpOnly cookie + clean URL, POST consume ATOMIK (validasi hash+expiry, tandai consumed, revoke sibling) → set `emailVerifiedAt`, status=`active` → langsung buat session Auth.js (tanpa login terpisah setelah daftar). UI states `sent/confirm/verifying/success/error` dipertahankan dari desain lama.
+
+**Masuk (login):**
+
+- Email + password → verifikasi hash (argon2 verify, constant-time) → jika `pending_verification`, blokir dengan pesan + aksi kirim ulang verifikasi; jika salah, tolak tanpa membocorkan mana yang salah (email vs password) → buat session Auth.js.
+- **Brute-force lockout (surface baru — tidak ada di magic link lama):** maks 10 percobaan gagal/jam/identifier → lockout sementara 15 menit; maks 30 percobaan gagal/jam/IP. Invariant baru: `login-lockout`.
+
+**Lupa password:**
+
+- Request reset → respons generik ("jika email terdaftar, kami kirim tautan") untuk cegah user enumeration → bila akun ada, `EmailActionToken` (purpose=`reset_password`) → alur dua tahap sama (GET pending cookie, POST consume atomik) → form password baru → consume: update passwordHash, tandai consumed, revoke sibling reset token, **revoke SEMUA sesi aktif user itu** (ganti password = matikan semua sesi lama) → redirect ke login dengan pesan sukses (tidak auto-login).
+
+**Rate limit & DoS (menggantikan angka D10 di konteks login; mekanisme sama — `RateLimitCounter` + pepper hash):**
+
+- Isu token (verify/reset, dihitung terpisah per purpose): cooldown kirim ulang 60 detik/identifier; maks 5/jam/identifier; maks 20/jam/IP.
+- Maks 3 token aktif per (user, purpose); saat cap, revoke yang tertua — pelajaran yang sama persis dengan `challenge-cap` lama, hanya dipindah ke tabel token baru. Invariant baru: `email-token-cap`, `email-token-rate-limit`.
+
+**Skema (M0 baseline, revisi):**
+
+- `User` +`passwordHash`, +`emailVerifiedAt` (nullable).
+- `EmailLoginChallenge` → diganti `EmailActionToken` (purpose: `verify_email` \| `reset_password`; field sama: tokenHash, expiresAt, consumedAt, revokedAt + userId).
+- Env: `EMAIL_CHALLENGE_PEPPER` → `EMAIL_TOKEN_PEPPER`.
+
+**Google OAuth ("ke depannya" — TIDAK menghambat exit gate M0):**
+
+- Dilacak sebagai workstream tambahan, dikerjakan additive kapan pun siap; tidak mengubah urutan M0–M8.
+- Saat dikerjakan: tambah tabel `Account` (Auth.js OAuth linking) via migrasi expand; provider Google via `@auth/core/providers/google`.
+- **Kebijakan account-linking (keputusan keamanan, bukan pengulangan):** auto-link ke akun existing berdasarkan email HANYA jika klaim `email_verified` dari Google bernilai true (Google selalu memverifikasi) — mencegah account-takeover lewat provider OAuth yang tidak memverifikasi email. Kelas kerja **Fable** saat dikerjakan (keputusan keamanan/data-governance, bukan pengulangan).
+
+D8 (Auth.js adapter di `packages/db`) TIDAK berubah — Credentials + OAuth providers sama-sama lewat adapter yang sama.
 
 ---
 
