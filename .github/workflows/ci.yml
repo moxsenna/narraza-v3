@@ -25,6 +25,8 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://narraza:narraza@localhost:5432/narraza_typecheck
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm --filter @narraza/web typecheck
