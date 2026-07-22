@@ -59,6 +59,7 @@ model User {
 
   sessions          Session[]
   emailActionTokens EmailActionToken[]
+  projects          Project[]
 
   @@map("users")
 }
@@ -127,4 +128,271 @@ model AuditEvent {
 
   @@index([userId, createdAt])
   @@map("audit_events")
+}
+
+model Project {
+  id                      String    @id
+  ownerUserId             String    @map("owner_user_id")
+  title                   String
+  intakePath              String    @map("intake_path")
+  status                  String
+  currentCanonicalVersion Int       @default(0) @map("current_canonical_version")
+  revision                Int       @default(0)
+  deletedAt               DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner            User              @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
+  intakeSessions   IntakeSession[]
+  conceptSets      ConceptSet[]
+  foundations      Foundation[]
+  characters       Character[]
+  characterStates  CharacterState[]
+  characterBeliefs CharacterBelief[]
+  roadmaps         Roadmap[]
+  arcs             Arc[]
+  chapters         Chapter[]
+  beats            Beat[]
+
+  @@unique([id, ownerUserId])
+  @@index([ownerUserId])
+  @@index([status])
+  @@map("projects")
+}
+
+model IntakeSession {
+  id            String   @id
+  projectId     String   @map("project_id")
+  status        String
+  signalCount   Int      @default(0) @map("signal_count")
+  schemaVersion Int      @default(1) @map("schema_version")
+  payload       Json
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages IntakeMessage[]
+
+  @@unique([projectId, id])
+  @@index([projectId, status])
+  @@map("intake_sessions")
+}
+
+model IntakeMessage {
+  id              String   @id
+  projectId       String   @map("project_id")
+  intakeSessionId String   @map("intake_session_id")
+  role            String
+  sequence        Int
+  content         String
+  jobId           String?  @map("job_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  intakeSession IntakeSession @relation(fields: [projectId, intakeSessionId], references: [projectId, id], onDelete: Cascade)
+
+  @@unique([projectId, id])
+  @@unique([intakeSessionId, sequence])
+  @@index([projectId, intakeSessionId, sequence])
+  @@map("intake_messages")
+}
+
+model ConceptSet {
+  id             String   @id
+  projectId      String   @map("project_id")
+  sourceJobId    String?  @map("source_job_id")
+  status         String
+  dependencyHash String   @map("dependency_hash")
+  schemaVersion  Int      @default(1) @map("schema_version")
+  payload        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  concepts Concept[]
+
+  @@unique([projectId, id])
+  @@index([projectId, createdAt])
+  @@map("concept_sets")
+}
+
+model Concept {
+  id            String   @id
+  projectId     String   @map("project_id")
+  conceptSetId  String   @map("concept_set_id")
+  ordinal       Int
+  title         String
+  synopsis      String
+  schemaVersion Int      @default(1) @map("schema_version")
+  payload       Json
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  conceptSet ConceptSet @relation(fields: [projectId, conceptSetId], references: [projectId, id], onDelete: Cascade)
+
+  @@unique([projectId, id])
+  @@unique([conceptSetId, ordinal])
+  @@index([projectId, conceptSetId, ordinal])
+  @@map("concepts")
+}
+
+model Foundation {
+  id            String    @id
+  projectId     String    @unique @map("project_id")
+  status        String
+  revision      Int       @default(0)
+  confirmedAt   DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  lockedAt      DateTime? @map("locked_at") @db.Timestamptz(3)
+  schemaVersion Int       @default(1) @map("schema_version")
+  payload       Json
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, id])
+  @@map("foundations")
+}
+
+model Character {
+  id            String    @id
+  projectId     String    @map("project_id")
+  displayName   String    @map("display_name")
+  role          String
+  revision      Int       @default(0)
+  schemaVersion Int       @default(1) @map("schema_version")
+  payload       Json
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  states  CharacterState[]
+  beliefs CharacterBelief[]
+
+  @@unique([projectId, id])
+  @@map("characters")
+}
+
+model CharacterState {
+  id                String   @id
+  projectId         String   @map("project_id")
+  characterId       String   @map("character_id")
+  effectiveSequence Int      @map("effective_sequence")
+  proseVersionId    String?  @map("prose_version_id")
+  schemaVersion     Int      @default(1) @map("schema_version")
+  payload           Json
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [projectId, characterId], references: [projectId, id], onDelete: Cascade)
+
+  @@unique([projectId, id])
+  @@index([projectId, characterId, effectiveSequence(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "character_states_fold_idx")
+  @@map("character_states")
+}
+
+model CharacterBelief {
+  id                String   @id
+  projectId         String   @map("project_id")
+  characterId       String   @map("character_id")
+  beliefKey         String   @map("belief_key")
+  effectiveSequence Int      @map("effective_sequence")
+  reasonCode        String?  @map("reason_code")
+  schemaVersion     Int      @default(1) @map("schema_version")
+  payload           Json
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [projectId, characterId], references: [projectId, id], onDelete: Cascade)
+
+  @@unique([projectId, id])
+  @@index([projectId, characterId, beliefKey, effectiveSequence(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "character_beliefs_fold_idx")
+  @@map("character_beliefs")
+}
+
+model Roadmap {
+  id            String    @id
+  projectId     String    @map("project_id")
+  title         String
+  revision      Int       @default(0)
+  schemaVersion Int       @default(1) @map("schema_version")
+  payload       Json
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  arcs    Arc[]
+
+  @@unique([projectId, id])
+  @@map("roadmaps")
+}
+
+model Arc {
+  id            String    @id
+  projectId     String    @map("project_id")
+  roadmapId     String    @map("roadmap_id")
+  ordinal       Int
+  title         String
+  revision      Int       @default(0)
+  schemaVersion Int       @default(1) @map("schema_version")
+  payload       Json
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  roadmap  Roadmap   @relation(fields: [projectId, roadmapId], references: [projectId, id], onDelete: Cascade)
+  chapters Chapter[]
+
+  @@unique([projectId, id])
+  @@index([projectId, roadmapId])
+  @@map("arcs")
+}
+
+model Chapter {
+  id                String    @id
+  projectId         String    @map("project_id")
+  arcId             String    @map("arc_id")
+  ordinal           Int
+  title             String
+  narrativeSequence Int       @map("narrative_sequence")
+  revision          Int       @default(0)
+  schemaVersion     Int       @default(1) @map("schema_version")
+  payload           Json
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  arc     Arc     @relation(fields: [projectId, arcId], references: [projectId, id], onDelete: Cascade)
+  beats   Beat[]
+
+  @@unique([projectId, id])
+  @@index([projectId, arcId])
+  @@index([projectId, narrativeSequence])
+  @@map("chapters")
+}
+
+model Beat {
+  id                     String    @id
+  projectId              String    @map("project_id")
+  chapterId              String    @map("chapter_id")
+  ordinal                Int
+  narrativeSequence      Int       @map("narrative_sequence")
+  acceptedProseVersionId String?   @map("accepted_prose_version_id")
+  revision               Int       @default(0)
+  schemaVersion          Int       @default(1) @map("schema_version")
+  payload                Json
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [projectId, chapterId], references: [projectId, id], onDelete: Cascade)
+
+  @@unique([projectId, id])
+  @@index([projectId, chapterId])
+  @@index([projectId, narrativeSequence])
+  @@map("beats")
 }
