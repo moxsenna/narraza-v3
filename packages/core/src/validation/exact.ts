@@ -68,14 +68,22 @@ export function denseArray(input: unknown, fail: Fail, label: string): readonly 
   if (
     lengthDescriptor === undefined ||
     lengthDescriptor.enumerable ||
-    !('value' in lengthDescriptor) ||
-    lengthDescriptor.value !== input.length ||
-    keys.length !== input.length + 1
+    !('value' in lengthDescriptor)
+  ) {
+    return fail(`${label} must have only dense indices and built-in length`);
+  }
+  const length = lengthDescriptor.value;
+  if (
+    typeof length !== 'number' ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > 0xffff_ffff ||
+    keys.length !== length + 1
   ) {
     return fail(`${label} must have only dense indices and built-in length`);
   }
   const values: unknown[] = [];
-  for (let index = 0; index < input.length; index += 1) {
+  for (let index = 0; index < length; index += 1) {
     const key = String(index);
     if (!keys.includes(key)) return fail(`${label} must not be sparse`);
     const descriptor = guarded(
@@ -92,7 +100,7 @@ export function denseArray(input: unknown, fail: Fail, label: string): readonly 
     keys.some(
       (key) =>
         key !== 'length' &&
-        (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key) || Number(key) >= input.length),
+        (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key) || Number(key) >= length),
     )
   ) {
     return fail(`${label} contains an extra property`);

@@ -137,6 +137,19 @@ describe('canonical JSON', () => {
     expect(getterReads).toBe(0);
   });
 
+  it('serializes a valid proxied array without invoking its get trap', () => {
+    let reads = 0;
+    const value = new Proxy([1, { valid: true }], {
+      get: () => {
+        reads += 1;
+        throw new Error('array get trap invoked');
+      },
+    });
+
+    expect(canonicalJson(value)).toBe('[1,{"valid":true}]');
+    expect(reads).toBe(0);
+  });
+
   it('rejects sparse arrays and arrays with extra, symbol, non-enumerable, or accessor properties', () => {
     const extra = [1] as unknown[] & { extra?: number };
     extra.extra = 2;
