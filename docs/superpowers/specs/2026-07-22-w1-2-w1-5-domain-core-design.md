@@ -1,7 +1,9 @@
 # W1.2–W1.5 Domain Core — Design Specification
 
-**Tanggal:** 22 Juli 2026  
-**Status:** Disetujui untuk perencanaan implementasi  
+**Tanggal:** 22 Juli 2026
+
+**Status:** Disetujui untuk perencanaan implementasi
+
 **Scope:** kebijakan domain murni, context packets, validator deterministik, dan operation layers di `packages/core`.
 
 ## 1. Sumber kebenaran
