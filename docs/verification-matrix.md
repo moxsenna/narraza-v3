@@ -104,5 +104,10 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Adversarial prose cannot alter directives or clear deterministic blockers       | D13      | `prompt-injection-guard`          | unit                |
 | Restricted packet routed only to model-policy allowlist                         | D14      | `model-policy-allowlist`          | unit                |
 | Vertical slice guided at 375px viewport                                         | D20      | `vertical-slice-mobile`           | e2e                 |
+| Narrative chronology uses sequence before stable chapter and beat tie-breakers  | S3       | `narrative-position`              | unit                |
+| Reveal guidance exposes safe directives without restricted truth                | S3       | `reveal-policy`                   | unit                |
+| Canonical JSON and SHA-256 remain stable under key reordering                    | S3       | `canonical-json`                  | unit                |
+| Dependency status fails closed for malformed or stale manifests                 | S3       | `stale-policy`                    | unit                |
+| Accepted prose and validation bindings obey immutable pointer policy             | S3       | `prose-policy`                    | unit                |
 
 When adding invariants: append row, implement test, wire CI job, then merge.
