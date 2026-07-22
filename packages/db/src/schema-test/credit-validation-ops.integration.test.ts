@@ -11,7 +11,7 @@ async function seedAcceptedProse(
   await client.query(
     `INSERT INTO prose_versions
        (id,project_id,beat_id,status,revision,content,content_hash,created_at)
-     VALUES ('prose-a',$1,$2,'accepted',0,'text',$3,now())`,
+     VALUES ('prose-a',$1,$2,'validated',0,'text',$3,now())`,
     [ids.projectA, ids.beatA, VALID_HASH],
   );
 }
@@ -210,14 +210,14 @@ schema.test('outbox dedupe and receipt generation unique contracts hold', async 
   );
   await client.query(
     `INSERT INTO outbox_receipts
-       (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,created_at,updated_at)
-     VALUES ('receipt-a','event-a','worker',0,'pending',0,now(),now())`,
+       (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,processing_started_at,lease_expires_at,created_at,updated_at)
+     VALUES ('receipt-a','event-a','worker',0,'processing',0,now(),now() + interval '1 minute',now(),now())`,
   );
   await expectSqlState(
     client.query(
       `INSERT INTO outbox_receipts
-         (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,created_at,updated_at)
-       VALUES ('receipt-b','event-a','worker',0,'pending',0,now(),now())`,
+         (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,processing_started_at,lease_expires_at,created_at,updated_at)
+       VALUES ('receipt-b','event-a','worker',0,'processing',0,now(),now() + interval '1 minute',now(),now())`,
     ),
     '23505',
   );

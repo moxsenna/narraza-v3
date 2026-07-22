@@ -48,6 +48,26 @@ schema.test('accepted prose belongs to same beat and project', async ({ client }
   );
 });
 
+schema.test('prose evidence content hash must match referenced prose version', async ({ client }) => {
+  await seedPlanningGraph(client);
+  await client.query(
+    `INSERT INTO prose_versions
+       (id,project_id,beat_id,status,revision,content,content_hash,created_at)
+     VALUES ('prose-a',$1,$2,'validated',0,'text',$3,now())`,
+    [ids.projectA, ids.beatA, 'a'.repeat(64)],
+  );
+
+  await expectSqlState(
+    client.query(
+      `INSERT INTO prose_evidence
+         (id,project_id,prose_version_id,start_utf16,end_utf16,content_hash,evidence_type,schema_version,payload,created_at)
+       VALUES ('mismatched-evidence',$1,'prose-a',0,1,$2,'validation',1,'{}',now())`,
+      [ids.projectA, 'b'.repeat(64)],
+    ),
+    '23503',
+  );
+});
+
 schema.test('accepted prose delete uses NO ACTION until pointer is cleared', async ({ client }) => {
   await seedPlanningGraph(client);
   await client.query(

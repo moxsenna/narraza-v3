@@ -61,6 +61,8 @@ model User {
   emailActionTokens  EmailActionToken[]
   projects           Project[]
   proseWorkingDrafts ProseWorkingDraft[]
+  creditReservations CreditReservation[]
+  creditQuotes       CreditQuote[]
 
   @@map("users")
 }
@@ -173,6 +175,10 @@ model Project {
   generationJobs            GenerationJob[]
   generationAttempts        GenerationAttempt[]
   workflowInvocations       WorkflowInvocation[]
+  validationReports         ValidationReport[]
+  validationFindings        ValidationFinding[]
+  artifactProposals         ArtifactProposal[]
+  publishArtifacts          PublishArtifact[]
 
   @@unique([id, ownerUserId])
   @@index([ownerUserId])
@@ -554,17 +560,22 @@ model ProseVersion {
   contentHash       String   @map("content_hash")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  beat            Beat                @relation("BeatProseVersions", fields: [projectId, beatId], references: [projectId, id], onDelete: Cascade)
-  acceptedByBeat  Beat?               @relation("AcceptedProse")
-  disclosures     FactDisclosure[]
-  evidence        ProseEvidence[]
-  characterStates CharacterState[]
+  project                Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  beat                   Beat                 @relation("BeatProseVersions", fields: [projectId, beatId], references: [projectId, id], onDelete: Cascade)
+  acceptedByBeat         Beat?                @relation("AcceptedProse")
+  disclosures            FactDisclosure[]
+  evidence               ProseEvidence[]        @relation("ProseEvidenceContentHash")
+  characterStates        CharacterState[]
+  validationReports      ValidationReport[]
+  hashBoundReports       ValidationReport[]   @relation("ValidationReportProseHash")
+  artifactProposals      ArtifactProposal[]
+  publishArtifacts       PublishArtifact[]
   sourceCandidate        GeneratedCandidate?  @relation("SourceCandidate", fields: [projectId, sourceCandidateId], references: [projectId, id], onDelete: NoAction)
   backpointingCandidates GeneratedCandidate[] @relation("CandidateProseBackpointer")
 
   @@unique([projectId, id])
   @@unique([projectId, beatId, id])
+  @@unique([projectId, id, contentHash])
   @@unique([projectId, sourceCandidateId, id])
   @@index([projectId, beatId, createdAt])
   @@map("prose_versions")
@@ -603,9 +614,10 @@ model ProseEvidence {
   payload        Json
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  proseVersion ProseVersion     @relation(fields: [projectId, proseVersionId], references: [projectId, id], onDelete: Cascade)
-  disclosures  FactDisclosure[]
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proseVersion       ProseVersion        @relation("ProseEvidenceContentHash", fields: [projectId, proseVersionId, contentHash], references: [projectId, id, contentHash], onDelete: Cascade, map: "prose_evidence_prose_hash_binding_fkey")
+  disclosures        FactDisclosure[]
+  validationFindings ValidationFinding[]
 
   @@unique([projectId, id])
   @@unique([projectId, proseVersionId, id])
@@ -652,6 +664,7 @@ model Proposal {
   changeSet               CanonicalChangeSet @relation(fields: [projectId, changeSetId], references: [projectId, id], onDelete: Cascade)
   revalidatedFromProposal Proposal?          @relation("ProposalRevalidation", fields: [projectId, revalidatedFromProposalId], references: [projectId, id], onDelete: NoAction)
   revalidatedProposals    Proposal[]         @relation("ProposalRevalidation")
+  validationReport        ValidationReport?  @relation(fields: [projectId, validationReportId], references: [projectId, id], onDelete: NoAction, map: "proposals_validation_report_fkey")
 
   @@unique([projectId, id])
   @@index([projectId, groupId, status])
@@ -777,13 +790,15 @@ model AiWorkflowPlan {
   payload              Json
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  project Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  bundle  GenerationContextBundle @relation(fields: [projectId, bundleId], references: [projectId, id], onDelete: Cascade)
-  jobs    GenerationJob[]
+  project      Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bundle       GenerationContextBundle @relation(fields: [projectId, bundleId], references: [projectId, id], onDelete: Cascade)
+  jobs         GenerationJob[]
+  creditQuotes CreditQuote[]
 
   @@unique([projectId, id])
   @@unique([projectId, bundleId, id])
   @@unique([projectId, planHash])
+  @@unique([projectId, id, planHash])
   @@map("ai_workflow_plans")
 }
 
@@ -858,6 +873,8 @@ model GenerationJob {
   generatedCandidates GeneratedCandidate[]
   intakeMessages      IntakeMessage[]
   conceptSets         ConceptSet[]
+  boundReservations   CreditReservation[]      @relation("ReservationBoundJob")
+  artifactProposals   ArtifactProposal[]
 
   @@unique([projectId, id])
   @@map("generation_jobs")
@@ -911,4 +928,196 @@ model WorkflowInvocation {
   @@unique([projectId, jobId, id])
   @@unique([jobId, stageKey])
   @@map("workflow_invocations")
+}
+
+model CreditLedgerEntry {
+  id             String   @id
+  userId         String?  @map("user_id")
+  projectId      String?  @map("project_id")
+  reservationId  String?  @map("reservation_id")
+  attemptId      String?  @map("attempt_id")
+  entryType      String   @map("entry_type")
+  direction      String
+  amountMicroIdr BigInt   @map("amount_micro_idr")
+  dedupeKey      String   @unique @map("dedupe_key")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([reservationId])
+  @@index([attemptId])
+  @@map("credit_ledger")
+}
+
+model CreditReservation {
+  id               String    @id
+  userId           String    @map("user_id")
+  projectId        String?   @map("project_id")
+  jobId            String?   @map("job_id")
+  status           String
+  reservedMicroIdr BigInt    @map("reserved_micro_idr")
+  settledMicroIdr  BigInt    @default(0) @map("settled_micro_idr")
+  releasedMicroIdr BigInt    @default(0) @map("released_micro_idr")
+  exposureMicroIdr BigInt    @map("exposure_micro_idr")
+  closingAt        DateTime? @map("closing_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  boundJob GenerationJob? @relation("ReservationBoundJob", fields: [jobId], references: [id], onDelete: SetNull, map: "credit_reservations_job_id_fkey")
+
+  @@unique([projectId, jobId, id])
+  @@index([userId, status])
+  @@map("credit_reservations")
+}
+
+model CreditQuote {
+  id                String    @id
+  userId            String    @map("user_id")
+  projectId         String    @map("project_id")
+  workflowPlanId    String?   @map("workflow_plan_id")
+  workflowPlanHash  String    @map("workflow_plan_hash")
+  dependencyHash    String    @map("dependency_hash")
+  maxAmountMicroIdr BigInt    @map("max_amount_micro_idr")
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt        DateTime? @map("consumed_at") @db.Timestamptz(3)
+  requestId         String?   @map("request_id")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workflowPlan AiWorkflowPlan? @relation(fields: [workflowPlanId], references: [id], onDelete: SetNull, map: "credit_quotes_workflow_plan_id_fkey")
+
+  @@index([userId, expiresAt])
+  @@map("credit_quotes")
+}
+
+model ValidationReport {
+  id               String   @id
+  projectId        String   @map("project_id")
+  proseVersionId   String   @map("prose_version_id")
+  proseContentHash String   @map("prose_content_hash")
+  policyVersion    String   @map("policy_version")
+  status           String
+  passed           Boolean
+  schemaVersion    Int      @default(1) @map("schema_version")
+  payload          Json
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proseVersion   ProseVersion        @relation(fields: [projectId, proseVersionId], references: [projectId, id], onDelete: Cascade)
+  hashBoundProse ProseVersion        @relation("ValidationReportProseHash", fields: [projectId, proseVersionId, proseContentHash], references: [projectId, id, contentHash], onDelete: Cascade, map: "validation_reports_prose_hash_binding_fkey")
+  findings       ValidationFinding[]
+  proposals      Proposal[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, proseVersionId, id])
+  @@unique([proseVersionId, proseContentHash, policyVersion], map: "validation_reports_prose_hash_policy_key")
+  @@map("validation_reports")
+}
+
+model ValidationFinding {
+  id             String   @id
+  projectId      String   @map("project_id")
+  reportId       String   @map("report_id")
+  proseVersionId String   @map("prose_version_id")
+  source         String
+  severity       String
+  ruleKey        String   @map("rule_key")
+  message        String
+  evidenceId     String?  @map("evidence_id")
+  overrideStatus String?  @map("override_status")
+  overrideReason String?  @map("override_reason")
+  schemaVersion  Int      @default(1) @map("schema_version")
+  payload        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  report   ValidationReport @relation(fields: [projectId, proseVersionId, reportId], references: [projectId, proseVersionId, id], onDelete: Cascade, map: "validation_findings_report_prose_fkey")
+  evidence ProseEvidence?   @relation(fields: [projectId, proseVersionId, evidenceId], references: [projectId, proseVersionId, id], onDelete: NoAction, map: "validation_findings_evidence_prose_fkey")
+
+  @@unique([projectId, id])
+  @@index([projectId, reportId, severity], map: "validation_findings_report_severity_idx")
+  @@map("validation_findings")
+}
+
+model ArtifactProposal {
+  id             String   @id
+  projectId      String   @map("project_id")
+  proseVersionId String   @map("prose_version_id")
+  status         String
+  dependencyHash String   @map("dependency_hash")
+  sourceJobId    String?  @map("source_job_id")
+  schemaVersion  Int      @default(1) @map("schema_version")
+  payload        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proseVersion     ProseVersion      @relation(fields: [projectId, proseVersionId], references: [projectId, id], onDelete: Cascade, map: "artifact_proposals_prose_fkey")
+  sourceJob        GenerationJob?    @relation(fields: [projectId, sourceJobId], references: [projectId, id], onDelete: NoAction, map: "artifact_proposals_source_job_fkey")
+  publishArtifacts PublishArtifact[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, id, proseVersionId])
+  @@index([projectId, status])
+  @@map("artifact_proposals")
+}
+
+model PublishArtifact {
+  id                 String   @id
+  projectId          String   @map("project_id")
+  artifactProposalId String   @map("artifact_proposal_id")
+  proseVersionId     String   @map("prose_version_id")
+  artifactType       String   @map("artifact_type")
+  contentHash        String   @map("content_hash")
+  schemaVersion      Int      @default(1) @map("schema_version")
+  payload            Json
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  artifactProposal ArtifactProposal @relation(fields: [projectId, artifactProposalId, proseVersionId], references: [projectId, id, proseVersionId], onDelete: Cascade, map: "publish_artifacts_proposal_source_fkey")
+  proseVersion     ProseVersion     @relation(fields: [projectId, proseVersionId], references: [projectId, id], onDelete: Cascade, map: "publish_artifacts_prose_fkey")
+
+  @@unique([projectId, id])
+  @@unique([artifactProposalId, artifactType], map: "publish_artifacts_proposal_type_key")
+  @@map("publish_artifacts")
+}
+
+model OutboxEvent {
+  id            String   @id
+  aggregateType String   @map("aggregate_type")
+  aggregateId   String   @map("aggregate_id")
+  eventType     String   @map("event_type")
+  dedupeKey     String   @unique @map("dedupe_key")
+  occurredAt    DateTime @map("occurred_at") @db.Timestamptz(3)
+  schemaVersion Int      @default(1) @map("schema_version")
+  payload       Json
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  receipts OutboxReceipt[]
+
+  @@map("outbox_events")
+}
+
+model OutboxReceipt {
+  id                 String    @id
+  outboxEventId      String    @map("outbox_event_id")
+  consumerKey        String    @map("consumer_key")
+  deliveryGeneration Int       @map("delivery_generation")
+  status             String
+  attemptCount       Int       @default(0) @map("attempt_count")
+  processingStartedAt DateTime? @map("processing_started_at") @db.Timestamptz(3)
+  leaseExpiresAt      DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(3)
+  uncertainAt         DateTime? @map("uncertain_at") @db.Timestamptz(3)
+  deadAt              DateTime? @map("dead_at") @db.Timestamptz(3)
+  lastErrorCode       String?   @map("last_error_code")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  outboxEvent OutboxEvent @relation(fields: [outboxEventId], references: [id], onDelete: Restrict)
+
+  @@unique([outboxEventId, consumerKey, deliveryGeneration], map: "outbox_receipts_event_consumer_generation_key")
+  @@index([consumerKey, status, updatedAt], map: "outbox_receipts_consumer_status_updated_at_idx")
+  @@map("outbox_receipts")
 }

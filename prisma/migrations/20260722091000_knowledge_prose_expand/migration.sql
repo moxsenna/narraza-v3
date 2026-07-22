@@ -45,7 +45,8 @@ CREATE TABLE "prose_versions" (
     CONSTRAINT "prose_versions_revision_check" CHECK ("revision" >= 0),
     CONSTRAINT "prose_versions_content_hash_check" CHECK ("content_hash" ~ '^[0-9a-f]{64}$'),
     CONSTRAINT "prose_versions_project_id_id_key" UNIQUE ("project_id", "id"),
-    CONSTRAINT "prose_versions_project_id_beat_id_id_key" UNIQUE ("project_id", "beat_id", "id")
+    CONSTRAINT "prose_versions_project_id_beat_id_id_key" UNIQUE ("project_id", "beat_id", "id"),
+    CONSTRAINT "prose_versions_project_id_id_content_hash_key" UNIQUE ("project_id", "id", "content_hash")
 );
 
 CREATE TABLE "prose_working_drafts" (
@@ -179,7 +180,7 @@ ALTER TABLE "prose_working_drafts" ADD CONSTRAINT "prose_working_drafts_project_
 ALTER TABLE "prose_working_drafts" ADD CONSTRAINT "prose_working_drafts_project_id_beat_id_fkey" FOREIGN KEY ("project_id", "beat_id") REFERENCES "beats" ("project_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "prose_working_drafts" ADD CONSTRAINT "prose_working_drafts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "prose_evidence" ADD CONSTRAINT "prose_evidence_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "prose_evidence" ADD CONSTRAINT "prose_evidence_project_id_prose_version_id_fkey" FOREIGN KEY ("project_id", "prose_version_id") REFERENCES "prose_versions" ("project_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "prose_evidence" ADD CONSTRAINT "prose_evidence_prose_hash_binding_fkey" FOREIGN KEY ("project_id", "prose_version_id", "content_hash") REFERENCES "prose_versions" ("project_id", "id", "content_hash") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "character_states" ADD CONSTRAINT "character_states_project_id_prose_version_id_fkey" FOREIGN KEY ("project_id", "prose_version_id") REFERENCES "prose_versions" ("project_id", "id") ON DELETE NO ACTION ON UPDATE CASCADE;
 ALTER TABLE "fact_disclosures" ADD CONSTRAINT "fact_disclosures_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "fact_disclosures" ADD CONSTRAINT "fact_disclosures_project_id_fact_id_fkey" FOREIGN KEY ("project_id", "fact_id") REFERENCES "facts" ("project_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
