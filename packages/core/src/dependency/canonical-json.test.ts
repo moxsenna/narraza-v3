@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { canonicalJson, CanonicalJsonError, canonicalSha256, sha256Hex } from './canonical-json.js';
 
 const expectCanonicalError = (action: () => unknown) => {
@@ -148,6 +148,21 @@ describe('canonical JSON', () => {
 
     expect(canonicalJson(value)).toBe('[1,{"valid":true}]');
     expect(reads).toBe(0);
+  });
+
+  it('validates and serializes a large dense array without per-index linear key scans', () => {
+    const value = Array.from({ length: 10_000 }, (_, index) => index);
+    const includes = vi.spyOn(Array.prototype, 'includes');
+
+    try {
+      const serialized = canonicalJson(value);
+      const includesCalls = includes.mock.calls.length;
+
+      expect(serialized).toBe(`[${value.join(',')}]`);
+      expect(includesCalls).toBeLessThan(100);
+    } finally {
+      includes.mockRestore();
+    }
   });
 
   it('rejects sparse arrays and arrays with extra, symbol, non-enumerable, or accessor properties', () => {

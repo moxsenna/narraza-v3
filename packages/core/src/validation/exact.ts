@@ -60,6 +60,7 @@ export function denseArray(input: unknown, fail: Fail, label: string): readonly 
     return fail(`${label} must have Array.prototype`);
   }
   const keys = guarded(() => Reflect.ownKeys(input), fail, `${label} reflection failed`);
+  const keySet = new Set<PropertyKey>(keys);
   const lengthDescriptor = guarded(
     () => Object.getOwnPropertyDescriptor(input, 'length'),
     fail,
@@ -85,7 +86,7 @@ export function denseArray(input: unknown, fail: Fail, label: string): readonly 
   const values: unknown[] = [];
   for (let index = 0; index < length; index += 1) {
     const key = String(index);
-    if (!keys.includes(key)) return fail(`${label} must not be sparse`);
+    if (!keySet.has(key)) return fail(`${label} must not be sparse`);
     const descriptor = guarded(
       () => Object.getOwnPropertyDescriptor(input, key),
       fail,
