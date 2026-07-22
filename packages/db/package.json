@@ -15,11 +15,17 @@
     "pretest": "prisma generate",
     "test": "pnpm run test:integration",
     "pretest:integration": "prisma generate",
-    "test:integration": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.schema.config.ts --passWithNoTests",
+    "pretest:schema": "prisma generate",
+    "test:schema": "vitest run --config vitest.schema.config.ts src/schema-test --passWithNoTests",
     "generate": "prisma generate",
     "migrate": "tsx src/migrate.ts",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
+    "migration:empty": "node scripts/test-migrations.mjs empty",
+    "migration:upgrade": "node scripts/test-migrations.mjs upgrade",
+    "migration:expand-only": "node scripts/assert-expand-only.mjs",
+    "migration:all": "node scripts/test-migrations.mjs all",
     "clean": "rimraf dist *.tsbuildinfo"
   },
   "dependencies": {

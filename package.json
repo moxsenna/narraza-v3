@@ -25,6 +25,10 @@
     "db:migrate": "pnpm --filter @narraza/db migrate",
     "db:generate": "pnpm --filter @narraza/db generate",
     "migration:drift": "node scripts/check-migration-drift.mjs",
+    "migration:empty": "pnpm --filter @narraza/db migration:empty",
+    "migration:upgrade": "pnpm --filter @narraza/db migration:upgrade",
+    "migration:expand-only": "pnpm --filter @narraza/db migration:expand-only",
+    "migration:all": "pnpm --filter @narraza/db migration:all",
     "security:env-boundary": "vitest run packages/shared/src/env/env-boundary.test.ts",
     "security:client-bundle": "node scripts/scan-client-bundle.mjs apps/web/.next/static"
   },
