@@ -763,8 +763,12 @@ Exact discriminated payload interfaces per row menjadi bagian implementation pla
 Prose-derived `fact.create`, `fact.update`, `state.append`, `belief.append`, dan `disclosure.append` wajib membawa normalized evidence input:
 
 ```ts
+type ProseVersionRef =
+  | { readonly existingId: string }
+  | { readonly tempRef: string };
+
 interface ProseEvidenceBinding {
-  proseVersionRef: string;
+  proseVersionRef: ProseVersionRef;
   proseContentHash: string;
   startUtf16: number;
   endUtf16: number;
