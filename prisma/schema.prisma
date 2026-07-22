@@ -143,25 +143,36 @@ model Project {
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  owner              User                @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
-  intakeSessions     IntakeSession[]
-  conceptSets        ConceptSet[]
-  foundations        Foundation[]
-  characters         Character[]
-  characterStates    CharacterState[]
-  characterBeliefs   CharacterBelief[]
-  roadmaps           Roadmap[]
-  arcs               Arc[]
-  chapters           Chapter[]
-  beats              Beat[]
-  facts              Fact[]
-  factDisclosures    FactDisclosure[]
-  readerFactStates   ReaderFactState[]
-  reveals            Reveal[]
-  revealBreadcrumbs  RevealBreadcrumb[]
-  proseVersions      ProseVersion[]
-  proseWorkingDrafts ProseWorkingDraft[]
-  proseEvidence      ProseEvidence[]
+  owner                     User                       @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
+  intakeSessions            IntakeSession[]
+  conceptSets               ConceptSet[]
+  foundations               Foundation[]
+  characters                Character[]
+  characterStates           CharacterState[]
+  characterBeliefs          CharacterBelief[]
+  roadmaps                  Roadmap[]
+  arcs                      Arc[]
+  chapters                  Chapter[]
+  beats                     Beat[]
+  facts                     Fact[]
+  factDisclosures           FactDisclosure[]
+  readerFactStates          ReaderFactState[]
+  reveals                   Reveal[]
+  revealBreadcrumbs         RevealBreadcrumb[]
+  proseVersions             ProseVersion[]
+  proseWorkingDrafts        ProseWorkingDraft[]
+  proseEvidence             ProseEvidence[]
+  proposalGroups            ProposalGroup[]
+  proposals                 Proposal[]
+  generatedCandidates       GeneratedCandidate[]
+  canonicalChangeSets       CanonicalChangeSet[]
+  canonicalChangeOperations CanonicalChangeOperation[]
+  contextSnapshots          ContextSnapshot[]
+  generationContextBundles  GenerationContextBundle[]
+  aiWorkflowPlans           AiWorkflowPlan[]
+  generationJobs            GenerationJob[]
+  generationAttempts        GenerationAttempt[]
+  workflowInvocations       WorkflowInvocation[]
 
   @@unique([id, ownerUserId])
   @@index([ownerUserId])
@@ -197,7 +208,8 @@ model IntakeMessage {
   jobId           String?  @map("job_id")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  intakeSession IntakeSession @relation(fields: [projectId, intakeSessionId], references: [projectId, id], onDelete: Cascade)
+  intakeSession IntakeSession  @relation(fields: [projectId, intakeSessionId], references: [projectId, id], onDelete: Cascade)
+  job           GenerationJob? @relation(fields: [projectId, jobId], references: [projectId, id], onDelete: NoAction, map: "intake_messages_job_fkey")
 
   @@unique([projectId, id])
   @@unique([intakeSessionId, sequence])
@@ -216,8 +228,9 @@ model ConceptSet {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  concepts Concept[]
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceJob GenerationJob? @relation(fields: [projectId, sourceJobId], references: [projectId, id], onDelete: NoAction, map: "concept_sets_source_job_fkey")
+  concepts  Concept[]
 
   @@unique([projectId, id])
   @@index([projectId, createdAt])
@@ -541,15 +554,18 @@ model ProseVersion {
   contentHash       String   @map("content_hash")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  beat            Beat             @relation("BeatProseVersions", fields: [projectId, beatId], references: [projectId, id], onDelete: Cascade)
-  acceptedByBeat  Beat?            @relation("AcceptedProse")
+  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  beat            Beat                @relation("BeatProseVersions", fields: [projectId, beatId], references: [projectId, id], onDelete: Cascade)
+  acceptedByBeat  Beat?               @relation("AcceptedProse")
   disclosures     FactDisclosure[]
   evidence        ProseEvidence[]
   characterStates CharacterState[]
+  sourceCandidate        GeneratedCandidate?  @relation("SourceCandidate", fields: [projectId, sourceCandidateId], references: [projectId, id], onDelete: NoAction)
+  backpointingCandidates GeneratedCandidate[] @relation("CandidateProseBackpointer")
 
   @@unique([projectId, id])
   @@unique([projectId, beatId, id])
+  @@unique([projectId, sourceCandidateId, id])
   @@index([projectId, beatId, createdAt])
   @@map("prose_versions")
 }
@@ -595,4 +611,304 @@ model ProseEvidence {
   @@unique([projectId, proseVersionId, id])
   @@index([projectId, proseVersionId, startUtf16, endUtf16], map: "prose_evidence_project_id_prose_version_id_start_utf16_end_utf1")
   @@map("prose_evidence")
+}
+
+model ProposalGroup {
+  id             String   @id
+  projectId      String   @map("project_id")
+  kind           String
+  status         String
+  dependencyHash String   @map("dependency_hash")
+  sourceJobId    String?  @map("source_job_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceJob           GenerationJob?       @relation("ProposalGroupSourceJob", fields: [projectId, sourceJobId], references: [projectId, id], onDelete: NoAction)
+  proposals           Proposal[]
+  generatedCandidates GeneratedCandidate[]
+
+  @@unique([projectId, id])
+  @@index([projectId, status])
+  @@map("proposal_groups")
+}
+
+model Proposal {
+  id                        String   @id
+  projectId                 String   @map("project_id")
+  groupId                   String   @map("group_id")
+  changeSetId               String   @map("change_set_id")
+  source                    String
+  status                    String
+  operationsHash            String   @map("operations_hash")
+  dependencyHash            String   @map("dependency_hash")
+  revalidatedFromProposalId String?  @map("revalidated_from_proposal_id")
+  validationReportId        String?  @map("validation_report_id")
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project                 Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  group                   ProposalGroup      @relation(fields: [projectId, groupId], references: [projectId, id], onDelete: Cascade)
+  changeSet               CanonicalChangeSet @relation(fields: [projectId, changeSetId], references: [projectId, id], onDelete: Cascade)
+  revalidatedFromProposal Proposal?          @relation("ProposalRevalidation", fields: [projectId, revalidatedFromProposalId], references: [projectId, id], onDelete: NoAction)
+  revalidatedProposals    Proposal[]         @relation("ProposalRevalidation")
+
+  @@unique([projectId, id])
+  @@index([projectId, groupId, status])
+  @@index([projectId, status])
+  @@map("proposals")
+}
+
+model GeneratedCandidate {
+  id             String   @id
+  projectId      String   @map("project_id")
+  groupId        String   @map("group_id")
+  jobId          String?  @map("job_id")
+  ordinal        Int
+  proseVersionId String?  @map("prose_version_id")
+  schemaVersion  Int      @default(1) @map("schema_version")
+  payload        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project             Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  group               ProposalGroup  @relation(fields: [projectId, groupId], references: [projectId, id], onDelete: Cascade)
+  job                 GenerationJob? @relation(fields: [projectId, jobId], references: [projectId, id], onDelete: NoAction)
+  proseVersion        ProseVersion?  @relation("CandidateProseBackpointer", fields: [projectId, id, proseVersionId], references: [projectId, sourceCandidateId, id], onDelete: NoAction, map: "generated_candidates_prose_backpointer_fkey")
+  sourceProseVersions ProseVersion[] @relation("SourceCandidate")
+
+  @@unique([projectId, id])
+  @@unique([groupId, ordinal])
+  @@index([projectId, groupId])
+  @@map("generated_candidates")
+}
+
+model CanonicalChangeSet {
+  id                      String   @id
+  projectId               String   @map("project_id")
+  origin                  String
+  status                  String
+  baseCanonicalVersion    Int      @map("base_canonical_version")
+  operationsHash          String   @map("operations_hash")
+  appliedCanonicalVersion Int?     @map("applied_canonical_version")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project    Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proposals  Proposal[]
+  operations CanonicalChangeOperation[]
+
+  @@unique([projectId, id])
+  @@index([projectId, status])
+  @@map("canonical_change_sets")
+}
+
+model CanonicalChangeOperation {
+  id               String   @id
+  projectId        String   @map("project_id")
+  changeSetId      String   @map("change_set_id")
+  ordinal          Int
+  operationType    String   @map("operation_type")
+  targetEntityType String   @map("target_entity_type")
+  targetEntityId   String   @map("target_entity_id")
+  expectedRevision Int?     @map("expected_revision")
+  risk             String
+  schemaVersion    Int      @default(1) @map("schema_version")
+  payload          Json
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changeSet CanonicalChangeSet @relation(fields: [projectId, changeSetId], references: [projectId, id], onDelete: Cascade)
+
+  @@unique([projectId, id])
+  @@unique([changeSetId, ordinal])
+  @@index([projectId, targetEntityType, targetEntityId])
+  @@map("canonical_change_operations")
+}
+
+model ContextSnapshot {
+  id             String   @id
+  projectId      String   @map("project_id")
+  packetKind     String   @map("packet_kind")
+  dataClass      String   @map("data_class")
+  dependencyHash String   @map("dependency_hash")
+  contentHash    String   @map("content_hash")
+  schemaVersion  Int      @default(1) @map("schema_version")
+  payload        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bundles GenerationContextBundle[]
+
+  @@unique([projectId, id])
+  @@index([projectId, dependencyHash])
+  @@map("context_snapshots")
+}
+
+model GenerationContextBundle {
+  id             String    @id
+  projectId      String    @map("project_id")
+  snapshotId     String    @map("snapshot_id")
+  dependencyHash String    @map("dependency_hash")
+  bundleHash     String    @map("bundle_hash")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt     DateTime? @map("consumed_at") @db.Timestamptz(3)
+  schemaVersion  Int       @default(1) @map("schema_version")
+  payload        Json
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  snapshot      ContextSnapshot  @relation(fields: [projectId, snapshotId], references: [projectId, id], onDelete: Cascade)
+  workflowPlans AiWorkflowPlan[]
+  jobs          GenerationJob[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, bundleHash])
+  @@map("generation_context_bundles")
+}
+
+model AiWorkflowPlan {
+  id                   String   @id
+  projectId            String   @map("project_id")
+  bundleId             String   @map("bundle_id")
+  workflowKind         String   @map("workflow_kind")
+  planHash             String   @map("plan_hash")
+  estimatedMaxMicroIdr BigInt   @map("estimated_max_micro_idr")
+  schemaVersion        Int      @default(1) @map("schema_version")
+  payload              Json
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bundle  GenerationContextBundle @relation(fields: [projectId, bundleId], references: [projectId, id], onDelete: Cascade)
+  jobs    GenerationJob[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, bundleId, id])
+  @@unique([projectId, planHash])
+  @@map("ai_workflow_plans")
+}
+
+model ModelPriceSnapshot {
+  id                 String   @id
+  providerId         String   @map("provider_id")
+  requestedModelId   String   @map("requested_model_id")
+  resolvedModelId    String   @map("resolved_model_id")
+  inputRateMicroIdr  BigInt   @map("input_rate_micro_idr")
+  outputRateMicroIdr BigInt   @map("output_rate_micro_idr")
+  currency           String
+  effectiveAt        DateTime @map("effective_at") @db.Timestamptz(3)
+  schemaVersion      Int      @default(1) @map("schema_version")
+  payload            Json
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  usageEvents AiUsageEvent[]
+
+  @@unique([providerId, resolvedModelId, effectiveAt])
+  @@map("model_price_snapshots")
+}
+
+model AiUsageEvent {
+  id                   String   @id
+  projectId            String?  @map("project_id")
+  jobId                String?  @map("job_id")
+  attemptId            String?  @map("attempt_id")
+  priceSnapshotId      String   @map("price_snapshot_id")
+  inputTokens          Int      @map("input_tokens")
+  outputTokens         Int      @map("output_tokens")
+  providerCostMicroIdr BigInt   @map("provider_cost_micro_idr")
+  chargedParty         String   @map("charged_party")
+  dedupeKey            String   @unique @map("dedupe_key")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  priceSnapshot ModelPriceSnapshot @relation(fields: [priceSnapshotId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+  @@index([jobId])
+  @@index([attemptId])
+  @@map("ai_usage_events")
+}
+
+model GenerationJob {
+  id                String    @id
+  projectId         String    @map("project_id")
+  kind              String
+  status            String
+  priority          Int       @default(0)
+  availableAt       DateTime  @map("available_at") @db.Timestamptz(3)
+  leaseToken        String?   @map("lease_token")
+  leaseExpiresAt    DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  fenceVersion      Int       @default(0) @map("fence_version")
+  cancelRequestedAt DateTime? @map("cancel_requested_at") @db.Timestamptz(3)
+  retryOfJobId      String?   @map("retry_of_job_id")
+  bundleId          String?   @map("bundle_id")
+  workflowPlanId    String?   @map("workflow_plan_id")
+  reservationId     String?   @map("reservation_id")
+  schemaVersion     Int       @default(1) @map("schema_version")
+  payload           Json
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project             Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  retryOfJob          GenerationJob?           @relation("JobRetry", fields: [projectId, retryOfJobId], references: [projectId, id], onDelete: NoAction)
+  retries             GenerationJob[]          @relation("JobRetry")
+  bundle              GenerationContextBundle? @relation(fields: [projectId, bundleId], references: [projectId, id], onDelete: NoAction)
+  workflowPlan        AiWorkflowPlan?          @relation(fields: [projectId, bundleId, workflowPlanId], references: [projectId, bundleId, id], onDelete: NoAction)
+  attempts            GenerationAttempt[]
+  invocations         WorkflowInvocation[]
+  proposalGroups      ProposalGroup[]          @relation("ProposalGroupSourceJob")
+  generatedCandidates GeneratedCandidate[]
+  intakeMessages      IntakeMessage[]
+  conceptSets         ConceptSet[]
+
+  @@unique([projectId, id])
+  @@map("generation_jobs")
+}
+
+model GenerationAttempt {
+  id                String    @id
+  projectId         String    @map("project_id")
+  jobId             String    @map("job_id")
+  invocationId      String    @map("invocation_id")
+  ordinal           Int
+  status            String
+  providerRequestId String?   @map("provider_request_id")
+  resultHash        String?   @map("result_hash")
+  startedAt         DateTime  @map("started_at") @db.Timestamptz(3)
+  finishedAt        DateTime? @map("finished_at") @db.Timestamptz(3)
+  schemaVersion     Int       @default(1) @map("schema_version")
+  payload           Json
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job            GenerationJob        @relation(fields: [projectId, jobId], references: [projectId, id], onDelete: Cascade)
+  invocation     WorkflowInvocation   @relation("InvocationAttempts", fields: [projectId, jobId, invocationId], references: [projectId, jobId, id], onDelete: Cascade)
+  wonInvocations WorkflowInvocation[] @relation("InvocationWinner")
+
+  @@unique([projectId, id])
+  @@unique([projectId, jobId, id])
+  @@unique([projectId, jobId, invocationId, id])
+  @@unique([invocationId, ordinal])
+  @@map("generation_attempts")
+}
+
+model WorkflowInvocation {
+  id              String   @id
+  projectId       String   @map("project_id")
+  jobId           String   @map("job_id")
+  stageKey        String   @map("stage_key")
+  status          String
+  winnerAttemptId String?  @map("winner_attempt_id")
+  fenceVersion    Int      @default(0) @map("fence_version")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job           GenerationJob       @relation(fields: [projectId, jobId], references: [projectId, id], onDelete: Cascade)
+  attempts      GenerationAttempt[] @relation("InvocationAttempts")
+  winnerAttempt GenerationAttempt?  @relation("InvocationWinner", fields: [projectId, jobId, id, winnerAttemptId], references: [projectId, jobId, invocationId, id], onDelete: NoAction, map: "workflow_invocations_winner_attempt_fkey")
+
+  @@unique([projectId, id])
+  @@unique([projectId, jobId, id])
+  @@unique([jobId, stageKey])
+  @@map("workflow_invocations")
 }
