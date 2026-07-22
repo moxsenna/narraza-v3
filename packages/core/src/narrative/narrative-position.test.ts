@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hostileObjects } from '../validation/hostile-fixtures.js';
+import { hostileObjects } from '../validation/hostile-fixtures.test.js';
 import {
   compareNarrativePositions,
   createNarrativePosition,
