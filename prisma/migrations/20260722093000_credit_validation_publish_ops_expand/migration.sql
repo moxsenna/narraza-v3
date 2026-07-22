@@ -26,7 +26,7 @@ CREATE TABLE "credit_ledger" (
 );
 
 CREATE TABLE "credit_reservations" (
-  "id" TEXT NOT NULL, "user_id" TEXT NOT NULL, "project_id" TEXT, "job_id" TEXT, "status" TEXT NOT NULL,
+  "id" TEXT NOT NULL, "user_id" TEXT NOT NULL, "project_id" TEXT, "job_project_id" TEXT, "job_id" TEXT, "status" TEXT NOT NULL,
   "reserved_micro_idr" BIGINT NOT NULL, "settled_micro_idr" BIGINT NOT NULL DEFAULT 0,
   "released_micro_idr" BIGINT NOT NULL DEFAULT 0, "exposure_micro_idr" BIGINT NOT NULL,
   "closing_at" TIMESTAMPTZ(3), "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT NOW(),
@@ -37,7 +37,10 @@ CREATE TABLE "credit_reservations" (
     "reserved_micro_idr" > 0 AND "settled_micro_idr" >= 0 AND "released_micro_idr" >= 0 AND "exposure_micro_idr" >= 0 AND
     "settled_micro_idr" + "released_micro_idr" + "exposure_micro_idr" = "reserved_micro_idr"
   ),
-  CONSTRAINT "credit_reservations_binding_check" CHECK ("job_id" IS NULL OR "project_id" IS NOT NULL),
+  CONSTRAINT "credit_reservations_binding_check" CHECK (
+    ("job_id" IS NULL AND "job_project_id" IS NULL) OR
+    ("job_id" IS NOT NULL AND "job_project_id" = "project_id")
+  ),
   CONSTRAINT "credit_reservations_lifecycle_check" CHECK (
     ("status" = 'open' AND "closing_at" IS NULL AND "settled_micro_idr" = 0 AND "released_micro_idr" = 0 AND "exposure_micro_idr" = "reserved_micro_idr") OR
     ("status" = 'closing' AND "closing_at" IS NOT NULL AND "exposure_micro_idr" > 0) OR
@@ -48,11 +51,15 @@ CREATE TABLE "credit_reservations" (
 );
 
 CREATE TABLE "credit_quotes" (
-  "id" TEXT NOT NULL, "user_id" TEXT NOT NULL, "project_id" TEXT NOT NULL, "workflow_plan_id" TEXT,
+  "id" TEXT NOT NULL, "user_id" TEXT NOT NULL, "project_id" TEXT NOT NULL, "workflow_plan_project_id" TEXT, "workflow_plan_id" TEXT,
   "workflow_plan_hash" TEXT NOT NULL, "dependency_hash" TEXT NOT NULL, "max_amount_micro_idr" BIGINT NOT NULL,
   "expires_at" TIMESTAMPTZ(3) NOT NULL, "consumed_at" TIMESTAMPTZ(3), "request_id" TEXT,
   "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT NOW(),
   CONSTRAINT "credit_quotes_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "credit_quotes_plan_binding_check" CHECK (
+    ("workflow_plan_id" IS NULL AND "workflow_plan_project_id" IS NULL) OR
+    ("workflow_plan_id" IS NOT NULL AND "workflow_plan_project_id" = "project_id")
+  ),
   CONSTRAINT "credit_quotes_workflow_plan_hash_check" CHECK ("workflow_plan_hash" ~ '^[0-9a-f]{64}$'),
   CONSTRAINT "credit_quotes_dependency_hash_check" CHECK ("dependency_hash" ~ '^[0-9a-f]{64}$'),
   CONSTRAINT "credit_quotes_amount_check" CHECK ("max_amount_micro_idr" >= 0),
@@ -163,28 +170,47 @@ CREATE INDEX "artifact_proposals_project_id_status_idx" ON "artifact_proposals" 
 CREATE INDEX "outbox_receipts_consumer_status_updated_at_idx" ON "outbox_receipts" ("consumer_key","status","updated_at");
 
 ALTER TABLE "credit_reservations" ADD CONSTRAINT "credit_reservations_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
--- Financial evidence survives project purge: scalar project attribution remains, nullable job pointer is cleared.
-ALTER TABLE "credit_reservations" ADD CONSTRAINT "credit_reservations_job_id_fkey" FOREIGN KEY ("job_id") REFERENCES "generation_jobs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "ai_workflow_plans" ADD CONSTRAINT "ai_workflow_plans_project_id_id_plan_hash_key" UNIQUE ("project_id","id","plan_hash");
-ALTER TABLE "credit_quotes" ADD CONSTRAINT "credit_quotes_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
--- Quote keeps scalar project/hash attribution; nullable workflow identifier clears when project-owned plan is purged.
-ALTER TABLE "credit_quotes" ADD CONSTRAINT "credit_quotes_workflow_plan_id_fkey" FOREIGN KEY ("workflow_plan_id") REFERENCES "ai_workflow_plans"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-CREATE FUNCTION "check_credit_quote_plan_binding"() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+-- Dedicated nullable component preserves scalar project attribution while real composite FK validates both reservation writes and parent job mutations.
+CREATE FUNCTION "sync_credit_reservation_job_project"() RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-  IF NEW."workflow_plan_id" IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM "ai_workflow_plans" plan
-    WHERE plan."id" = NEW."workflow_plan_id"
-      AND plan."project_id" = NEW."project_id"
-      AND plan."plan_hash" = NEW."workflow_plan_hash"
-  ) THEN
-    RAISE foreign_key_violation USING CONSTRAINT = 'credit_quotes_plan_binding_fkey';
-  END IF;
+  NEW."job_project_id" := CASE WHEN NEW."job_id" IS NULL THEN NULL ELSE NEW."project_id" END;
   RETURN NEW;
 END;
 $$;
-CREATE CONSTRAINT TRIGGER "credit_quotes_plan_binding_trigger"
-AFTER INSERT OR UPDATE OF "project_id","workflow_plan_id","workflow_plan_hash" ON "credit_quotes"
-DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION "check_credit_quote_plan_binding"();
+CREATE TRIGGER "credit_reservations_job_project_sync_trigger"
+BEFORE INSERT OR UPDATE OF "project_id","job_id" ON "credit_reservations"
+FOR EACH ROW EXECUTE FUNCTION "sync_credit_reservation_job_project"();
+ALTER TABLE "credit_reservations" ADD CONSTRAINT "credit_reservations_job_binding_fkey"
+FOREIGN KEY ("job_project_id","job_id") REFERENCES "generation_jobs"("project_id","id")
+ON DELETE SET NULL ON UPDATE NO ACTION;
+ALTER TABLE "ai_workflow_plans" ADD CONSTRAINT "ai_workflow_plans_project_id_id_plan_hash_key" UNIQUE ("project_id","id","plan_hash");
+ALTER TABLE "credit_quotes" ADD CONSTRAINT "credit_quotes_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- Real composite FK makes quote-plan project/hash integrity bidirectional. Parent delete trigger clears only nullable identifiers, retaining evidence hash and project attribution.
+CREATE FUNCTION "sync_credit_quote_plan_project"() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW."workflow_plan_project_id" := CASE WHEN NEW."workflow_plan_id" IS NULL THEN NULL ELSE NEW."project_id" END;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER "credit_quotes_plan_project_sync_trigger"
+BEFORE INSERT OR UPDATE OF "project_id","workflow_plan_id" ON "credit_quotes"
+FOR EACH ROW EXECUTE FUNCTION "sync_credit_quote_plan_project"();
+ALTER TABLE "credit_quotes" ADD CONSTRAINT "credit_quotes_plan_binding_fkey"
+FOREIGN KEY ("workflow_plan_project_id","workflow_plan_id","workflow_plan_hash")
+REFERENCES "ai_workflow_plans"("project_id","id","plan_hash") ON DELETE NO ACTION ON UPDATE NO ACTION;
+CREATE FUNCTION "clear_credit_quote_plan_binding_on_delete"() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE "credit_quotes"
+  SET "workflow_plan_project_id" = NULL, "workflow_plan_id" = NULL
+  WHERE "workflow_plan_project_id" = OLD."project_id"
+    AND "workflow_plan_id" = OLD."id"
+    AND "workflow_plan_hash" = OLD."plan_hash";
+  RETURN OLD;
+END;
+$$;
+CREATE TRIGGER "ai_workflow_plans_quote_binding_delete_trigger"
+BEFORE DELETE ON "ai_workflow_plans"
+FOR EACH ROW EXECUTE FUNCTION "clear_credit_quote_plan_binding_on_delete"();
 ALTER TABLE "validation_reports" ADD CONSTRAINT "validation_reports_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "validation_reports" ADD CONSTRAINT "validation_reports_project_id_prose_version_id_fkey" FOREIGN KEY ("project_id","prose_version_id") REFERENCES "prose_versions"("project_id","id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "validation_reports" ADD CONSTRAINT "validation_reports_prose_hash_binding_fkey" FOREIGN KEY ("project_id","prose_version_id","prose_content_hash") REFERENCES "prose_versions"("project_id","id","content_hash") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -198,21 +224,9 @@ ALTER TABLE "publish_artifacts" ADD CONSTRAINT "publish_artifacts_project_id_fke
 ALTER TABLE "publish_artifacts" ADD CONSTRAINT "publish_artifacts_proposal_source_fkey" FOREIGN KEY ("project_id","artifact_proposal_id","prose_version_id") REFERENCES "artifact_proposals"("project_id","id","prose_version_id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "publish_artifacts" ADD CONSTRAINT "publish_artifacts_prose_fkey" FOREIGN KEY ("project_id","prose_version_id") REFERENCES "prose_versions"("project_id","id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "outbox_receipts" ADD CONSTRAINT "outbox_receipts_outbox_event_id_fkey" FOREIGN KEY ("outbox_event_id") REFERENCES "outbox_events"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
--- Avoid reservation/job FK cycle while preserving same-job pointer validation and purge-safe scalar evidence.
-CREATE FUNCTION "check_generation_job_reservation_binding"() RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-  IF NEW."reservation_id" IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM "credit_reservations" reservation
-    WHERE reservation."id" = NEW."reservation_id"
-      AND reservation."project_id" = NEW."project_id"
-      AND reservation."job_id" = NEW."id"
-  ) THEN
-    RAISE foreign_key_violation USING CONSTRAINT = 'generation_jobs_reservation_binding_fkey';
-  END IF;
-  RETURN NEW;
-END;
-$$;
-CREATE CONSTRAINT TRIGGER "generation_jobs_reservation_binding_trigger"
-AFTER INSERT OR UPDATE OF "project_id","id","reservation_id" ON "generation_jobs"
-DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION "check_generation_job_reservation_binding"();
+-- Reciprocal real composite FK guards job pointer writes and reservation parent-key mutation under concurrent transactions.
+ALTER TABLE "generation_jobs" ADD CONSTRAINT "generation_jobs_reservation_binding_fkey"
+FOREIGN KEY ("project_id","id","reservation_id")
+REFERENCES "credit_reservations"("project_id","job_id","id")
+ON DELETE NO ACTION ON UPDATE NO ACTION;
 ALTER TABLE "proposals" ADD CONSTRAINT "proposals_validation_report_fkey" FOREIGN KEY ("project_id","validation_report_id") REFERENCES "validation_reports"("project_id","id") ON DELETE NO ACTION ON UPDATE CASCADE;

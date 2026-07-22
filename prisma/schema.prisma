@@ -874,6 +874,7 @@ model GenerationJob {
   intakeMessages      IntakeMessage[]
   conceptSets         ConceptSet[]
   boundReservations   CreditReservation[]      @relation("ReservationBoundJob")
+  reservation         CreditReservation?       @relation("JobReservationPointer", fields: [projectId, id, reservationId], references: [projectId, jobId, id], onDelete: NoAction, onUpdate: NoAction, map: "generation_jobs_reservation_binding_fkey")
   artifactProposals   ArtifactProposal[]
 
   @@unique([projectId, id])
@@ -953,6 +954,7 @@ model CreditReservation {
   id               String    @id
   userId           String    @map("user_id")
   projectId        String?   @map("project_id")
+  jobProjectId     String?   @map("job_project_id")
   jobId            String?   @map("job_id")
   status           String
   reservedMicroIdr BigInt    @map("reserved_micro_idr")
@@ -964,7 +966,8 @@ model CreditReservation {
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user     User           @relation(fields: [userId], references: [id], onDelete: Restrict)
-  boundJob GenerationJob? @relation("ReservationBoundJob", fields: [jobId], references: [id], onDelete: SetNull, map: "credit_reservations_job_id_fkey")
+  boundJob       GenerationJob?   @relation("ReservationBoundJob", fields: [jobProjectId, jobId], references: [projectId, id], onDelete: SetNull, onUpdate: NoAction, map: "credit_reservations_job_binding_fkey")
+  pointedToByJob GenerationJob[]  @relation("JobReservationPointer")
 
   @@unique([projectId, jobId, id])
   @@index([userId, status])
@@ -974,8 +977,9 @@ model CreditReservation {
 model CreditQuote {
   id                String    @id
   userId            String    @map("user_id")
-  projectId         String    @map("project_id")
-  workflowPlanId    String?   @map("workflow_plan_id")
+  projectId            String    @map("project_id")
+  workflowPlanProjectId String?   @map("workflow_plan_project_id")
+  workflowPlanId       String?   @map("workflow_plan_id")
   workflowPlanHash  String    @map("workflow_plan_hash")
   dependencyHash    String    @map("dependency_hash")
   maxAmountMicroIdr BigInt    @map("max_amount_micro_idr")
@@ -984,8 +988,8 @@ model CreditQuote {
   requestId         String?   @map("request_id")
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  user         User           @relation(fields: [userId], references: [id], onDelete: Restrict)
-  workflowPlan AiWorkflowPlan? @relation(fields: [workflowPlanId], references: [id], onDelete: SetNull, map: "credit_quotes_workflow_plan_id_fkey")
+  user         User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workflowPlan AiWorkflowPlan? @relation(fields: [workflowPlanProjectId, workflowPlanId, workflowPlanHash], references: [projectId, id, planHash], onDelete: NoAction, onUpdate: NoAction, map: "credit_quotes_plan_binding_fkey")
 
   @@index([userId, expiresAt])
   @@map("credit_quotes")
