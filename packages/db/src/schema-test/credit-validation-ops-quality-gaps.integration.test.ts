@@ -229,38 +229,41 @@ schema.test('project purge retains linked reservation and quote evidence', async
   }
 });
 
-schema.test('outbox receipt supports exact locked statuses and lifecycle timestamps', async ({ client }) => {
-  await client.query(
-    `INSERT INTO outbox_events
+schema.test(
+  'outbox receipt supports exact locked statuses and lifecycle timestamps',
+  async ({ client }) => {
+    await client.query(
+      `INSERT INTO outbox_events
        (id,aggregate_type,aggregate_id,event_type,dedupe_key,occurred_at,schema_version,payload,created_at)
      VALUES ('receipt-event','project','p','changed','receipt-event',now(),1,'{}',now())`,
-  );
-  await client.query(
-    `INSERT INTO outbox_receipts
+    );
+    await client.query(
+      `INSERT INTO outbox_receipts
        (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,processing_started_at,lease_expires_at,completed_at,uncertain_at,dead_at,last_error_code,created_at,updated_at)
      VALUES ('processing-receipt','receipt-event','worker',0,'processing',1,now(),now() + interval '1 minute',NULL,NULL,NULL,NULL,now(),now()),
             ('completed-receipt','receipt-event','worker',1,'completed',1,now(),NULL,now(),NULL,NULL,NULL,now(),now()),
             ('uncertain-receipt','receipt-event','worker',2,'uncertain',1,now(),NULL,NULL,now(),NULL,'SIDE_EFFECT_UNKNOWN',now(),now()),
             ('dead-receipt','receipt-event','worker',3,'dead',3,now(),NULL,NULL,NULL,now(),'MAX_ATTEMPTS',now(),now())`,
-  );
+    );
 
-  for (const [generation, status] of ['pending', 'leased', 'retry', 'delivered'].entries()) {
+    for (const [generation, status] of ['pending', 'leased', 'retry', 'delivered'].entries()) {
+      await expectSqlState(
+        client.query(
+          `INSERT INTO outbox_receipts
+           (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,created_at,updated_at)
+         VALUES ($1,'receipt-event','legacy',$2,$3,0,now(),now())`,
+          [`legacy-${status}`, generation, status],
+        ),
+        '23514',
+      );
+    }
     await expectSqlState(
       client.query(
         `INSERT INTO outbox_receipts
-           (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,created_at,updated_at)
-         VALUES ($1,'receipt-event','legacy',$2,$3,0,now(),now())`,
-        [`legacy-${status}`, generation, status],
+         (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,processing_started_at,created_at,updated_at)
+       VALUES ('bad-uncertain','receipt-event','worker',4,'uncertain',1,now(),now(),now())`,
       ),
       '23514',
     );
-  }
-  await expectSqlState(
-    client.query(
-      `INSERT INTO outbox_receipts
-         (id,outbox_event_id,consumer_key,delivery_generation,status,attempt_count,processing_started_at,created_at,updated_at)
-       VALUES ('bad-uncertain','receipt-event','worker',4,'uncertain',1,now(),now(),now())`,
-    ),
-    '23514',
-  );
-});
+  },
+);

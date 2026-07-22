@@ -29,20 +29,21 @@ async function seedJobInvocationsAndAttempts(
   );
 }
 
-schema.test('workflow invocation rejects winner from another invocation in same job', async ({
-  client,
-}) => {
-  await seedJobInvocationsAndAttempts(client);
+schema.test(
+  'workflow invocation rejects winner from another invocation in same job',
+  async ({ client }) => {
+    await seedJobInvocationsAndAttempts(client);
 
-  await expectSqlState(
-    client.query(
-      `UPDATE workflow_invocations
+    await expectSqlState(
+      client.query(
+        `UPDATE workflow_invocations
           SET status = 'succeeded', winner_attempt_id = 'winner-attempt-b', updated_at = now()
         WHERE id = 'winner-invocation-a'`,
-    ),
-    '23503',
-  );
-});
+      ),
+      '23503',
+    );
+  },
+);
 
 schema.test('succeeded workflow invocation requires a winner', async ({ client }) => {
   await seedJobInvocationsAndAttempts(client);
@@ -144,18 +145,21 @@ schema.test('generated candidate accepts matching reciprocal prose pointer', asy
   );
 });
 
-schema.test('generated candidate rejects prose sourced by another candidate', async ({ client }) => {
-  await seedCandidateProseLinks(client);
+schema.test(
+  'generated candidate rejects prose sourced by another candidate',
+  async ({ client }) => {
+    await seedCandidateProseLinks(client);
 
-  await expectSqlState(
-    client.query(
-      `UPDATE generated_candidates
+    await expectSqlState(
+      client.query(
+        `UPDATE generated_candidates
           SET prose_version_id = 'candidate-prose-a'
         WHERE id = 'source-candidate-b'`,
-    ),
-    '23503',
-  );
-});
+      ),
+      '23503',
+    );
+  },
+);
 
 schema.test('generated candidate rejects cross-project prose pointer', async ({ client }) => {
   await seedCandidateProseLinks(client);

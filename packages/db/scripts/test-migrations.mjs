@@ -56,9 +56,7 @@ async function cleanupResources(client, container, temporaryDirectory) {
     container?.stop(),
     temporaryDirectory ? rm(temporaryDirectory, { recursive: true, force: true }) : undefined,
   ]);
-  const errors = results
-    .filter(({ status }) => status === 'rejected')
-    .map(({ reason }) => reason);
+  const errors = results.filter(({ status }) => status === 'rejected').map(({ reason }) => reason);
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) throw new AggregateError(errors, 'Multiple cleanup operations failed');
 }
@@ -127,7 +125,9 @@ async function verifyMigrationHistory(client, expectedIds) {
   );
   const actual = result.rows.map(({ migration_name }) => migration_name);
   if (JSON.stringify(actual) !== JSON.stringify(expectedIds)) {
-    throw new Error(`Prisma migration history mismatch: expected ${expectedIds.join(', ')}, got ${actual.join(', ')}`);
+    throw new Error(
+      `Prisma migration history mismatch: expected ${expectedIds.join(', ')}, got ${actual.join(', ')}`,
+    );
   }
 }
 
@@ -146,14 +146,16 @@ async function withPostgres16(label, operation) {
         throw new Error(`Expected PostgreSQL 16, received ${version.rows[0].server_version}`);
       }
       await operation(client, container.getConnectionUri(), temporaryDirectory);
-      process.stdout.write(`PASS migration:${label} on PostgreSQL ${version.rows[0].server_version}\n`);
+      process.stdout.write(
+        `PASS migration:${label} on PostgreSQL ${version.rows[0].server_version}\n`,
+      );
     },
     () => cleanupResources(client, container, temporaryDirectory),
   ).catch((error) => {
     const details =
       error instanceof AggregateError
         ? error.errors.map((item) => item?.stack ?? String(item)).join('\n')
-        : error?.stack ?? String(error);
+        : (error?.stack ?? String(error));
     throw new Error(
       `migration:${label} failed; PostgreSQL 16 Testcontainer errors are fatal\n${details}`,
       { cause: error },
@@ -163,7 +165,10 @@ async function withPostgres16(label, operation) {
 
 async function runEmpty() {
   await withPostgres16('empty', async (client, databaseUrl, temporaryDirectory) => {
-    const staged = await stageMigrationHistory({ temporaryDirectory, migrationIds: ALL_MIGRATIONS });
+    const staged = await stageMigrationHistory({
+      temporaryDirectory,
+      migrationIds: ALL_MIGRATIONS,
+    });
     await deployWithPrisma({ databaseUrl, configPath: staged.configPath });
     await verifyMigrationHistory(client, ALL_MIGRATIONS);
     await verifySchemaInventory(client);
@@ -208,4 +213,5 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  await main();

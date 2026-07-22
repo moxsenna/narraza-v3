@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  deployWithPrisma,
-  runWithCleanup,
-  stageMigrationHistory,
-} from './test-migrations.mjs';
+import { deployWithPrisma, runWithCleanup, stageMigrationHistory } from './test-migrations.mjs';
 
 describe('deployWithPrisma', () => {
   it('invokes production migrate deploy with DATABASE_URL and explicit config', async () => {
@@ -51,7 +47,9 @@ describe('stageMigrationHistory', () => {
       expect.stringMatching(/20260722090000_planning_expand$/),
     ]);
     expect(copied[2][1].replaceAll('\\', '/')).toContain('/migrations/20260721181246_init_m0_auth');
-    expect(copied[3][1].replaceAll('\\', '/')).toContain('/migrations/20260722090000_planning_expand');
+    expect(copied[3][1].replaceAll('\\', '/')).toContain(
+      '/migrations/20260722090000_planning_expand',
+    );
     expect(writeFile).toHaveBeenCalledWith(
       expect.stringMatching(/prisma\.config\.ts$/),
       expect.stringContaining("env('DATABASE_URL')"),
@@ -75,9 +73,12 @@ describe('runWithCleanup', () => {
 
   it('fails with cleanup error when operation succeeds', async () => {
     const cleanup = new Error('cleanup failed');
-    await expect(runWithCleanup(async () => 'ok', async () => Promise.reject(cleanup))).rejects.toBe(
-      cleanup,
-    );
+    await expect(
+      runWithCleanup(
+        async () => 'ok',
+        async () => Promise.reject(cleanup),
+      ),
+    ).rejects.toBe(cleanup);
   });
 
   it('aggregates operation and cleanup errors without losing either', async () => {
