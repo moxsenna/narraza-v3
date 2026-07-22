@@ -57,9 +57,10 @@ model User {
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sessions          Session[]
-  emailActionTokens EmailActionToken[]
-  projects          Project[]
+  sessions           Session[]
+  emailActionTokens  EmailActionToken[]
+  projects           Project[]
+  proseWorkingDrafts ProseWorkingDraft[]
 
   @@map("users")
 }
@@ -142,17 +143,25 @@ model Project {
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  owner            User              @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
-  intakeSessions   IntakeSession[]
-  conceptSets      ConceptSet[]
-  foundations      Foundation[]
-  characters       Character[]
-  characterStates  CharacterState[]
-  characterBeliefs CharacterBelief[]
-  roadmaps         Roadmap[]
-  arcs             Arc[]
-  chapters         Chapter[]
-  beats            Beat[]
+  owner              User                @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
+  intakeSessions     IntakeSession[]
+  conceptSets        ConceptSet[]
+  foundations        Foundation[]
+  characters         Character[]
+  characterStates    CharacterState[]
+  characterBeliefs   CharacterBelief[]
+  roadmaps           Roadmap[]
+  arcs               Arc[]
+  chapters           Chapter[]
+  beats              Beat[]
+  facts              Fact[]
+  factDisclosures    FactDisclosure[]
+  readerFactStates   ReaderFactState[]
+  reveals            Reveal[]
+  revealBreadcrumbs  RevealBreadcrumb[]
+  proseVersions      ProseVersion[]
+  proseWorkingDrafts ProseWorkingDraft[]
+  proseEvidence      ProseEvidence[]
 
   @@unique([id, ownerUserId])
   @@index([ownerUserId])
@@ -283,8 +292,9 @@ model CharacterState {
   payload           Json
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  character Character @relation(fields: [projectId, characterId], references: [projectId, id], onDelete: Cascade)
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  character    Character     @relation(fields: [projectId, characterId], references: [projectId, id], onDelete: Cascade)
+  proseVersion ProseVersion? @relation(fields: [projectId, proseVersionId], references: [projectId, id], onDelete: NoAction)
 
   @@unique([projectId, id])
   @@index([projectId, characterId, effectiveSequence(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "character_states_fold_idx")
@@ -364,9 +374,11 @@ model Chapter {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  arc     Arc     @relation(fields: [projectId, arcId], references: [projectId, id], onDelete: Cascade)
-  beats   Beat[]
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  arc               Arc                @relation(fields: [projectId, arcId], references: [projectId, id], onDelete: Cascade)
+  beats             Beat[]
+  reveals           Reveal[]
+  revealBreadcrumbs RevealBreadcrumb[]
 
   @@unique([projectId, id])
   @@index([projectId, arcId])
@@ -388,11 +400,199 @@ model Beat {
   createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  chapter Chapter @relation(fields: [projectId, chapterId], references: [projectId, id], onDelete: Cascade)
+  project              Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chapter              Chapter             @relation(fields: [projectId, chapterId], references: [projectId, id], onDelete: Cascade)
+  acceptedProseVersion ProseVersion?       @relation("AcceptedProse", fields: [projectId, id, acceptedProseVersionId], references: [projectId, beatId, id], onDelete: NoAction, map: "beats_accepted_prose_belongs_to_beat_fkey")
+  proseVersions        ProseVersion[]      @relation("BeatProseVersions")
+  proseWorkingDrafts   ProseWorkingDraft[]
+  reveals              Reveal[]
+  revealBreadcrumbs    RevealBreadcrumb[]
 
   @@unique([projectId, id])
+  @@unique([projectId, chapterId, id])
+  @@unique([projectId, id, acceptedProseVersionId])
   @@index([projectId, chapterId])
   @@index([projectId, narrativeSequence])
   @@map("beats")
+}
+
+model Fact {
+  id            String    @id
+  projectId     String    @map("project_id")
+  factKey       String    @map("fact_key")
+  canonStatus   String    @map("canon_status")
+  visibility    String
+  revision      Int       @default(0)
+  schemaVersion Int       @default(1) @map("schema_version")
+  payload       Json
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  disclosures      FactDisclosure[]
+  readerFactStates ReaderFactState[]
+  reveals          Reveal[]
+
+  @@unique([projectId, id])
+  @@index([projectId, canonStatus])
+  @@map("facts")
+}
+
+model FactDisclosure {
+  id                   String   @id
+  projectId            String   @map("project_id")
+  factId               String   @map("fact_id")
+  proseVersionId       String?  @map("prose_version_id")
+  eventType            String   @map("event_type")
+  effectiveSequence    Int      @map("effective_sequence")
+  retractsDisclosureId String?  @map("retracts_disclosure_id")
+  evidenceId           String?  @map("evidence_id")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project                Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fact                   Fact              @relation(fields: [projectId, factId], references: [projectId, id], onDelete: Cascade)
+  proseVersion           ProseVersion?     @relation(fields: [projectId, proseVersionId], references: [projectId, id], onDelete: NoAction)
+  retractsDisclosure     FactDisclosure?   @relation("DisclosureRetraction", fields: [projectId, factId, retractsDisclosureId], references: [projectId, factId, id], onDelete: Restrict, map: "fact_disclosures_retraction_fact_fkey")
+  retractedBy            FactDisclosure[]  @relation("DisclosureRetraction")
+  evidence               ProseEvidence?    @relation(fields: [projectId, proseVersionId, evidenceId], references: [projectId, proseVersionId, id], onDelete: NoAction, map: "fact_disclosures_evidence_prose_fkey")
+  readerFactStateSources ReaderFactState[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, factId, id])
+  @@index([projectId, factId, effectiveSequence(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "fact_disclosures_fold_idx")
+  @@map("fact_disclosures")
+}
+
+model ReaderFactState {
+  id                 String   @id
+  projectId          String   @map("project_id")
+  factId             String   @map("fact_id")
+  asOfSequence       Int      @map("as_of_sequence")
+  state              String
+  sourceDisclosureId String   @map("source_disclosure_id")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fact             Fact           @relation(fields: [projectId, factId], references: [projectId, id], onDelete: Cascade)
+  sourceDisclosure FactDisclosure @relation(fields: [projectId, factId, sourceDisclosureId], references: [projectId, factId, id], onDelete: Restrict, map: "reader_fact_states_source_fact_fkey")
+
+  @@unique([projectId, id])
+  @@unique([projectId, factId])
+  @@map("reader_fact_states")
+}
+
+model Reveal {
+  id             String   @id
+  projectId      String   @map("project_id")
+  factId         String   @map("fact_id")
+  chapterId      String   @map("chapter_id")
+  beatId         String?  @map("beat_id")
+  targetSequence Int      @map("target_sequence")
+  revision       Int      @default(0)
+  schemaVersion  Int      @default(1) @map("schema_version")
+  payload        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fact        Fact               @relation(fields: [projectId, factId], references: [projectId, id], onDelete: Cascade)
+  chapter     Chapter            @relation(fields: [projectId, chapterId], references: [projectId, id], onDelete: Cascade)
+  beat        Beat?              @relation(fields: [projectId, chapterId, beatId], references: [projectId, chapterId, id], onDelete: NoAction, map: "reveals_beat_chapter_fkey")
+  breadcrumbs RevealBreadcrumb[]
+
+  @@unique([projectId, id])
+  @@index([projectId, targetSequence])
+  @@map("reveals")
+}
+
+model RevealBreadcrumb {
+  id            String   @id
+  projectId     String   @map("project_id")
+  revealId      String   @map("reveal_id")
+  chapterId     String   @map("chapter_id")
+  beatId        String?  @map("beat_id")
+  sequence      Int
+  schemaVersion Int      @default(1) @map("schema_version")
+  payload       Json
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reveal  Reveal  @relation(fields: [projectId, revealId], references: [projectId, id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [projectId, chapterId], references: [projectId, id], onDelete: Cascade)
+  beat    Beat?   @relation(fields: [projectId, chapterId, beatId], references: [projectId, chapterId, id], onDelete: NoAction, map: "reveal_breadcrumbs_beat_chapter_fkey")
+
+  @@unique([projectId, id])
+  @@unique([revealId, sequence])
+  @@index([projectId, revealId, sequence])
+  @@map("reveal_breadcrumbs")
+}
+
+model ProseVersion {
+  id                String   @id
+  projectId         String   @map("project_id")
+  beatId            String   @map("beat_id")
+  sourceCandidateId String?  @map("source_candidate_id")
+  status            String
+  revision          Int      @default(0)
+  content           String
+  contentHash       String   @map("content_hash")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  beat            Beat             @relation("BeatProseVersions", fields: [projectId, beatId], references: [projectId, id], onDelete: Cascade)
+  acceptedByBeat  Beat?            @relation("AcceptedProse")
+  disclosures     FactDisclosure[]
+  evidence        ProseEvidence[]
+  characterStates CharacterState[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, beatId, id])
+  @@index([projectId, beatId, createdAt])
+  @@map("prose_versions")
+}
+
+model ProseWorkingDraft {
+  id          String    @id
+  projectId   String    @map("project_id")
+  beatId      String    @map("beat_id")
+  userId      String    @map("user_id")
+  revision    Int       @default(0)
+  content     String
+  contentHash String    @map("content_hash")
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  beat    Beat    @relation(fields: [projectId, beatId], references: [projectId, id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, id])
+  @@index([userId])
+  @@map("prose_working_drafts")
+}
+
+model ProseEvidence {
+  id             String   @id
+  projectId      String   @map("project_id")
+  proseVersionId String   @map("prose_version_id")
+  startUtf16     Int      @map("start_utf16")
+  endUtf16       Int      @map("end_utf16")
+  contentHash    String   @map("content_hash")
+  evidenceType   String   @map("evidence_type")
+  schemaVersion  Int      @default(1) @map("schema_version")
+  payload        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proseVersion ProseVersion     @relation(fields: [projectId, proseVersionId], references: [projectId, id], onDelete: Cascade)
+  disclosures  FactDisclosure[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, proseVersionId, id])
+  @@index([projectId, proseVersionId, startUtf16, endUtf16], map: "prose_evidence_project_id_prose_version_id_start_utf16_end_utf1")
+  @@map("prose_evidence")
 }

@@ -14,7 +14,7 @@ async function insertFact(
   await client.query(
     `INSERT INTO facts
        (id,project_id,fact_key,canon_status,visibility,revision,schema_version,payload,deleted_at,created_at,updated_at)
-     VALUES ($1,$2,$3,'canonical','private',0,1,'{}',$4,now(),now())`,
+     VALUES ($1,$2,$3,'confirmed','private',0,1,'{}',$4,now(),now())`,
     [id, projectId, factKey, deleted ? new Date('2026-07-22T00:00:00Z') : null],
   );
 }

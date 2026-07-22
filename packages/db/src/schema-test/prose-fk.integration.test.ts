@@ -8,7 +8,7 @@ schema.test('accepted prose belongs to same beat and project', async ({ client }
   await client.query(
     `INSERT INTO prose_versions
        (id,project_id,beat_id,status,revision,content,content_hash,created_at)
-     VALUES ('prose-a',$1,$2,'accepted',0,'text',$3,now())`,
+     VALUES ('prose-a',$1,$2,'validated',0,'text',$3,now())`,
     [ids.projectA, ids.beatA, 'a'.repeat(64)],
   );
 
@@ -53,7 +53,7 @@ schema.test('accepted prose delete uses NO ACTION until pointer is cleared', asy
   await client.query(
     `INSERT INTO prose_versions
        (id,project_id,beat_id,status,revision,content,content_hash,created_at)
-     VALUES ('prose-a',$1,$2,'accepted',0,'text',$3,now())`,
+     VALUES ('prose-a',$1,$2,'validated',0,'text',$3,now())`,
     [ids.projectA, ids.beatA, 'b'.repeat(64)],
   );
   await client.query(`UPDATE beats SET accepted_prose_version_id='prose-a' WHERE id=$1`, [
