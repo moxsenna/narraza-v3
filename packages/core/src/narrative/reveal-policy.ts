@@ -72,8 +72,6 @@ function parseReveal(input: unknown): RevealPolicyInput {
     );
     const targetPosition = position(root.targetPosition, 'targetPosition');
     const currentPosition = position(root.currentPosition, 'currentPosition');
-    const ids = new Set<string>();
-    const positions = new Set<string>();
     const breadcrumbs = denseArray(root.breadcrumbs, fail, 'breadcrumbs').map((raw, index) => {
       const item = exactObject(
         raw,
@@ -81,21 +79,9 @@ function parseReveal(input: unknown): RevealPolicyInput {
         fail,
         `breadcrumbs[${index}]`,
       );
-      const id = nonEmptyString(item.id, fail, `breadcrumbs[${index}].id`);
-      const parsedPosition = position(item.position, `breadcrumbs[${index}].position`);
-      const key = `${parsedPosition.sequence}\0${parsedPosition.chapterId}\0${parsedPosition.beatId ?? ''}`;
-      if (
-        ids.has(id) ||
-        positions.has(key) ||
-        comparePosition(parsedPosition, targetPosition) >= 0
-      ) {
-        return fail('breadcrumbs must have unique IDs/positions before target');
-      }
-      ids.add(id);
-      positions.add(key);
       return {
-        id,
-        position: parsedPosition,
+        id: nonEmptyString(item.id, fail, `breadcrumbs[${index}].id`),
+        position: position(item.position, `breadcrumbs[${index}].position`),
         safeDirective: nonEmptyString(
           item.safeDirective,
           fail,
@@ -109,7 +95,7 @@ function parseReveal(input: unknown): RevealPolicyInput {
       fail,
       'restrictedGuardSet',
     );
-    return {
+    const parsed: RevealPolicyInput = {
       targetPosition,
       currentPosition,
       breadcrumbs,
@@ -120,6 +106,21 @@ function parseReveal(input: unknown): RevealPolicyInput {
         sensitiveTerms: stringArray(guard.sensitiveTerms, 'sensitiveTerms'),
       },
     };
+    const ids = new Set<string>();
+    const positions = new Set<string>();
+    for (const breadcrumb of parsed.breadcrumbs) {
+      const key = `${breadcrumb.position.sequence}\0${breadcrumb.position.chapterId}\0${breadcrumb.position.beatId ?? ''}`;
+      if (
+        ids.has(breadcrumb.id) ||
+        positions.has(key) ||
+        comparePosition(breadcrumb.position, parsed.targetPosition) >= 0
+      ) {
+        return fail('breadcrumbs must have unique IDs/positions before target');
+      }
+      ids.add(breadcrumb.id);
+      positions.add(key);
+    }
+    return parsed;
   } catch (error) {
     if (error instanceof RevealPolicyError) throw error;
     return fail('reveal input reflection failed');
@@ -146,20 +147,20 @@ function decideReveal(input: RevealPolicyInput): RevealViews {
           : breadcrumbs[0] && comparePosition(input.currentPosition, breadcrumbs[0].position) < 0
             ? 'before_breadcrumb'
             : 'hold';
-  return {
-    guidance: {
+  return Object.freeze({
+    guidance: Object.freeze({
       status,
-      safeDirectives: due
-        ? [...input.safeDirectives, due.safeDirective]
-        : [...input.safeDirectives],
-    },
-    restrictedGuardSet: {
-      prohibitedExact: [...input.restrictedGuardSet.prohibitedExact],
-      prohibitedAliases: [...input.restrictedGuardSet.prohibitedAliases],
-      sensitiveTerms: [...input.restrictedGuardSet.sensitiveTerms],
+      safeDirectives: Object.freeze(
+        due ? [...input.safeDirectives, due.safeDirective] : [...input.safeDirectives],
+      ),
+    }),
+    restrictedGuardSet: Object.freeze({
+      prohibitedExact: Object.freeze([...input.restrictedGuardSet.prohibitedExact]),
+      prohibitedAliases: Object.freeze([...input.restrictedGuardSet.prohibitedAliases]),
+      sensitiveTerms: Object.freeze([...input.restrictedGuardSet.sensitiveTerms]),
       targetPosition: input.targetPosition,
-    },
-  };
+    }),
+  });
 }
 
 export const buildRevealViews = (input: unknown): RevealViews => decideReveal(parseReveal(input));

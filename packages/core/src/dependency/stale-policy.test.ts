@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { dependencyKey, type DependencyEntry } from './dependency-manifest.js';
 import {
   evaluateDependencyStatus,
@@ -233,7 +233,21 @@ describe('evaluateDependencyStatus fail-closed boundaries', () => {
     expectStalePolicyError(() => evaluateDependencyStatus(proposal, manifest, valid));
   });
 
-  it('validates proposal, current, and applicability before comparing', () => {
+  it('validates applicability before normalizing or comparing valid manifests', () => {
+    const badApplicability = { ...valid, relevantDependencyKeys: ['valid', 3] };
+    const sort = vi.spyOn(Array.prototype, 'sort');
+
+    try {
+      expect(() =>
+        evaluateDependencyStatus([...proposal].reverse(), proposal, badApplicability),
+      ).toThrowError('relevantDependencyKeys[1] must be a non-empty string');
+      expect(sort).not.toHaveBeenCalled();
+    } finally {
+      sort.mockRestore();
+    }
+  });
+
+  it('translates malformed manifests and applicability to owned errors before evaluation', () => {
     const badProposal = new Proxy([], { ownKeys: blocked });
     const badCurrent = new Proxy([], { ownKeys: blocked });
     const badApplicability = new Proxy({ ...valid }, { ownKeys: blocked });

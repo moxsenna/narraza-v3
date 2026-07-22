@@ -33,8 +33,12 @@ function parsePosition(input: unknown): NarrativePosition {
     const value = exactObject(input, expected, fail, 'position');
     const chapterId = nonEmptyString(value.chapterId, fail, 'chapterId');
     const sequence = nonNegativeSafeInteger(value.sequence, fail, 'sequence');
-    if (!expected.includes('beatId')) return { chapterId, sequence };
-    return { chapterId, beatId: nonEmptyString(value.beatId, fail, 'beatId'), sequence };
+    if (!expected.includes('beatId')) return Object.freeze({ chapterId, sequence });
+    return Object.freeze({
+      chapterId,
+      beatId: nonEmptyString(value.beatId, fail, 'beatId'),
+      sequence,
+    });
   } catch (error) {
     if (error instanceof NarrativePositionError) throw error;
     return fail('position reflection failed');

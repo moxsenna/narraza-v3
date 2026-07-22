@@ -86,7 +86,7 @@ export function dependencyKey(input: unknown): string {
   }
 }
 
-export function buildDependencyManifest(input: unknown): DependencyManifest {
+export function validateDependencyManifest(input: unknown): DependencyManifest {
   try {
     const entries = denseArray(input, fail, 'manifest').map(parseEntry);
     const seen = new Set<string>();
@@ -98,17 +98,25 @@ export function buildDependencyManifest(input: unknown): DependencyManifest {
       }
       seen.add(key);
     }
-
-    entries.sort(
-      (left, right) =>
-        compareCodeUnits(left.entityType, right.entityType) ||
-        compareCodeUnits(left.entityId, right.entityId),
-    );
     return Object.freeze(entries);
   } catch (error) {
     if (error instanceof DependencyManifestError) throw error;
     return fail('manifest invalid');
   }
+}
+
+function normalizeDependencyManifest(manifest: DependencyManifest): DependencyManifest {
+  return Object.freeze(
+    [...manifest].sort(
+      (left, right) =>
+        compareCodeUnits(left.entityType, right.entityType) ||
+        compareCodeUnits(left.entityId, right.entityId),
+    ),
+  );
+}
+
+export function buildDependencyManifest(input: unknown): DependencyManifest {
+  return normalizeDependencyManifest(validateDependencyManifest(input));
 }
 
 export function dependencyManifestHash(input: unknown): string {

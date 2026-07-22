@@ -61,6 +61,24 @@ describe('reveal policy', () => {
     );
   });
 
+  it('deep-freezes both public reveal views', () => {
+    const result = buildRevealViews(validReveal);
+
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.guidance)).toBe(true);
+    expect(Object.isFrozen(result.guidance.safeDirectives)).toBe(true);
+    expect(Object.isFrozen(result.restrictedGuardSet)).toBe(true);
+    expect(Object.isFrozen(result.restrictedGuardSet.prohibitedExact)).toBe(true);
+    expect(Object.isFrozen(result.restrictedGuardSet.prohibitedAliases)).toBe(true);
+    expect(Object.isFrozen(result.restrictedGuardSet.sensitiveTerms)).toBe(true);
+    expect(Object.isFrozen(result.restrictedGuardSet.targetPosition)).toBe(true);
+    expect(() => (result.guidance.safeDirectives as string[]).push('changed')).toThrow(TypeError);
+    expect(
+      () =>
+        ((result.restrictedGuardSet.targetPosition as { chapterId: string }).chapterId = 'changed'),
+    ).toThrow(TypeError);
+  });
+
   it('is stable when breadcrumb input order changes', () => {
     const chronological = buildRevealViews({ ...validReveal, currentPosition: position(2) });
     const permuted = buildRevealViews({
@@ -112,6 +130,37 @@ describe('reveal policy', () => {
     ],
   ])('rejects %s', (input) => {
     expect(() => buildRevealViews(input)).toThrow(RevealPolicyError);
+  });
+
+  it('parses every breadcrumb before checking uniqueness or chronology', () => {
+    const malformedLaterBreadcrumb = {
+      id: 'later',
+      position: position(7),
+      get safeDirective(): never {
+        throw new Error('later breadcrumb inspected');
+      },
+    };
+
+    expect(() =>
+      buildRevealViews({
+        ...validReveal,
+        breadcrumbs: [
+          validReveal.breadcrumbs[0],
+          { ...validReveal.breadcrumbs[1], id: 'first' },
+          malformedLaterBreadcrumb,
+        ],
+      }),
+    ).toThrowError('breadcrumbs[2].safeDirective must be an enumerable data property');
+  });
+
+  it('parses directives and guards before checking breadcrumb invariants', () => {
+    expect(() =>
+      buildRevealViews({
+        ...validReveal,
+        breadcrumbs: [validReveal.breadcrumbs[0], { ...validReveal.breadcrumbs[1], id: 'first' }],
+        restrictedGuardSet: { ...validReveal.restrictedGuardSet, sensitiveTerms: ['valid', 3] },
+      }),
+    ).toThrowError('sensitiveTerms[1] must be a non-empty string');
   });
 
   it('validates all input before making a revealed decision', () => {

@@ -7,8 +7,8 @@ import {
 } from '../validation/exact.js';
 import { canonicalJson } from './canonical-json.js';
 import {
-  buildDependencyManifest,
   dependencyKey,
+  validateDependencyManifest,
   type DependencyEntry,
   type DependencyManifest,
 } from './dependency-manifest.js';
@@ -46,7 +46,7 @@ const compareCodeUnits = (left: string, right: string): number =>
 
 function parseManifest(value: unknown, label: string): DependencyManifest {
   try {
-    return buildDependencyManifest(value);
+    return validateDependencyManifest(value);
   } catch {
     return fail(`${label} manifest invalid`);
   }
@@ -88,6 +88,16 @@ function parseApplicability(value: unknown): DependencyApplicability {
   };
 }
 
+function normalizeManifest(manifest: DependencyManifest): DependencyManifest {
+  return Object.freeze(
+    [...manifest].sort(
+      (left, right) =>
+        compareCodeUnits(left.entityType, right.entityType) ||
+        compareCodeUnits(left.entityId, right.entityId),
+    ),
+  );
+}
+
 function dependencyKeyForEntry(entry: DependencyEntry): string {
   return dependencyKey({ entityType: entry.entityType, entityId: entry.entityId });
 }
@@ -123,10 +133,16 @@ function evaluateTyped(
   }
 
   const proposalEntries = new Map(
-    proposal.map((entry) => [dependencyKeyForEntry(entry), canonicalJson(entryTuple(entry))]),
+    normalizeManifest(proposal).map((entry) => [
+      dependencyKeyForEntry(entry),
+      canonicalJson(entryTuple(entry)),
+    ]),
   );
   const currentEntries = new Map(
-    current.map((entry) => [dependencyKeyForEntry(entry), canonicalJson(entryTuple(entry))]),
+    normalizeManifest(current).map((entry) => [
+      dependencyKeyForEntry(entry),
+      canonicalJson(entryTuple(entry)),
+    ]),
   );
   const allDependencyKeys = new Set([...proposalEntries.keys(), ...currentEntries.keys()]);
   const relevantDependencyKeys = new Set<string>();

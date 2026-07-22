@@ -48,11 +48,14 @@ describe('narrative position', () => {
     expect(narrativePositionsEqual(valid, { chapterId: 'c1', sequence: 1 })).toBe(false);
   });
 
-  it('creates a validated immutable-shape position copy', () => {
+  it('creates a validated frozen position copy', () => {
     const input = { chapterId: 'c1', beatId: 'b1', sequence: 3 };
+    const result = createNarrativePosition(input);
 
-    expect(createNarrativePosition(input)).toEqual(input);
-    expect(createNarrativePosition(input)).not.toBe(input);
+    expect(result).toEqual(input);
+    expect(result).not.toBe(input);
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(() => ((result as { chapterId: string }).chapterId = 'changed')).toThrow(TypeError);
   });
 
   it.each([

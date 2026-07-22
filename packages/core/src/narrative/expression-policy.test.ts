@@ -21,11 +21,14 @@ describe('expression policy', () => {
     expect(decideExpression(input)).toEqual({ permission, safeDirectives });
   });
 
-  it('uses defensive behavioral directives only for non-POV behavior', () => {
+  it('returns a deeply frozen decision with defensive behavioral directives', () => {
     const result = decideExpression({ ...validExpression, isPov: false });
 
     expect(result.safeDirectives).toEqual(validExpression.behavioralDirectives);
     expect(result.safeDirectives).not.toBe(validExpression.behavioralDirectives);
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.safeDirectives)).toBe(true);
+    expect(() => (result.safeDirectives as string[]).push('changed')).toThrow(TypeError);
   });
 
   it('validates decision-irrelevant fields before applying precedence', () => {

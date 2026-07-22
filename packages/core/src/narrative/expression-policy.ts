@@ -61,15 +61,18 @@ function parseExpression(input: unknown): ExpressionPolicyInput {
   }
 }
 
+function frozenDecision(
+  permission: ExpressionPermission,
+  safeDirectives: readonly string[] = [],
+): ExpressionDecision {
+  return Object.freeze({ permission, safeDirectives: Object.freeze([...safeDirectives]) });
+}
+
 function decideExpressionTyped(input: ExpressionPolicyInput): ExpressionDecision {
-  if (!input.knowsFact) return { permission: 'unknown', safeDirectives: [] };
-  if (!input.revealAllows || !input.disclosureAllows) {
-    return { permission: 'must_conceal', safeDirectives: [] };
-  }
-  if (!input.isPov) {
-    return { permission: 'behavior_only', safeDirectives: [...input.behavioralDirectives] };
-  }
-  return { permission: 'may_state', safeDirectives: [] };
+  if (!input.knowsFact) return frozenDecision('unknown');
+  if (!input.revealAllows || !input.disclosureAllows) return frozenDecision('must_conceal');
+  if (!input.isPov) return frozenDecision('behavior_only', input.behavioralDirectives);
+  return frozenDecision('may_state');
 }
 
 export const decideExpression = (input: unknown): ExpressionDecision =>
