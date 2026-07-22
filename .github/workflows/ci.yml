@@ -47,20 +47,9 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: narraza
-          POSTGRES_PASSWORD: narraza
-          POSTGRES_DB: narraza_integration
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U narraza -d narraza_integration"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://narraza:narraza@localhost:5432/narraza_integration
-      TEST_DATABASE_URL: postgresql://narraza:narraza@localhost:5432/narraza_integration
+      CI: true
+      DATABASE_URL: postgresql://narraza:narraza@localhost:5432/narraza_generate_only
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -69,7 +58,6 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
-      - run: pnpm --filter @narraza/db migrate
       - run: pnpm --filter @narraza/db test:integration
 
   architecture:
@@ -99,6 +87,7 @@ jobs:
           --health-cmd "pg_isready -U narraza -d narraza_migration"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      CI: true
       DATABASE_URL: postgresql://narraza:narraza@localhost:5432/narraza_migration
       SHADOW_DATABASE_URL: postgresql://narraza:narraza@localhost:5432/narraza_migration_shadow
     steps:
@@ -108,14 +97,24 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - name: Test migration scripts
+        run: pnpm exec vitest run scripts/check-migration-drift.test.mjs packages/db/scripts/assert-expand-only.test.mjs packages/db/scripts/test-migrations.test.mjs
+      - name: Verify expand-only migrations
+        run: pnpm migration:expand-only
+      - name: Migrate empty PostgreSQL 16
+        run: pnpm migration:empty
+      - name: Upgrade M0 fixture on PostgreSQL 16
+        run: pnpm migration:upgrade
       - name: Create shadow database
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: docker exec "$POSTGRES_CONTAINER_ID" createdb -U narraza narraza_migration_shadow
-      - run: pnpm db:migrate
-      - run: pnpm migration:drift
+      - name: Deploy migrations to drift database
+        run: pnpm --filter @narraza/db migrate:deploy
+      - name: Verify migration and schema drift SQL is empty
+        run: pnpm migration:drift
 
-  security:
+  security-smoke:
     name: Security Smoke
     runs-on: ubuntu-latest
     env:
