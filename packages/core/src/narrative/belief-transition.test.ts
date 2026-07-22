@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseCanonicalTimestamp } from './canonical-timestamp.js';
 import {
   BeliefPolicyError,
@@ -63,6 +63,22 @@ describe('belief transition policy', () => {
       sourceEventId: 'z',
       appliedEventIds: ['first', 'a', 'b', 'z'],
     });
+  });
+
+  it('parses each canonical timestamp exactly once during validation', () => {
+    const parseSpy = vi.spyOn(Date, 'parse');
+    try {
+      foldBeliefEvents(
+        [
+          event({ id: 'later', createdAt: '2026-07-22T09:10:11.002Z' }),
+          event({ id: 'earlier', createdAt: '2026-07-22T09:10:11.001Z' }),
+        ],
+        1,
+      );
+      expect(parseSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      parseSpy.mockRestore();
+    }
   });
 
   it('returns unknown with no source when no event is eligible', () => {

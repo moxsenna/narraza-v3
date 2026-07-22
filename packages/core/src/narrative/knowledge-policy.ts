@@ -26,6 +26,9 @@ export interface BeliefFoldResult {
   readonly sourceEventId: string | null;
   readonly appliedEventIds: readonly string[];
 }
+type ParsedBeliefEvent = BeliefEvent & {
+  readonly epochMilliseconds: number;
+};
 export type BeliefPolicyErrorCode = 'INVALID_BELIEF_EVENT' | 'INVALID_BELIEF_TRANSITION';
 export class BeliefPolicyError extends Error {
   constructor(
@@ -50,7 +53,7 @@ const fail: Fail = (message) => {
   throw new BeliefPolicyError('INVALID_BELIEF_EVENT', message);
 };
 
-function parseEvent(raw: unknown, index: number): BeliefEvent {
+function parseEvent(raw: unknown, index: number): ParsedBeliefEvent {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return fail(`events[${index}] invalid`);
   }
@@ -66,7 +69,8 @@ function parseEvent(raw: unknown, index: number): BeliefEvent {
     : ['id', 'effectiveSequence', 'createdAt', 'level'];
   const item = exactObject(raw, expected, fail, `events[${index}]`);
   const createdAt = nonEmptyString(item.createdAt, fail, `events[${index}].createdAt`);
-  if (parseCanonicalTimestamp(createdAt) === null) {
+  const epochMilliseconds = parseCanonicalTimestamp(createdAt);
+  if (epochMilliseconds === null) {
     return fail('createdAt must be canonical UTC milliseconds');
   }
   if (!levels.has(item.level as BeliefLevel)) return fail('invalid belief level');
@@ -81,15 +85,16 @@ function parseEvent(raw: unknown, index: number): BeliefEvent {
       `events[${index}].effectiveSequence`,
     ),
     createdAt,
+    epochMilliseconds,
     level: item.level as BeliefLevel,
     ...(hasReason ? { downgradeReason: item.downgradeReason as BeliefDowngradeReason } : {}),
   };
 }
 
-function compareEvents(left: BeliefEvent, right: BeliefEvent): number {
+function compareEvents(left: ParsedBeliefEvent, right: ParsedBeliefEvent): number {
   return (
     left.effectiveSequence - right.effectiveSequence ||
-    Date.parse(left.createdAt) - Date.parse(right.createdAt) ||
+    left.epochMilliseconds - right.epochMilliseconds ||
     (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
   );
 }
@@ -100,7 +105,7 @@ function requiresReason(from: BeliefLevel, to: BeliefLevel): boolean {
   return rank[to] < rank[from];
 }
 
-function foldTyped(events: readonly BeliefEvent[], targetSequence: number): BeliefFoldResult {
+function foldTyped(events: readonly ParsedBeliefEvent[], targetSequence: number): BeliefFoldResult {
   const ordered = events
     .filter((item) => item.effectiveSequence <= targetSequence)
     .sort(compareEvents);
