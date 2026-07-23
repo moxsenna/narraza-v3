@@ -6,14 +6,18 @@ import {
   type AuthorPrivateFact,
   type BehavioralCharacterDirective,
   type ContextPacketErrorCode,
+  type ExtractionContextPacket,
+  type ExtractionPacketInput,
   type FindingLocationInput,
   type FoundationPlanningContext,
   type FutureOutlineItem,
+  type IntakeSignalMessage,
   type PacketMetadata,
   type PlannerCharacter,
   type PlannerContextPacket,
   type PlannerPacketInput,
   type PlannerReveal,
+  type PublicStructureProse,
   type RepairContextPacket,
   type RepairDirective,
   type RepairPacketInput,
@@ -692,4 +696,111 @@ export function buildRepairPacket(input: RepairPacketInput): RepairContextPacket
     beatContract: beatContractAt(item.beatContract, '$.beatContract'),
     revealGuidance,
   } as unknown as RepairContextPacket;
+}
+
+function assertExtractionBase(
+  item: Record<string, unknown>,
+  expectedClass: 'review_safe' | 'author_private',
+): PacketMetadata {
+  literalAt(item.kind, 'extraction', '$.kind', 'PACKET_KIND_MISMATCH');
+  literalAt(item.dataClass, expectedClass, '$.dataClass', 'DATA_CLASS_MISMATCH');
+  return metadataAt(item.metadata);
+}
+
+export function buildExtractionPacket(input: ExtractionPacketInput): ExtractionContextPacket {
+  const raw = objectAt(input, '$');
+  if (raw.useCase === 'intake_signals') {
+    const item = exactObject(raw, '$', ['kind', 'dataClass', 'metadata', 'useCase', 'messages']);
+    const messages: readonly IntakeSignalMessage[] = arrayAt(item.messages, '$.messages').map(
+      (value, index) => {
+        const path = `$.messages[${index}]`;
+        const source = exactObject(value, path, ['id', 'role', 'content']);
+        if (source.role !== 'user' && source.role !== 'assistant') {
+          fail('INVALID_PACKET', `${path}.role`, 'message role must be user or assistant');
+        }
+        return {
+          id: stringAt(source.id, `${path}.id`),
+          role: source.role,
+          content: stringAt(source.content, `${path}.content`),
+        };
+      },
+    );
+    assertUniqueIds(messages, '$.messages');
+    return {
+      kind: 'extraction',
+      dataClass: 'review_safe',
+      metadata: assertExtractionBase(item, 'review_safe'),
+      useCase: 'intake_signals',
+      messages,
+    } as unknown as ExtractionContextPacket;
+  }
+  if (raw.useCase === 'prose_public_structure') {
+    const item = exactObject(raw, '$', ['kind', 'dataClass', 'metadata', 'useCase', 'prose']);
+    const source = exactObject(item.prose, '$.prose', ['proseVersionId', 'content']);
+    const prose: PublicStructureProse = {
+      proseVersionId: stringAt(source.proseVersionId, '$.prose.proseVersionId'),
+      content: stringAt(source.content, '$.prose.content'),
+    };
+    return {
+      kind: 'extraction',
+      dataClass: 'review_safe',
+      metadata: assertExtractionBase(item, 'review_safe'),
+      useCase: 'prose_public_structure',
+      prose,
+    } as unknown as ExtractionContextPacket;
+  }
+  if (raw.useCase === 'canon_reconciliation') {
+    const item = exactObject(raw, '$', [
+      'kind',
+      'dataClass',
+      'metadata',
+      'useCase',
+      'prose',
+      'facts',
+      'characters',
+    ]);
+    const facts: readonly AuthorPrivateFact[] = arrayAt(item.facts, '$.facts').map(
+      (value, index) => {
+        const path = `$.facts[${index}]`;
+        const source = exactObject(value, path, [
+          'dataClass',
+          'id',
+          'factKey',
+          'truth',
+          'visibility',
+        ]);
+        literalAt(source.dataClass, 'author_private', `${path}.dataClass`, 'DATA_CLASS_MISMATCH');
+        if (source.visibility !== 'canonical' && source.visibility !== 'planner_only') {
+          fail('INVALID_PACKET', `${path}.visibility`, 'unsupported fact visibility');
+        }
+        return {
+          dataClass: 'author_private',
+          id: stringAt(source.id, `${path}.id`),
+          factKey: stringAt(source.factKey, `${path}.factKey`),
+          truth: stringAt(source.truth, `${path}.truth`),
+          visibility: source.visibility,
+        };
+      },
+    );
+    const characters = arrayAt(item.characters, '$.characters').map((value, index) => {
+      const path = `$.characters[${index}]`;
+      const source = exactObject(value, path, ['id', 'identity']);
+      return {
+        id: stringAt(source.id, `${path}.id`),
+        identity: stringAt(source.identity, `${path}.identity`),
+      };
+    });
+    assertUniqueIds(facts, '$.facts');
+    assertUniqueIds(characters, '$.characters');
+    return {
+      kind: 'extraction',
+      dataClass: 'author_private',
+      metadata: assertExtractionBase(item, 'author_private'),
+      useCase: 'canon_reconciliation',
+      prose: proseAt(item.prose, '$.prose'),
+      facts,
+      characters,
+    } as unknown as ExtractionContextPacket;
+  }
+  fail('INVALID_PACKET', '$.useCase', 'unsupported extraction use case');
 }

@@ -45,6 +45,7 @@ export {
 } from './packet-types.js';
 
 export {
+  buildExtractionPacket,
   buildPlannerPacket,
   buildRepairPacket,
   buildValidatorPacket,
