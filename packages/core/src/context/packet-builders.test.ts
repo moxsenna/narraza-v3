@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ContextPacketError,
   buildPlannerPacket,
   buildValidatorPacket,
   buildWriterPacket,
+  type ContextPacketError,
   type WriterPacketInput,
 } from './index.js';
 
