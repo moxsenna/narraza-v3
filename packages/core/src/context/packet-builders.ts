@@ -6,6 +6,7 @@ import {
   type AuthorPrivateFact,
   type BehavioralCharacterDirective,
   type ContextPacketErrorCode,
+  type FindingLocationInput,
   type FoundationPlanningContext,
   type FutureOutlineItem,
   type PacketMetadata,
@@ -13,6 +14,19 @@ import {
   type PlannerContextPacket,
   type PlannerPacketInput,
   type PlannerReveal,
+  type RepairContextPacket,
+  type RepairDirective,
+  type RepairPacketInput,
+  type RepairableProse,
+  type RestrictedGuard,
+  type ValidatorBeatContract,
+  type ValidatorBeatDirective,
+  type ValidatorContextPacket,
+  type ValidatorEndingRequirement,
+  type ValidatorLengthRange,
+  type ValidatorPacketInput,
+  type ValidatorProhibitedAction,
+  type ValidatorProse,
   type WriterContextPacket,
   type WriterPacketInput,
   type WriterRevealGuidanceItem,
@@ -89,6 +103,14 @@ function literalAt<T extends string>(
 
 function cloneStrings(value: unknown, path: string): readonly string[] {
   return arrayAt(value, path).map((item, index) => stringAt(item, `${path}[${index}]`));
+}
+
+function uniqueStringsAt(value: unknown, path: string): readonly string[] {
+  const strings = cloneStrings(value, path);
+  if (new Set(strings).size !== strings.length) {
+    fail('DUPLICATE_ENTITY_ID', path, `${path} contains duplicate values`);
+  }
+  return strings;
 }
 
 function assertUniqueIds(items: readonly { readonly id: string }[], path: string): void {
@@ -373,4 +395,301 @@ export function buildWriterPacket(input: WriterPacketInput): WriterContextPacket
     revealGuidance,
     acceptedProseContext,
   } as unknown as WriterContextPacket;
+}
+
+function proseAt(value: unknown, path: string): ValidatorProse {
+  const item = exactObject(value, path, ['proseVersionId', 'beatId', 'content']);
+  return {
+    proseVersionId: stringAt(item.proseVersionId, `${path}.proseVersionId`),
+    beatId: stringAt(item.beatId, `${path}.beatId`),
+    content: stringAt(item.content, `${path}.content`),
+  };
+}
+
+function validatorDirectiveAt(value: unknown, path: string): ValidatorBeatDirective {
+  const source = objectAt(value, path);
+  const hasLexicalEvidence = Object.hasOwn(source, 'lexicalEvidence');
+  const item = exactObject(
+    value,
+    path,
+    hasLexicalEvidence
+      ? ['directiveKey', 'description', 'lexicalEvidence']
+      : ['directiveKey', 'description'],
+  );
+  const directive = {
+    directiveKey: stringAt(item.directiveKey, `${path}.directiveKey`),
+    description: stringAt(item.description, `${path}.description`),
+  };
+  return hasLexicalEvidence
+    ? {
+        ...directive,
+        lexicalEvidence: cloneStrings(item.lexicalEvidence, `${path}.lexicalEvidence`),
+      }
+    : directive;
+}
+
+function prohibitedActionAt(value: unknown, path: string): ValidatorProhibitedAction {
+  const source = objectAt(value, path);
+  const hasLexicalEvidence = Object.hasOwn(source, 'lexicalEvidence');
+  const item = exactObject(
+    value,
+    path,
+    hasLexicalEvidence
+      ? ['actionKey', 'description', 'lexicalEvidence']
+      : ['actionKey', 'description'],
+  );
+  const action = {
+    actionKey: stringAt(item.actionKey, `${path}.actionKey`),
+    description: stringAt(item.description, `${path}.description`),
+  };
+  return hasLexicalEvidence
+    ? {
+        ...action,
+        lexicalEvidence: cloneStrings(item.lexicalEvidence, `${path}.lexicalEvidence`),
+      }
+    : action;
+}
+
+function validatorBeatContractAt(value: unknown, path: string): ValidatorBeatContract {
+  const source = objectAt(value, path);
+  const hasEndingRequirement = Object.hasOwn(source, 'endingRequirement');
+  const hasLengthRange = Object.hasOwn(source, 'lengthRange');
+  const item = exactObject(value, path, [
+    'beatId',
+    'purpose',
+    'requiredCharacterIds',
+    'requiredFactKeys',
+    'requiredDirectives',
+    'prohibitedActions',
+    ...(hasEndingRequirement ? ['endingRequirement'] : []),
+    ...(hasLengthRange ? ['lengthRange'] : []),
+  ]);
+  const requiredDirectives = arrayAt(item.requiredDirectives, `${path}.requiredDirectives`).map(
+    (directiveValue, index) =>
+      validatorDirectiveAt(directiveValue, `${path}.requiredDirectives[${index}]`),
+  );
+  const prohibitedActions = arrayAt(item.prohibitedActions, `${path}.prohibitedActions`).map(
+    (actionValue, index) => prohibitedActionAt(actionValue, `${path}.prohibitedActions[${index}]`),
+  );
+  const directiveKeys = requiredDirectives.map((directive) => directive.directiveKey);
+  if (new Set(directiveKeys).size !== directiveKeys.length) {
+    fail(
+      'DUPLICATE_ENTITY_ID',
+      `${path}.requiredDirectives`,
+      `${path}.requiredDirectives contains duplicate directiveKey values`,
+    );
+  }
+  const actionKeys = prohibitedActions.map((action) => action.actionKey);
+  if (new Set(actionKeys).size !== actionKeys.length) {
+    fail(
+      'DUPLICATE_ENTITY_ID',
+      `${path}.prohibitedActions`,
+      `${path}.prohibitedActions contains duplicate actionKey values`,
+    );
+  }
+  const contract = {
+    beatId: stringAt(item.beatId, `${path}.beatId`),
+    purpose: stringAt(item.purpose, `${path}.purpose`),
+    requiredCharacterIds: uniqueStringsAt(
+      item.requiredCharacterIds,
+      `${path}.requiredCharacterIds`,
+    ),
+    requiredFactKeys: uniqueStringsAt(item.requiredFactKeys, `${path}.requiredFactKeys`),
+    requiredDirectives,
+    prohibitedActions,
+  };
+  let endingRequirement: ValidatorEndingRequirement | undefined;
+  if (hasEndingRequirement) {
+    const endingSource = objectAt(item.endingRequirement, `${path}.endingRequirement`);
+    const hasLexicalEvidence = Object.hasOwn(endingSource, 'lexicalEvidence');
+    const ending = exactObject(
+      endingSource,
+      `${path}.endingRequirement`,
+      hasLexicalEvidence ? ['description', 'lexicalEvidence'] : ['description'],
+    );
+    const endingBase = {
+      description: stringAt(ending.description, `${path}.endingRequirement.description`),
+    };
+    endingRequirement = hasLexicalEvidence
+      ? {
+          ...endingBase,
+          lexicalEvidence: cloneStrings(
+            ending.lexicalEvidence,
+            `${path}.endingRequirement.lexicalEvidence`,
+          ),
+        }
+      : endingBase;
+  }
+  let lengthRange: ValidatorLengthRange | undefined;
+  if (hasLengthRange) {
+    const range = exactObject(item.lengthRange, `${path}.lengthRange`, ['min', 'max']);
+    if (
+      !Number.isSafeInteger(range.min) ||
+      !Number.isSafeInteger(range.max) ||
+      (range.min as number) < 0 ||
+      (range.max as number) < (range.min as number)
+    ) {
+      fail('INVALID_PACKET', `${path}.lengthRange`, 'length range must satisfy 0 <= min <= max');
+    }
+    lengthRange = { min: range.min as number, max: range.max as number };
+  }
+  return {
+    ...contract,
+    ...(endingRequirement === undefined ? {} : { endingRequirement }),
+    ...(lengthRange === undefined ? {} : { lengthRange }),
+  };
+}
+
+function booleanAt(value: unknown, path: string): boolean {
+  if (typeof value !== 'boolean') fail('INVALID_PACKET', path, `${path} must be a boolean`);
+  return value;
+}
+
+function termGroupsAt(value: unknown, path: string): readonly (readonly string[])[] {
+  return arrayAt(value, path).map((group, index) => {
+    const groupPath = `${path}[${index}]`;
+    const terms = cloneStrings(group, groupPath);
+    if (terms.length < 2) {
+      fail('INVALID_PACKET', groupPath, `${groupPath} must contain at least two terms`);
+    }
+    return terms;
+  });
+}
+
+function guardAt(value: unknown, path: string): RestrictedGuard {
+  const item = exactObject(value, path, [
+    'guardKey',
+    'prohibitedExact',
+    'prohibitedAliases',
+    'coOccurrenceGroups',
+    'proximityGroups',
+    'semanticReviewRequired',
+  ]);
+  return {
+    guardKey: stringAt(item.guardKey, `${path}.guardKey`),
+    prohibitedExact: cloneStrings(item.prohibitedExact, `${path}.prohibitedExact`),
+    prohibitedAliases: cloneStrings(item.prohibitedAliases, `${path}.prohibitedAliases`),
+    coOccurrenceGroups: termGroupsAt(item.coOccurrenceGroups, `${path}.coOccurrenceGroups`),
+    proximityGroups: termGroupsAt(item.proximityGroups, `${path}.proximityGroups`),
+    semanticReviewRequired: booleanAt(
+      item.semanticReviewRequired,
+      `${path}.semanticReviewRequired`,
+    ),
+  };
+}
+
+export function buildValidatorPacket(input: ValidatorPacketInput): ValidatorContextPacket {
+  const item = exactObject(input, '$', [
+    'kind',
+    'dataClass',
+    'metadata',
+    'prose',
+    'beatContract',
+    'restrictedGuardSets',
+    'continuityRules',
+  ]);
+  literalAt(item.kind, 'validator', '$.kind', 'PACKET_KIND_MISMATCH');
+  literalAt(item.dataClass, 'author_private', '$.dataClass', 'DATA_CLASS_MISMATCH');
+  const restrictedGuardSets = arrayAt(item.restrictedGuardSets, '$.restrictedGuardSets').map(
+    (value, index) => guardAt(value, `$.restrictedGuardSets[${index}]`),
+  );
+  const guardKeys = restrictedGuardSets.map((guard) => guard.guardKey);
+  if (new Set(guardKeys).size !== guardKeys.length) {
+    fail(
+      'DUPLICATE_ENTITY_ID',
+      '$.restrictedGuardSets',
+      '$.restrictedGuardSets contains duplicate guardKey values',
+    );
+  }
+  const continuityRules = arrayAt(item.continuityRules, '$.continuityRules').map((value, index) => {
+    const path = `$.continuityRules[${index}]`;
+    const source = exactObject(value, path, ['ruleKey', 'instruction', 'restrictedEvidence']);
+    return {
+      ruleKey: stringAt(source.ruleKey, `${path}.ruleKey`),
+      instruction: stringAt(source.instruction, `${path}.instruction`),
+      restrictedEvidence: cloneStrings(source.restrictedEvidence, `${path}.restrictedEvidence`),
+    };
+  });
+  return {
+    kind: 'validator',
+    dataClass: 'author_private',
+    metadata: metadataAt(item.metadata),
+    prose: proseAt(item.prose, '$.prose'),
+    beatContract: validatorBeatContractAt(item.beatContract, '$.beatContract'),
+    restrictedGuardSets,
+    continuityRules,
+  } as unknown as ValidatorContextPacket;
+}
+
+function locationAt(value: unknown, path: string): FindingLocationInput {
+  const item = exactObject(value, path, ['startUtf16', 'endUtf16']);
+  if (!Number.isSafeInteger(item.startUtf16) || !Number.isSafeInteger(item.endUtf16)) {
+    fail('INVALID_PACKET', path, 'location offsets must be safe integers');
+  }
+  const startUtf16 = item.startUtf16 as number;
+  const endUtf16 = item.endUtf16 as number;
+  if (startUtf16 < 0 || endUtf16 < startUtf16) {
+    fail('INVALID_PACKET', path, 'location must satisfy 0 <= startUtf16 <= endUtf16');
+  }
+  return { startUtf16, endUtf16 };
+}
+
+function repairDirectiveAt(value: unknown, path: string): RepairDirective {
+  const source = objectAt(value, path);
+  const hasLocation = Object.hasOwn(source, 'location');
+  const item = exactObject(
+    value,
+    path,
+    hasLocation
+      ? ['findingKey', 'publicMessageCode', 'instruction', 'location']
+      : ['findingKey', 'publicMessageCode', 'instruction'],
+  );
+  const base = {
+    findingKey: stringAt(item.findingKey, `${path}.findingKey`),
+    publicMessageCode: stringAt(item.publicMessageCode, `${path}.publicMessageCode`),
+    instruction: stringAt(item.instruction, `${path}.instruction`),
+  };
+  return hasLocation ? { ...base, location: locationAt(item.location, `${path}.location`) } : base;
+}
+
+export function buildRepairPacket(input: RepairPacketInput): RepairContextPacket {
+  const item = exactObject(input, '$', [
+    'kind',
+    'dataClass',
+    'metadata',
+    'repairableProse',
+    'directives',
+    'beatContract',
+    'revealGuidance',
+  ]);
+  literalAt(item.kind, 'repair', '$.kind', 'PACKET_KIND_MISMATCH');
+  literalAt(item.dataClass, 'writer_safe', '$.dataClass', 'DATA_CLASS_MISMATCH');
+  const repairableProseSource = exactObject(item.repairableProse, '$.repairableProse', [
+    'proseVersionId',
+    'beatId',
+    'content',
+  ]);
+  const repairableProse: RepairableProse = {
+    proseVersionId: stringAt(
+      repairableProseSource.proseVersionId,
+      '$.repairableProse.proseVersionId',
+    ),
+    beatId: stringAt(repairableProseSource.beatId, '$.repairableProse.beatId'),
+    content: stringAt(repairableProseSource.content, '$.repairableProse.content'),
+  };
+  const directives = arrayAt(item.directives, '$.directives').map((value, index) =>
+    repairDirectiveAt(value, `$.directives[${index}]`),
+  );
+  const revealGuidance = arrayAt(item.revealGuidance, '$.revealGuidance').map((value, index) =>
+    guidanceAt(value, `$.revealGuidance[${index}]`),
+  );
+  return {
+    kind: 'repair',
+    dataClass: 'writer_safe',
+    metadata: metadataAt(item.metadata),
+    repairableProse,
+    directives,
+    beatContract: beatContractAt(item.beatContract, '$.beatContract'),
+    revealGuidance,
+  } as unknown as RepairContextPacket;
 }

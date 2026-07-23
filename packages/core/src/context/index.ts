@@ -44,4 +44,9 @@ export {
   type WriterSafeFact,
 } from './packet-types.js';
 
-export { buildPlannerPacket, buildWriterPacket } from './packet-builders.js';
+export {
+  buildPlannerPacket,
+  buildRepairPacket,
+  buildValidatorPacket,
+  buildWriterPacket,
+} from './packet-builders.js';
