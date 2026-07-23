@@ -109,5 +109,9 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Canonical JSON and SHA-256 remain stable under key reordering                    | S3       | `canonical-json`                  | unit                |
 | Dependency status fails closed for malformed or stale manifests                 | S3       | `stale-policy`                    | unit                |
 | Accepted prose and validation bindings obey immutable pointer policy             | S3       | `prose-policy`                    | unit                |
+| Context packet runtime boundaries reject unknown keys, duplicate IDs, and kind/class mismatch | S3 | `packet-builders` | unit |
+| Repair packet rejects unsanitized/internal validation finding | S3 | `repair-packet` | unit |
+| Extraction use case has fixed data class and rejects mismatch | S3 | `extraction-packet` | unit |
+| Restricted projections are not assignable to writer/repair fields at compile time | S3 | `packet-type-boundary` | unit |
 
 When adding invariants: append row, implement test, wire CI job, then merge.
