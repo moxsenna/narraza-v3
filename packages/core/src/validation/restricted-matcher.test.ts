@@ -90,4 +90,127 @@ describe('restricted matcher', () => {
     expect(finding?.location).toEqual({ startUtf16: 0, endUtf16: 1 });
     expect(finding?.restrictedDetail?.matchedText).toBe('㍑');
   });
+
+  it('marks co-occurrence in one sentence as suspected error', () => {
+    const findings = matchRestrictedRepresentations({
+      policyVersion: 'validator:v1',
+      prose: 'Raka masuk. Pisau itu hilang. Raka menggenggam pisau.',
+      guards: [guard],
+    });
+    expect(
+      findings.some(
+        (f) =>
+          f.ruleKey === 'restricted.co_occurrence' &&
+          f.severity === 'error' &&
+          f.restrictedDetail?.status === 'suspected',
+      ),
+    ).toBe(true);
+  });
+
+  it('uses an inclusive maximum 20-token proximity window', () => {
+    const within = `ruang ${Array.from({ length: 18 }, (_, i) => `kata${i}`).join(' ')} rahasia`;
+    const outside = `ruang ${Array.from({ length: 19 }, (_, i) => `kata${i}`).join(' ')} rahasia`;
+    expect(
+      matchRestrictedRepresentations({
+        policyVersion: 'validator:v1',
+        prose: within,
+        guards: [guard],
+      }).some((f) => f.ruleKey === 'restricted.proximity'),
+    ).toBe(true);
+    expect(
+      matchRestrictedRepresentations({
+        policyVersion: 'validator:v1',
+        prose: outside,
+        guards: [guard],
+      }).some((f) => f.ruleKey === 'restricted.proximity'),
+    ).toBe(false);
+  });
+
+  it('finds a later valid proximity window after an early out-of-window occurrence, independent of term order', () => {
+    const far = Array.from({ length: 19 }, (_, i) => `jauh${i}`).join(' ');
+    const prose = `ruang ${far} rahasia lalu rahasia dekat ruang`;
+    const findings = matchRestrictedRepresentations({
+      policyVersion: 'validator:v1',
+      prose,
+      guards: [guard],
+    });
+    const proximity = findings.find((finding) => finding.ruleKey === 'restricted.proximity');
+    expect(proximity?.restrictedDetail?.matchedText).toBe('rahasia dekat ruang');
+  });
+
+  it('emits semantic-review warning only when no lexical evidence matched', () => {
+    const findings = matchRestrictedRepresentations({
+      policyVersion: 'validator:v1',
+      prose: 'Tidak ada bukti leksikal.',
+      guards: [guard],
+    });
+    expect(findings.map((f) => [f.ruleKey, f.severity, f.restrictedDetail?.status])).toEqual([
+      ['restricted.semantic_gap', 'warning', 'requires_semantic_review'],
+    ]);
+  });
+
+  it.each([
+    null,
+    [],
+    new Date(),
+    { policyVersion: 'validator:v1', prose: 'x', guards: [guard], unknown: true },
+    { policyVersion: 'validator:v1', prose: 1, guards: [guard] },
+    { policyVersion: 'validator:v1', prose: 'x', guards: [, guard] },
+    { policyVersion: 'validator:v1', prose: 'x', guards: Object.assign([guard], { extra: true }) },
+    { policyVersion: 'validator:v1', prose: 'x', guards: [null] },
+    { policyVersion: 'validator:v1', prose: 'x', guards: [{ ...guard, unknown: true }] },
+    { policyVersion: 'validator:v1', prose: 'x', guards: [{ ...guard, prohibitedExact: [' '] }] },
+    {
+      policyVersion: 'validator:v1',
+      prose: 'x',
+      guards: [{ ...guard, prohibitedExact: Object.assign(['secret'], { extra: true }) }],
+    },
+    {
+      policyVersion: 'validator:v1',
+      prose: 'x',
+      guards: [{ ...guard, prohibitedExact: [, 'secret'] }],
+    },
+    {
+      policyVersion: 'validator:v1',
+      prose: 'x',
+      guards: [
+        {
+          ...guard,
+          prohibitedAliases: ['ＳＩ　ＡＬＧＯＪＯ'],
+          prohibitedExact: ['si algojo'],
+          coOccurrenceGroups: [],
+          proximityGroups: [],
+          semanticReviewRequired: false,
+        },
+      ],
+    },
+    {
+      policyVersion: 'validator:v1',
+      prose: 'x',
+      guards: [{ ...guard, coOccurrenceGroups: [['only-one']] }],
+    },
+    {
+      policyVersion: 'validator:v1',
+      prose: 'x',
+      guards: [{ ...guard, coOccurrenceGroups: [Object.assign(['a', 'b'], { extra: true })] }],
+    },
+    { policyVersion: 'validator:v1', prose: 'x', guards: [{ ...guard, proximityGroups: [null] }] },
+    {
+      policyVersion: 'validator:v1',
+      prose: 'x',
+      guards: [{ ...guard, semanticReviewRequired: 'yes' }],
+    },
+  ])(
+    'rejects malformed unknown matcher input with typed error, never TypeError: %#',
+    (malformed) => {
+      let thrown: unknown;
+      try {
+        matchRestrictedRepresentations(malformed);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toMatchObject({ code: 'INVALID_RESTRICTED_GUARD' });
+      expect(thrown).not.toBeInstanceOf(TypeError);
+    },
+  );
 });

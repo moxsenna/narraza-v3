@@ -149,27 +149,286 @@ const lexicalFinding = (
     },
   });
 
-export function matchRestrictedRepresentations(
-  input: RestrictedMatcherInput,
-): readonly InternalValidationFinding[] {
-  validateValidatorPolicyVersion(input.policyVersion);
-  const prose = normalizeWithSource(input.prose);
-  const findings: InternalValidationFinding[] = [];
-  for (const guard of input.guards) {
-    for (const phrase of guard.prohibitedExact) {
-      const normalizedTerms = normalizeRestrictedText(phrase).tokens;
-      const location = phraseMatch(prose.sourceTokens, normalizedTerms);
-      if (location !== undefined) {
-        findings.push(lexicalFinding(input.prose, guard.guardKey, 'exact', normalizedTerms, location));
-      }
+const invalidGuard = (message: string): never => {
+  throw new ValidatorError('INVALID_RESTRICTED_GUARD', message);
+};
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+const exactObject = (
+  value: unknown,
+  keys: readonly string[],
+  label: string,
+): Record<string, unknown> => {
+  if (!isPlainObject(value)) return invalidGuard(`${label} must be a plain object`);
+  const actual = Reflect.ownKeys(value);
+  if (
+    actual.length !== keys.length ||
+    actual.some((key) => typeof key !== 'string' || !keys.includes(key))
+  ) {
+    return invalidGuard(`${label} must contain exact keys`);
+  }
+  return value;
+};
+const denseArray = (value: unknown, label: string): readonly unknown[] => {
+  if (!Array.isArray(value))
+    return invalidGuard(`${label} must be a dense array without extra keys`);
+  const expected = ['length', ...Array.from({ length: value.length }, (_, index) => String(index))];
+  const actual = Reflect.ownKeys(value);
+  if (
+    actual.length !== expected.length ||
+    actual.some((key) => typeof key !== 'string' || !expected.includes(key))
+  ) {
+    return invalidGuard(`${label} must be a dense array without extra keys`);
+  }
+  return value;
+};
+const restrictedString = (value: unknown, label: string): string => {
+  if (typeof value !== 'string' || [...value.trim()].length === 0) {
+    return invalidGuard(`${label} must be non-empty`);
+  }
+  assertWellFormed(value);
+  return value;
+};
+const normalizeTerm = (value: unknown, label = 'Restricted lexical value'): string => {
+  const normalized = normalizeRestrictedText(restrictedString(value, label)).text;
+  if (normalized.length === 0) return invalidGuard(`${label} normalizes empty`);
+  return normalized;
+};
+const stringList = (value: unknown, label: string): readonly string[] =>
+  denseArray(value, label).map((item, index) => restrictedString(item, `${label}[${index}]`));
+const groupList = (value: unknown, label: string): readonly (readonly string[])[] =>
+  denseArray(value, label).map((group, index) => {
+    const terms = stringList(group, `${label}[${index}]`);
+    if (terms.length < 2) return invalidGuard('Restricted term group requires at least two terms');
+    const normalized = terms.map((term, termIndex) =>
+      normalizeTerm(term, `${label}[${index}][${termIndex}]`),
+    );
+    if (new Set(normalized).size !== normalized.length) {
+      return invalidGuard('Restricted term group contains duplicate terms');
     }
-    for (const phrase of guard.prohibitedAliases) {
-      const normalizedTerms = normalizeRestrictedText(phrase).tokens;
-      const location = phraseMatch(prose.sourceTokens, normalizedTerms);
-      if (location !== undefined) {
-        findings.push(lexicalFinding(input.prose, guard.guardKey, 'alias', normalizedTerms, location));
+    return terms;
+  });
+const parseMatcherInput = (value: unknown): RestrictedMatcherInput => {
+  const input = exactObject(
+    value,
+    ['policyVersion', 'prose', 'guards'],
+    'Restricted matcher input',
+  );
+  if (typeof input.policyVersion !== 'string' || typeof input.prose !== 'string') {
+    return invalidGuard('Restricted policyVersion and prose must be strings');
+  }
+  assertWellFormed(input.prose);
+  denseArray(input.guards, 'guards').forEach((value, index) => {
+    const label = `guards[${index}]`;
+    const item = exactObject(
+      value,
+      [
+        'guardKey',
+        'prohibitedExact',
+        'prohibitedAliases',
+        'coOccurrenceGroups',
+        'proximityGroups',
+        'semanticReviewRequired',
+      ],
+      label,
+    );
+    restrictedString(item.guardKey, `${label}.guardKey`);
+    stringList(item.prohibitedExact, `${label}.prohibitedExact`);
+    stringList(item.prohibitedAliases, `${label}.prohibitedAliases`);
+    groupList(item.coOccurrenceGroups, `${label}.coOccurrenceGroups`);
+    groupList(item.proximityGroups, `${label}.proximityGroups`);
+    if (typeof item.semanticReviewRequired !== 'boolean') {
+      return invalidGuard(`${label}.semanticReviewRequired must be boolean`);
+    }
+  });
+  return {
+    policyVersion: input.policyVersion,
+    prose: input.prose,
+    guards: input.guards as readonly RestrictedGuard[],
+  };
+};
+const validateGuards = (guards: readonly RestrictedGuard[]): void => {
+  const guardKeys = new Set<string>();
+  for (const guard of guards) {
+    if (guardKeys.has(guard.guardKey)) return invalidGuard('Guard keys must be unique');
+    guardKeys.add(guard.guardKey);
+    const phrases = [...guard.prohibitedExact, ...guard.prohibitedAliases].map((term) =>
+      normalizeTerm(term),
+    );
+    if (new Set(phrases).size !== phrases.length) {
+      return invalidGuard('Normalized exact and alias phrases must be unique');
+    }
+    for (const groups of [guard.coOccurrenceGroups, guard.proximityGroups]) {
+      const groupKeys = new Set<string>();
+      for (const group of groups) {
+        const terms = group.map((term) => normalizeTerm(term));
+        const key = JSON.stringify([...terms].sort());
+        if (groupKeys.has(key)) {
+          return invalidGuard('Restricted term groups must be unique independent of order');
+        }
+        groupKeys.add(key);
       }
     }
   }
+};
+const MODE_POLICY = {
+  coOccurrence: {
+    ruleKey: 'restricted.co_occurrence',
+    publicMessageCode: 'validation.restricted.suspected',
+    severity: 'error',
+    status: 'suspected',
+  },
+  proximity: {
+    ruleKey: 'restricted.proximity',
+    publicMessageCode: 'validation.restricted.suspected',
+    severity: 'error',
+    status: 'suspected',
+  },
+  semantic: {
+    ruleKey: 'restricted.semantic_gap',
+    publicMessageCode: 'validation.restricted.semantic_review',
+    severity: 'warning',
+    status: 'requires_semantic_review',
+  },
+} as const;
+const modeFinding = (
+  prose: string,
+  guardKey: string,
+  mode: keyof typeof MODE_POLICY,
+  normalizedTerms: readonly string[],
+  location?: { readonly startUtf16: number; readonly endUtf16: number },
+): InternalValidationFinding => {
+  const policy = MODE_POLICY[mode];
+  return createFinding({
+    source: 'deterministic',
+    ruleKey: policy.ruleKey,
+    publicMessageCode: policy.publicMessageCode,
+    severity: policy.severity,
+    ...(location === undefined ? {} : { location }),
+    evidenceHash: canonicalSha256({ guardKey, mode, normalizedTerms }),
+    restrictedDetail: {
+      guardKey,
+      status: policy.status,
+      matchedText:
+        location === undefined ? null : prose.slice(location.startUtf16, location.endUtf16),
+      normalizedTerms,
+    },
+  });
+};
+const sentenceTokenGroups = (
+  prose: string,
+  tokens: readonly SourceToken[],
+): readonly (readonly SourceToken[])[] => {
+  const groups: SourceToken[][] = [];
+  let startUtf16 = 0;
+  for (const match of prose.matchAll(/[.!?\p{Sentence_Terminal}]+[^\p{L}\p{N}]*/gu)) {
+    const endUtf16 = match.index + match[0].length;
+    groups.push(
+      tokens.filter((token) => token.startUtf16 >= startUtf16 && token.endUtf16 <= endUtf16),
+    );
+    startUtf16 = endUtf16;
+  }
+  if (startUtf16 < prose.length) {
+    groups.push(tokens.filter((token) => token.startUtf16 >= startUtf16));
+  }
+  return groups;
+};
+const groupMatch = (
+  tokens: readonly SourceToken[],
+  terms: readonly string[],
+  maxWindow?: number,
+): { startUtf16: number; endUtf16: number } | undefined => {
+  const required = new Set(terms);
+  const counts = new Map<string, number>();
+  let covered = 0;
+  let left = 0;
+  for (let right = 0; right < tokens.length; right += 1) {
+    const rightText = tokens[right]!.text;
+    if (required.has(rightText)) {
+      const count = counts.get(rightText) ?? 0;
+      counts.set(rightText, count + 1);
+      if (count === 0) covered += 1;
+    }
+    while (covered === required.size) {
+      const leftText = tokens[left]!.text;
+      if (!required.has(leftText) || (counts.get(leftText) ?? 0) > 1) {
+        if (required.has(leftText)) counts.set(leftText, counts.get(leftText)! - 1);
+        left += 1;
+        continue;
+      }
+      if (maxWindow === undefined || right - left + 1 <= maxWindow) {
+        return { startUtf16: tokens[left]!.startUtf16, endUtf16: tokens[right]!.endUtf16 };
+      }
+      counts.set(leftText, 0);
+      covered -= 1;
+      left += 1;
+    }
+  }
+  return undefined;
+};
+
+export function matchRestrictedRepresentations(
+  value: unknown,
+): readonly InternalValidationFinding[] {
+  const input = parseMatcherInput(value);
+  validateValidatorPolicyVersion(input.policyVersion);
+  validateGuards(input.guards);
+  const prose = normalizeWithSource(input.prose);
+  const sentences = sentenceTokenGroups(input.prose, prose.sourceTokens);
+  const findings: InternalValidationFinding[] = [];
+  for (const guard of input.guards) {
+    const guardFindings: InternalValidationFinding[] = [];
+    for (const [mode, phrases] of [
+      ['exact', guard.prohibitedExact],
+      ['alias', guard.prohibitedAliases],
+    ] as const) {
+      for (const phrase of phrases) {
+        const normalizedTerms = normalizeRestrictedText(phrase).tokens;
+        const location = phraseMatch(prose.sourceTokens, normalizedTerms);
+        if (location !== undefined) {
+          guardFindings.push(
+            lexicalFinding(input.prose, guard.guardKey, mode, normalizedTerms, location),
+          );
+        }
+      }
+    }
+    for (const group of guard.coOccurrenceGroups) {
+      const normalizedTerms = group.map((term) => normalizeTerm(term));
+      const location = sentences
+        .map((tokens) => groupMatch(tokens, normalizedTerms))
+        .find((value) => value !== undefined);
+      if (location !== undefined) {
+        guardFindings.push(
+          modeFinding(input.prose, guard.guardKey, 'coOccurrence', normalizedTerms, location),
+        );
+      }
+    }
+    for (const group of guard.proximityGroups) {
+      const normalizedTerms = group.map((term) => normalizeTerm(term));
+      const location = groupMatch(prose.sourceTokens, normalizedTerms, 20);
+      if (location !== undefined) {
+        guardFindings.push(
+          modeFinding(input.prose, guard.guardKey, 'proximity', normalizedTerms, location),
+        );
+      }
+    }
+    if (guard.semanticReviewRequired && guardFindings.length === 0) {
+      guardFindings.push(modeFinding(input.prose, guard.guardKey, 'semantic', []));
+    }
+    findings.push(...guardFindings);
+  }
+  const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+  findings.sort(
+    (a, b) =>
+      (a.location?.startUtf16 ?? Number.POSITIVE_INFINITY) -
+        (b.location?.startUtf16 ?? Number.POSITIVE_INFINITY) ||
+      (a.location?.endUtf16 ?? Number.POSITIVE_INFINITY) -
+        (b.location?.endUtf16 ?? Number.POSITIVE_INFINITY) ||
+      compareText(a.ruleKey, b.ruleKey) ||
+      compareText(a.findingKey, b.findingKey),
+  );
   return Object.freeze(findings);
 }
