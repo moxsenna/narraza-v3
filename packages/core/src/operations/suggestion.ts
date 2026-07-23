@@ -1,20 +1,12 @@
 import {
-  TEMP_REF_PATTERN,
   exactRecord,
   nonEmpty,
+  TEMP_REF_PATTERN,
   type SuggestionOperationType,
 } from './entities.js';
 import { OperationDomainError } from './errors.js';
 
-export interface ModelSuggestionDraft {
-  readonly schemaVersion: 1;
-  readonly tempRef: string;
-  readonly operationType: SuggestionOperationType;
-  readonly input: unknown;
-  readonly dependsOn?: readonly string[];
-}
-
-const OPERATION_TYPES = new Set<SuggestionOperationType>([
+const TYPES = new Set<SuggestionOperationType>([
   'foundation.update',
   'character.create',
   'character.update',
@@ -32,45 +24,62 @@ const OPERATION_TYPES = new Set<SuggestionOperationType>([
   'prose.accept',
 ]);
 
-export function parseModelSuggestionDraft(value: unknown): ModelSuggestionDraft {
-  const record = exactRecord(
+export interface ModelSuggestionDraft {
+  readonly schemaVersion: 1;
+  readonly tempRef: string;
+  readonly operationType: SuggestionOperationType;
+  readonly input: unknown;
+  readonly dependsOn?: readonly string[];
+}
+
+const choose = (record: Record<string, unknown>, canonical: string, alias: string): unknown => {
+  if (Object.hasOwn(record, canonical) && Object.hasOwn(record, alias)) {
+    throw new OperationDomainError(
+      'INVALID_SUGGESTION',
+      `cannot combine ${canonical} and ${alias}`,
+    );
+  }
+  return Object.hasOwn(record, canonical) ? record[canonical] : record[alias];
+};
+
+export function parseModelSuggestion(value: unknown): ModelSuggestionDraft {
+  const raw = exactRecord(
     value,
-    ['schemaVersion', 'tempRef', 'operationType', 'input'],
-    ['dependsOn'],
+    ['schemaVersion', 'input'],
+    ['tempRef', 'temp_id', 'operationType', 'op', 'dependsOn', 'dependencies'],
   );
-  if (record.schemaVersion !== 1) {
+  const tempRef = nonEmpty(choose(raw, 'tempRef', 'temp_id'));
+  if (!TEMP_REF_PATTERN.test(tempRef)) {
+    throw new OperationDomainError('INVALID_SUGGESTION', 'invalid tempRef');
+  }
+  const operationType = nonEmpty(choose(raw, 'operationType', 'op')) as SuggestionOperationType;
+  if (!TYPES.has(operationType)) {
+    throw new OperationDomainError('UNKNOWN_OPERATION', `unknown operation ${operationType}`);
+  }
+  if (raw.schemaVersion !== 1) {
     throw new OperationDomainError('INVALID_SUGGESTION', 'schemaVersion must be 1');
   }
-  const tempRef = nonEmpty(record.tempRef);
-  if (!TEMP_REF_PATTERN.test(tempRef)) {
-    throw new OperationDomainError('INVALID_SUGGESTION', 'tempRef is invalid');
+  const dependencyValue = choose(raw, 'dependsOn', 'dependencies');
+  if (dependencyValue !== undefined && !Array.isArray(dependencyValue)) {
+    throw new OperationDomainError('INVALID_DEPENDENCY', 'dependencies must be dense array');
   }
-  if (
-    typeof record.operationType !== 'string' ||
-    !OPERATION_TYPES.has(record.operationType as SuggestionOperationType)
-  ) {
-    throw new OperationDomainError('UNKNOWN_OPERATION', 'unknown operation type');
+  const dependsOn =
+    dependencyValue === undefined
+      ? undefined
+      : dependencyValue.map((item, index) => {
+          if (!Object.hasOwn(dependencyValue, index)) {
+            throw new OperationDomainError('INVALID_DEPENDENCY', 'sparse dependencies');
+          }
+          const ref = nonEmpty(item);
+          if (!TEMP_REF_PATTERN.test(ref)) {
+            throw new OperationDomainError('INVALID_DEPENDENCY', 'invalid dependency');
+          }
+          return ref;
+        });
+  if (dependsOn !== undefined && new Set(dependsOn).size !== dependsOn.length) {
+    throw new OperationDomainError('INVALID_DEPENDENCY', 'duplicate dependency');
   }
-  let dependsOn: readonly string[] | undefined;
-  if (Object.hasOwn(record, 'dependsOn')) {
-    if (!Array.isArray(record.dependsOn)) {
-      throw new OperationDomainError('INVALID_SUGGESTION', 'dependsOn must be an array');
-    }
-    dependsOn = record.dependsOn.map((item, index) => {
-      if (typeof item !== 'string' || item.trim().length === 0) {
-        throw new OperationDomainError(
-          'INVALID_SUGGESTION',
-          `dependsOn[${index}] must be non-empty string`,
-        );
-      }
-      return item;
-    });
-  }
-  return {
-    schemaVersion: 1,
-    tempRef,
-    operationType: record.operationType as SuggestionOperationType,
-    input: record.input,
-    ...(dependsOn === undefined ? {} : { dependsOn }),
-  };
+  return dependsOn === undefined
+    ? { schemaVersion: 1, tempRef, operationType, input: raw.input }
+    : { schemaVersion: 1, tempRef, operationType, input: raw.input, dependsOn };
 }
