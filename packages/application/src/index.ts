@@ -1,10 +1,22 @@
 // @narraza/application — use cases + UnitOfWork + ports (interfaces only).
-// Depends on core + shared; never on concrete adapters (db/ai/web). Formal
-// UnitOfWork lands in M2; auth use cases + ports (D21) land in M0.
+// Depends on core + shared; never on concrete adapters (db/ai/web). Auth (D21)
+// landed in M0; domain ports/UoW/authz land in M2.
 
 export const APPLICATION_PACKAGE = '@narraza/application' as const;
 
 export { ok, err, type Result } from './result.js';
+
+export {
+  appError,
+  notFound,
+  type AppError,
+  type AppErrorCode,
+} from './errors.js';
+
+export {
+  authorizeActiveUser,
+  type ActiveUser,
+} from './authz/authorize-active-user.js';
 
 // Namespace for the auth service + helpers.
 export * as auth from './auth/index.js';
