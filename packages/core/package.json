@@ -15,6 +15,7 @@
     "test": "pnpm run test:unit",
     "test:unit": "vitest run --passWithNoTests && pnpm run test:types",
     "test:types": "tsc -p tsconfig.type-tests.json",
+    "test:type:operations": "tsc -p tsconfig.operations-type-tests.json --pretty false",
     "clean": "rimraf dist *.tsbuildinfo"
   },
   "dependencies": {
