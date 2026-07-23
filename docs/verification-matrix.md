@@ -118,4 +118,7 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Restricted matcher is Unicode-normalized and token-boundary safe | S3 | `restricted-matcher` | unit |
 | Public validation findings never carry source/evidence/restricted detail | S3/D13 | `to-public-finding` | unit,security-smoke |
 
+| Operation DAG order and cycle members are stable across input permutations | S3 | `operation-topo-sort` | unit |
+| Canonical operations hash covers semantic material and is permutation-stable | S3 | `operations-hash` | unit |
+
 When adding invariants: append row, implement test, wire CI job, then merge.
