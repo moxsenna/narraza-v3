@@ -29,9 +29,7 @@ describe('validateBeatStructure', () => {
       contract,
       evidence,
     });
-    expect(result.map((f) => [f.ruleKey, f.severity])).toEqual([
-      ['beat.prose.empty', 'blocking'],
-    ]);
+    expect(result.map((f) => [f.ruleKey, f.severity])).toEqual([['beat.prose.empty', 'blocking']]);
   });
 
   it('checks character, fact, directive, prohibited action, ending, and code-point length', () => {
@@ -102,7 +100,12 @@ describe('validateBeatStructure', () => {
     { policyVersion: 'validator:v1', prose: 'x', contract, evidence, unknown: true },
     { policyVersion: 'validator:v1', prose: 1, contract, evidence },
     { policyVersion: 'validator:v1', prose: 'x', contract: [], evidence },
-    { policyVersion: 'validator:v1', prose: 'x', contract: { ...contract, unknown: true }, evidence },
+    {
+      policyVersion: 'validator:v1',
+      prose: 'x',
+      contract: { ...contract, unknown: true },
+      evidence,
+    },
     {
       policyVersion: 'validator:v1',
       prose: 'x',
@@ -121,7 +124,10 @@ describe('validateBeatStructure', () => {
     {
       policyVersion: 'validator:v1',
       prose: 'x',
-      contract: { ...contract, requiredFactKeys: [, 'door_locked'] },
+      contract: {
+        ...contract,
+        requiredFactKeys: Object.assign([], { 1: 'door_locked', length: 2 }),
+      },
       evidence,
     },
     {
@@ -178,16 +184,22 @@ describe('validateBeatStructure', () => {
       policyVersion: 'validator:v1',
       prose: 'x',
       contract,
-      evidence: { characters: [{ id: 'mira', lexicalEvidence: [, 'Mira'] }], facts: [] },
+      evidence: {
+        characters: [{ id: 'mira', lexicalEvidence: Object.assign([], { 1: 'Mira', length: 2 }) }],
+        facts: [],
+      },
     },
-  ])('rejects malformed unknown structural input with typed error, never TypeError: %#', (malformed) => {
-    let thrown: unknown;
-    try {
-      validateBeatStructure(malformed);
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown).toMatchObject({ code: 'INVALID_BEAT_CONTRACT' });
-    expect(thrown).not.toBeInstanceOf(TypeError);
-  });
+  ])(
+    'rejects malformed unknown structural input with typed error, never TypeError: %#',
+    (malformed) => {
+      let thrown: unknown;
+      try {
+        validateBeatStructure(malformed);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toMatchObject({ code: 'INVALID_BEAT_CONTRACT' });
+      expect(thrown).not.toBeInstanceOf(TypeError);
+    },
+  );
 });

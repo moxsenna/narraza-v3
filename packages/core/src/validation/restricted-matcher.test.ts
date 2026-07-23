@@ -155,7 +155,11 @@ describe('restricted matcher', () => {
     new Date(),
     { policyVersion: 'validator:v1', prose: 'x', guards: [guard], unknown: true },
     { policyVersion: 'validator:v1', prose: 1, guards: [guard] },
-    { policyVersion: 'validator:v1', prose: 'x', guards: [, guard] },
+    {
+      policyVersion: 'validator:v1',
+      prose: 'x',
+      guards: Object.assign([], { 1: guard, length: 2 }),
+    },
     { policyVersion: 'validator:v1', prose: 'x', guards: Object.assign([guard], { extra: true }) },
     { policyVersion: 'validator:v1', prose: 'x', guards: [null] },
     { policyVersion: 'validator:v1', prose: 'x', guards: [{ ...guard, unknown: true }] },
@@ -168,7 +172,7 @@ describe('restricted matcher', () => {
     {
       policyVersion: 'validator:v1',
       prose: 'x',
-      guards: [{ ...guard, prohibitedExact: [, 'secret'] }],
+      guards: [{ ...guard, prohibitedExact: Object.assign([], { 1: 'secret', length: 2 }) }],
     },
     {
       policyVersion: 'validator:v1',
