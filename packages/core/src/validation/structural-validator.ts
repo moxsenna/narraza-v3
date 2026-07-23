@@ -41,11 +41,7 @@ const RULES = {
     'validation.fact.semantic_review',
     'warning',
   ],
-  directive: [
-    'beat.required_directive.missing',
-    'validation.directive.required_missing',
-    'error',
-  ],
+  directive: ['beat.required_directive.missing', 'validation.directive.required_missing', 'error'],
   directiveSemantic: [
     'beat.required_directive.semantic_review',
     'validation.directive.semantic_review',
@@ -144,7 +140,11 @@ const lexicalObject = (
   };
 };
 const parseStructuralInput = (value: unknown): StructuralValidationInput => {
-  const input = exactObject(value, ['policyVersion', 'prose', 'contract', 'evidence'], 'Structural input');
+  const input = exactObject(
+    value,
+    ['policyVersion', 'prose', 'contract', 'evidence'],
+    'Structural input',
+  );
   if (typeof input.policyVersion !== 'string' || typeof input.prose !== 'string') {
     return invalid('Structural policyVersion and prose must be strings');
   }
@@ -167,12 +167,16 @@ const parseStructuralInput = (value: unknown): StructuralValidationInput => {
     ],
     'Beat contract',
   );
-  const requiredCharacterIds = stringArray(contract.requiredCharacterIds, 'requiredCharacterIds', true);
+  const requiredCharacterIds = stringArray(
+    contract.requiredCharacterIds,
+    'requiredCharacterIds',
+    true,
+  );
   const requiredFactKeys = stringArray(contract.requiredFactKeys, 'requiredFactKeys', true);
   unique(requiredCharacterIds, 'requiredCharacterIds');
   unique(requiredFactKeys, 'requiredFactKeys');
-  const directives = denseArray(contract.requiredDirectives, 'requiredDirectives').map((item, index) =>
-    lexicalObject(item, 'directiveKey', `requiredDirectives[${index}]`),
+  const directives = denseArray(contract.requiredDirectives, 'requiredDirectives').map(
+    (item, index) => lexicalObject(item, 'directiveKey', `requiredDirectives[${index}]`),
   );
   const actions = denseArray(contract.prohibitedActions, 'prohibitedActions').map((item, index) =>
     lexicalObject(item, 'actionKey', `prohibitedActions[${index}]`),
@@ -216,7 +220,11 @@ const parseStructuralInput = (value: unknown): StructuralValidationInput => {
       const item = exactObject(entry, ['id', 'lexicalEvidence'], `${label}[${index}]`);
       return {
         id: nonEmptyString(item.id, `${label}[${index}].id`),
-        lexicalEvidence: stringArray(item.lexicalEvidence, `${label}[${index}].lexicalEvidence`, true),
+        lexicalEvidence: stringArray(
+          item.lexicalEvidence,
+          `${label}[${index}].lexicalEvidence`,
+          true,
+        ),
       };
     });
     unique(
