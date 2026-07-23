@@ -55,9 +55,7 @@ describe('operations hash', () => {
   it('excludes operationId and rejects broken ordinal', () => {
     const operations = resolveOperations(drafts, context()).operations;
     expect(
-      hashCanonicalOperations(
-        operations.map((o, i) => ({ ...o, operationId: `retry-${i}` })),
-      ),
+      hashCanonicalOperations(operations.map((o, i) => ({ ...o, operationId: `retry-${i}` }))),
     ).toBe(hashCanonicalOperations(operations));
     expect(() =>
       hashCanonicalOperations(operations.map((o) => ({ ...o, ordinal: o.ordinal + 1 }))),

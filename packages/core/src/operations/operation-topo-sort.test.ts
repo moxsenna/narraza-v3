@@ -25,11 +25,7 @@ const nodes = [
 describe('stable topological sort', () => {
   it('sorts ready queue by operationType/entityType/targetId/localRef', () =>
     // belief.append < character.create < fact.create by code-unit order
-    expect(stableTopologicalSort(nodes, []).map((x) => x.localRef)).toEqual([
-      'c',
-      'a',
-      'b',
-    ]));
+    expect(stableTopologicalSort(nodes, []).map((x) => x.localRef)).toEqual(['c', 'a', 'b']));
 
   it('deduplicates edges and rejects missing/self/cycle stably', () => {
     expect(
@@ -38,12 +34,12 @@ describe('stable topological sort', () => {
         { before: 'a', after: 'c' },
       ]).map((x) => x.localRef),
     ).toEqual(['a', 'c', 'b']);
-    expect(() =>
-      stableTopologicalSort(nodes, [{ before: 'x', after: 'a' }]),
-    ).toThrowError(expect.objectContaining({ code: 'INVALID_DEPENDENCY' }));
-    expect(() =>
-      stableTopologicalSort(nodes, [{ before: 'a', after: 'a' }]),
-    ).toThrowError(expect.objectContaining({ code: 'INVALID_DEPENDENCY' }));
+    expect(() => stableTopologicalSort(nodes, [{ before: 'x', after: 'a' }])).toThrowError(
+      expect.objectContaining({ code: 'INVALID_DEPENDENCY' }),
+    );
+    expect(() => stableTopologicalSort(nodes, [{ before: 'a', after: 'a' }])).toThrowError(
+      expect.objectContaining({ code: 'INVALID_DEPENDENCY' }),
+    );
     expect(() =>
       stableTopologicalSort(nodes, [
         { before: 'a', after: 'c' },

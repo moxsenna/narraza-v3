@@ -37,11 +37,7 @@ const cases = [
     ['existing', 'character', 'char-1'],
   ],
   ['fact.create', fact, ['temporary', 'fact', 'op4']],
-  [
-    'fact.update',
-    { target: ref('fact-1'), ...fact },
-    ['existing', 'fact', 'fact-1'],
-  ],
+  ['fact.update', { target: ref('fact-1'), ...fact }, ['existing', 'fact', 'fact-1']],
   [
     'state.append',
     { target: ref('char-1'), stateKey: 'place', value: 'arsip', evidence },

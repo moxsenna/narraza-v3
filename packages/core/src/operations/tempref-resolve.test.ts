@@ -174,11 +174,12 @@ describe('temp ref resolution', () => {
       ['outline', [10, 11, 12]],
       ['beat.write', [5, 6, 7, 13, 14]],
     ] as const;
-    const nodes = groups.flatMap(([contract, indexes]) =>
-      resolveOperationValues(
-        indexes.map((index) => n(raw[index]!)),
-        context(contract),
-      ).nodes,
+    const nodes = groups.flatMap(
+      ([contract, indexes]) =>
+        resolveOperationValues(
+          indexes.map((index) => n(raw[index]!)),
+          context(contract),
+        ).nodes,
     );
     expect(new Set(nodes.map((x) => x.operationType))).toEqual(
       new Set(raw.map((x) => x.operationType)),
@@ -202,16 +203,10 @@ describe('temp ref resolution', () => {
       ),
     ).toThrowError(expect.objectContaining({ code: 'INVALID_SUGGESTION' }));
     expect(() =>
-      resolveOperationValues(
-        [n(raw[3])],
-        context('foundation', { allocateFactKey: () => '' }),
-      ),
+      resolveOperationValues([n(raw[3])], context('foundation', { allocateFactKey: () => '' })),
     ).toThrowError(expect.objectContaining({ code: 'INVALID_SUGGESTION' }));
     expect(() =>
-      resolveOperationValues(
-        [n(raw[1])],
-        context('foundation', { allocateOperationId: () => '' }),
-      ),
+      resolveOperationValues([n(raw[1])], context('foundation', { allocateOperationId: () => '' })),
     ).toThrowError(expect.objectContaining({ code: 'INVALID_SUGGESTION' }));
   });
 
@@ -251,9 +246,7 @@ describe('temp ref resolution', () => {
   it('rejects revision, parent, chronology, retraction, and beat mismatches', () => {
     const noRevision = context('foundation', {
       snapshots: context().snapshots.map((s) =>
-        s.entityType === 'character' && s.entityId === 'char-1'
-          ? { ...s, revision: null }
-          : s,
+        s.entityType === 'character' && s.entityId === 'char-1' ? { ...s, revision: null } : s,
       ),
     });
     expect(() => resolveOperationValues([n(raw[2])], noRevision)).toThrowError(
@@ -382,10 +375,7 @@ describe('temp ref resolution', () => {
       }),
     ] as const;
     const project = (input: readonly (typeof outline)[number][]) =>
-      resolveOperationValues(input, context('outline')).nodes.map((x) => [
-        x.localRef,
-        x.payload,
-      ]);
+      resolveOperationValues(input, context('outline')).nodes.map((x) => [x.localRef, x.payload]);
     const expected = project(outline);
     expect(project([...outline].reverse())).toEqual(expected);
     expect(expected).toEqual(
@@ -513,10 +503,7 @@ describe('temp ref resolution', () => {
     ).toThrowError(expect.objectContaining({ code: 'INVALID_SUGGESTION' }));
     expect(calls).toBe(2);
     expect(() =>
-      resolveOperationValues(
-        [n(raw[3])],
-        context('foundation', { allocateFactKey: () => 'FK-1' }),
-      ),
+      resolveOperationValues([n(raw[3])], context('foundation', { allocateFactKey: () => 'FK-1' })),
     ).toThrowError(expect.objectContaining({ code: 'INVALID_SUGGESTION' }));
   });
 
@@ -587,9 +574,7 @@ describe('temp ref resolution', () => {
     const candidate = [...outline, reveal, breadcrumb, chapterReveal];
     const project = (input: readonly (typeof candidate)[number][]) =>
       resolveOperationValues(input, context('outline'))
-        .nodes.filter((x) =>
-          ['revealTemp', 'crumbTemp', 'chapterReveal'].includes(x.localRef),
-        )
+        .nodes.filter((x) => ['revealTemp', 'crumbTemp', 'chapterReveal'].includes(x.localRef))
         .map((x) => [x.localRef, x.payload]);
     const expected = project(candidate);
     expect(project([...candidate].reverse())).toEqual(expected);
@@ -649,10 +634,7 @@ describe('temp ref resolution', () => {
       }),
     );
     expect(() =>
-      resolveOperationValues(
-        [n(raw[1])],
-        context('foundation', { allocateId: () => 'char-1' }),
-      ),
+      resolveOperationValues([n(raw[1])], context('foundation', { allocateId: () => 'char-1' })),
     ).toThrowError(expect.objectContaining({ code: 'INVALID_SUGGESTION' }));
     const crossType = resolveOperationValues(
       [n(raw[1])],

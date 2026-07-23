@@ -19,11 +19,7 @@ export function resolveProseEvidence(
   const resolved =
     binding.proseVersionRef.kind === 'existing'
       ? (() => {
-          const s = requireLiveSnapshot(
-            index,
-            'prose_version',
-            binding.proseVersionRef.entityId,
-          );
+          const s = requireLiveSnapshot(index, 'prose_version', binding.proseVersionRef.entityId);
           if (
             s.candidateId !== context.candidateId ||
             s.extractionRunId !== context.extractionRunId ||

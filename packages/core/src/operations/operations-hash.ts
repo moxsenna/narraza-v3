@@ -4,9 +4,7 @@ import { OperationDomainError } from './errors.js';
 
 const PREFIX = 'narraza-canonical-operations:v1\n';
 
-export function hashCanonicalOperations(
-  operations: readonly CanonicalChangeOperation[],
-): string {
+export function hashCanonicalOperations(operations: readonly CanonicalChangeOperation[]): string {
   operations.forEach((operation, index) => {
     if (operation.ordinal !== index) {
       throw new OperationDomainError(

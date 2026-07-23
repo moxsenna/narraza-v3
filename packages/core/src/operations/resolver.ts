@@ -29,8 +29,7 @@ export interface ResolutionEdge {
   readonly after: string;
 }
 
-export interface ResolvedValueNode
-  extends Omit<UnbrandedCanonicalOperation, 'ordinal'> {
+export interface ResolvedValueNode extends Omit<UnbrandedCanonicalOperation, 'ordinal'> {
   readonly localRef: string;
   readonly ordinal: 0;
   readonly referenceEdges: readonly ResolutionEdge[];
@@ -109,7 +108,10 @@ const outlineCounterKey = (type: EntityType, id: string) => snapshotKey(type, id
 
 type OutlineCreateDraft = NormalizedOperationDraft & {
   readonly operationType: 'outline.create';
-  readonly payload: Extract<NormalizedOperationPayload, { kind: 'outline.create' | 'outline.update' }> & {
+  readonly payload: Extract<
+    NormalizedOperationPayload,
+    { kind: 'outline.create' | 'outline.update' }
+  > & {
     readonly kind: 'outline.create';
   };
 };
@@ -308,8 +310,7 @@ export function resolveOperationValues(
   for (const d of semanticDrafts) {
     if (OPERATION_CATALOG[d.operationType].mode !== 'create') continue;
     const id = context.allocateId(d.target.entityType, d.localRef);
-    const identity =
-      typeof id === 'string' ? allocatedIdentityKey(d.target.entityType, id) : '';
+    const identity = typeof id === 'string' ? allocatedIdentityKey(d.target.entityType, id) : '';
     if (typeof id !== 'string' || id.trim() === '' || usedIdentities.has(identity)) {
       throw new OperationDomainError(
         'INVALID_SUGGESTION',
@@ -365,18 +366,8 @@ export function resolveOperationValues(
     const beat =
       d.payload.position.beat === undefined
         ? undefined
-        : outlinePosition(
-            d.payload.position.beat,
-            index,
-            temporaryOutline,
-            ids,
-            d.localRef,
-            edges,
-          );
-    revealSequenceByLocalRef.set(
-      d.localRef,
-      beat?.narrativeSequence ?? chapter.narrativeSequence,
-    );
+        : outlinePosition(d.payload.position.beat, index, temporaryOutline, ids, d.localRef, edges);
+    revealSequenceByLocalRef.set(d.localRef, beat?.narrativeSequence ?? chapter.narrativeSequence);
   }
 
   const nodes = semanticDrafts.map((d): ResolvedValueNode => {
@@ -548,13 +539,7 @@ export function resolveOperationValues(
         if (d.payload.event.kind === 'disclose') {
           event = d.payload.event;
         } else {
-          const disclosureId = refId(
-            d.payload.event.disclosure,
-            index,
-            ids,
-            d.localRef,
-            edges,
-          );
+          const disclosureId = refId(d.payload.event.disclosure, index, ids, d.localRef, edges);
           const disclosure = requireLiveSnapshot(index, 'fact_disclosure', disclosureId);
           let targetFactKey: string | undefined;
           if (d.target.kind === 'existing') {
@@ -708,10 +693,7 @@ export function resolveOperationValues(
           payload = { kind: d.operationType, node };
         } else {
           const parentId = refId(node.parent, index, ids, d.localRef, edges);
-          if (
-            d.operationType === 'outline.update' &&
-            targetSnapshot!.parentId !== parentId
-          ) {
+          if (d.operationType === 'outline.update' && targetSnapshot!.parentId !== parentId) {
             throw new OperationDomainError('INVALID_SUGGESTION', 'outline parent identity changed');
           }
           const metadata =
@@ -719,9 +701,7 @@ export function resolveOperationValues(
               ? temporaryOutline.byLocalRef.get(d.localRef)
               : undefined;
           const ordinal =
-            d.operationType === 'outline.update'
-              ? targetSnapshot!.ordinal!
-              : metadata!.ordinal!;
+            d.operationType === 'outline.update' ? targetSnapshot!.ordinal! : metadata!.ordinal!;
           if (node.kind === 'beat') {
             const narrativeSequence =
               d.operationType === 'outline.update'

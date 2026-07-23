@@ -12,4 +12,3 @@ export * as prose from './prose/index.js';
 export * as context from './context/index.js';
 export * as validation from './validation/index.js';
 export * as operations from './operations/index.js';
-

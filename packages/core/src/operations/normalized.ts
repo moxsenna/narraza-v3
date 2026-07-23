@@ -57,7 +57,8 @@ const modelRef = (value: unknown, entityType: EntityType, existingOnly = false):
     throw new OperationDomainError('INVALID_SUGGESTION', 'reference needs exactly one identity');
   }
   if (Object.hasOwn(r, 'existingId')) return existing(r.existingId, entityType);
-  if (existingOnly) throw new OperationDomainError('INVALID_SUGGESTION', 'temporary target forbidden');
+  if (existingOnly)
+    throw new OperationDomainError('INVALID_SUGGESTION', 'temporary target forbidden');
   return temporary(r.tempRef, entityType);
 };
 
@@ -106,12 +107,7 @@ const character = (
 };
 
 const evidence = (value: unknown): ProseEvidenceBinding => {
-  const r = exactRecord(value, [
-    'proseVersionRef',
-    'proseContentHash',
-    'startUtf16',
-    'endUtf16',
-  ]);
+  const r = exactRecord(value, ['proseVersionRef', 'proseContentHash', 'startUtf16', 'endUtf16']);
   const hash = nonEmpty(r.proseContentHash);
   if (!SHA256_PATTERN.test(hash)) {
     throw new OperationDomainError('INVALID_SUGGESTION', 'invalid evidence hash');
@@ -148,9 +144,7 @@ const factFields = (r: Record<string, unknown>) => ({
 const position = (value: unknown) => {
   const r = exactRecord(value, ['chapter'], ['beat']);
   const chapter = modelRef(r.chapter, 'chapter');
-  return Object.hasOwn(r, 'beat')
-    ? { chapter, beat: modelRef(r.beat, 'beat') }
-    : { chapter };
+  return Object.hasOwn(r, 'beat') ? { chapter, beat: modelRef(r.beat, 'beat') } : { chapter };
 };
 
 type OutlineNode = Extract<
@@ -250,7 +244,9 @@ export function normalizeSuggestion(s: ModelSuggestionDraft): NormalizedOperatio
       const update = s.operationType === 'fact.update';
       const r = exactRecord(
         s.input,
-        update ? ['target', 'canonStatus', 'visibility', 'source'] : ['canonStatus', 'visibility', 'source'],
+        update
+          ? ['target', 'canonStatus', 'visibility', 'source']
+          : ['canonStatus', 'visibility', 'source'],
         ['statement', 'fact_text'],
       );
       return {
@@ -279,11 +275,7 @@ export function normalizeSuggestion(s: ModelSuggestionDraft): NormalizedOperatio
       };
     }
     case 'belief.append': {
-      const r = exactRecord(
-        s.input,
-        ['target', 'fact', 'level', 'evidence'],
-        ['downgradeReason'],
-      );
+      const r = exactRecord(s.input, ['target', 'fact', 'level', 'evidence'], ['downgradeReason']);
       const p = {
         kind: s.operationType,
         fact: modelRef(r.fact, 'fact'),
@@ -363,9 +355,7 @@ export function normalizeSuggestion(s: ModelSuggestionDraft): NormalizedOperatio
         schemaVersion: 1,
         localRef: s.tempRef,
         operationType: s.operationType,
-        target: update
-          ? modelRef(r.target, 'reveal', true)
-          : temporary(s.tempRef, 'reveal'),
+        target: update ? modelRef(r.target, 'reveal', true) : temporary(s.tempRef, 'reveal'),
         payload: {
           kind: s.operationType,
           fact: modelRef(r.fact, 'fact'),

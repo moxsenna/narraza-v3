@@ -27,4 +27,3 @@ describe('runtime model boundary', () => {
     expect(operations).not.toHaveProperty('brandCanonicalOperation');
   });
 });
-

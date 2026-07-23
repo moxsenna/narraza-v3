@@ -119,9 +119,9 @@ describe('repair re-extraction', () => {
     { ...binding, extractionSourceProseVersionId: 'old' },
     { ...binding, repairedProseVersionId: 'wrong' },
   ])('rejects invalid binding %#', (repairBinding) =>
-    expect(() =>
-      resolveOperations(base, context('repair', { repairBinding })),
-    ).toThrowError(expect.objectContaining({ code: 'REPAIR_REEXTRACTION_REQUIRED' })),
+    expect(() => resolveOperations(base, context('repair', { repairBinding }))).toThrowError(
+      expect.objectContaining({ code: 'REPAIR_REEXTRACTION_REQUIRED' }),
+    ),
   );
 
   it('rejects planner_only fact before allocation', () => {
@@ -296,15 +296,10 @@ describe('repair re-extraction', () => {
       });
       const candidate = [base[0]!, consumed, base[2]!];
       const snapshots = context().snapshots.map((s) =>
-        s.entityType === 'prose_version' && s.entityId === 'pv-1'
-          ? { ...s, [field]: value }
-          : s,
+        s.entityType === 'prose_version' && s.entityId === 'pv-1' ? { ...s, [field]: value } : s,
       );
       expect(() =>
-        resolveOperations(
-          candidate,
-          context('repair', { repairBinding: binding, snapshots }),
-        ),
+        resolveOperations(candidate, context('repair', { repairBinding: binding, snapshots })),
       ).toThrowError(expect.objectContaining({ code: 'REPAIR_REEXTRACTION_REQUIRED' }));
     },
   );
@@ -337,9 +332,7 @@ describe('repair re-extraction', () => {
       ];
       expect(() =>
         resolveOperations(candidate, context('repair', { repairBinding: binding })),
-      ).toThrowError(
-        expect.objectContaining({ code: 'INVALID_PROSE_EVIDENCE_BINDING' }),
-      );
+      ).toThrowError(expect.objectContaining({ code: 'INVALID_PROSE_EVIDENCE_BINDING' }));
     },
   );
 });

@@ -1,16 +1,21 @@
 import type { CanonicalEntitySnapshot, EntityType, ResolutionContext } from './entities.js';
 import type { NormalizedOperationDraft } from './normalized.js';
 
-export const HASH_A =
-  '559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd';
+export const HASH_A = '559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd';
 export const CANDIDATE = 'candidate-1';
 export const RUN = 'run-1';
 
-export const existing = (entityType: EntityType, entityId: string) =>
-  ({ kind: 'existing' as const, entityType, entityId });
+export const existing = (entityType: EntityType, entityId: string) => ({
+  kind: 'existing' as const,
+  entityType,
+  entityId,
+});
 
-export const temporary = (entityType: EntityType, tempRef: string) =>
-  ({ kind: 'temporary' as const, entityType, tempRef });
+export const temporary = (entityType: EntityType, tempRef: string) => ({
+  kind: 'temporary' as const,
+  entityType,
+  tempRef,
+});
 
 export const snapshots: readonly CanonicalEntitySnapshot[] = [
   {
