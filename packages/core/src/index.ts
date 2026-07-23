@@ -5,3 +5,7 @@
 export const CORE_PACKAGE = '@narraza/core' as const;
 
 export * as auth from './auth/index.js';
+export * as narrative from './narrative/index.js';
+export * as foundation from './foundation/index.js';
+export * as dependency from './dependency/index.js';
+export * as prose from './prose/index.js';
