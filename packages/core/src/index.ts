@@ -10,3 +10,4 @@ export * as foundation from './foundation/index.js';
 export * as dependency from './dependency/index.js';
 export * as prose from './prose/index.js';
 export * as context from './context/index.js';
+export * as validation from './validation/index.js';
