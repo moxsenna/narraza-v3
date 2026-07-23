@@ -99,3 +99,12 @@ export {
   type SessionResult,
   type RequestContext,
 } from './auth/service.js';
+
+// Single write door (M2 / S2.2).
+export {
+  createCommitCanonicalChangeSet,
+  type CommitChangeSetInput,
+  type CommitChangeSetOutput,
+  type CanonicalOpPersist,
+} from './change-set/commit-canonical-change-set.js';
+export { applyOperation, type ApplyResult } from './change-set/apply-operations.js';
