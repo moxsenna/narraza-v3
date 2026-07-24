@@ -16,7 +16,7 @@ started early.
 |---|---|---|
 | M0 | Repo, scaffold, auth, shell, CI | ✅ **done** (merged `master`, 8 CI checks green, branch protection on) |
 | M1 | Domain core & critical schema | 🔄 W1.1–W1.5 merged to `master` (PR #1–#5); exit gate M1 still open (S3/S7 unit coverage + migration drift re-check) |
-| M2 | Ports, UnitOfWork, user-origin flow | ⬜ not started |
+| M2 | Ports, UnitOfWork, user-origin flow | 🔄 W2.1–W2.4 landed on `feat/m2-ports-uow` (Draft PR); **exit gate open**: manual smoke, `idor` e2e, `concept-accept` seeded, tenant-scope review, CI 8 checks |
 | M3 | Jobs, worker, outbox, credit | ⬜ not started |
 | M4 | AI layer (mock + real adapters) | ⬜ not started |
 | M5 | Proposal accept, working draft, validation | ⬜ not started |
@@ -85,28 +85,33 @@ started early.
 
 ## M2 — Ports, UnitOfWork, user-origin flow
 
-- [ ] **W2.1 Ports & UnitOfWork (D9)** _(Fable)_
-  - [ ] Port interfaces: Project/Foundation/Character/Fact/Outline/Reveal/Proposal/ChangeSet repos + Ledger/Audit/Outbox/Snapshot/Job (stub) ports
-  - [ ] `unitOfWork.execute(fn, opts?)`: read-committed default; serializable opt-in; bounded retry (3, jitter, same requestId); tx-scoped ports
-  - [ ] Prisma repos implement ports; `dbNow` helper
-- [ ] **W2.2 Single write door** _(Fable)_
-  - [ ] `commitCanonicalChangeSet`: validate → apply canon → bump revisions → `currentCanonicalVersion += 1` (once) → Audit + Outbox
-  - [ ] User-origin proposal path (fact/reveal/outline post-lock) → ChangeSet `origin=user`
-  - [ ] Tests: `fact-lifecycle`, `accept-proposal` (base: +1 per change set)
-- [ ] **W2.3 Use cases + Server Actions** _(Opus)_ — all `authorizeActiveUser` + tenant scope
-  - [ ] `createProject(jalur)` → project + intake session + opening template
-  - [ ] `appendIntakeMessage` (persist only; AI reply = M4)
-  - [ ] Foundation: `updateFoundationDraft`, `confirmFoundation`, `lockFoundation` (readiness guard + confirm)
-  - [ ] Character CRUD; Fact CRUD via change set; Reveal + breadcrumbs CRUD (author_private)
-  - [ ] Outline CRUD strict; `outline-downstream` guard (accepted-prose beats reject plain upsert)
-  - [ ] Tests: `outline-downstream`, `concept-accept` (seeded), `idor` (e2e), `active-user-guard`
-- [ ] **W2.4 Progress reducer v1 + plain pages** _(Opus)_
-  - [ ] `ProjectProgressView → {stage, blockers[], nextAction, counts}` (`progress-view`)
-  - [ ] Functional (unpolished) pages: dashboard filled/empty, project home, foundation, character, fact, outline, reveal
-- **Exit gate M2**
+- [x] **W2.1 Ports & UnitOfWork (D9)** _(Fable)_ — landed `feat/m2-ports-uow`
+  - [x] Port interfaces: Project/Foundation/Character/Fact/Outline/Reveal/Proposal/ChangeSet repos + Ledger/Audit/Outbox/Snapshot/Job (stub) ports
+  - [x] `unitOfWork.execute(fn, opts?)`: read-committed default; serializable opt-in; bounded retry (3, jitter, same requestId); tx-scoped ports
+  - [x] Prisma repos implement ports; `dbNow` helper
+- [x] **W2.2 Single write door** _(Fable)_
+  - [x] `commitCanonicalChangeSet`: validate → apply canon → bump revisions → `currentCanonicalVersion += 1` (once) → Audit + Outbox
+  - [x] User-origin proposal path (fact/reveal/outline) → ChangeSet `origin=user`
+  - [x] Tests: `fact-lifecycle`, `accept-proposal` (base: +1 per change set)
+- [~] **W2.3 Use cases + Server Actions** _(Opus)_ — all `authorizeActiveUser` + tenant scope
+  - [x] `createProject(jalur)` → project + intake session + opening template
+  - [x] `appendIntakeMessage` (persist only; AI reply = M4)
+  - [x] Foundation: `updateFoundationDraft`, `confirmFoundation`, `lockFoundation` (readiness guard + confirm)
+  - [x] Character CRUD; Fact CRUD via change set; Reveal + breadcrumbs CRUD (author_private)
+  - [x] Outline CRUD strict; `outline-downstream` guard (accepted-prose beats reject plain upsert)
+  - [x] Tests: `outline-downstream`, `active-user-guard`
+  - [ ] Tests: **`concept-accept` (seeded)** — required M2 exit gate (AI gen deferred M4; seeded accept remains M2)
+  - [ ] Tests: **`idor` (e2e)** — security invariant; required M2 exit gate (not deferred polish)
+- [x] **W2.4 Progress reducer v1 + plain pages** _(Opus)_
+  - [x] `ProjectProgressView → {stage, blockers[], nextAction, counts}` (`progress-view`)
+  - [x] Functional (unpolished) pages: dashboard filled/empty, project home, foundation, character, fact, outline, reveal, chat
+- **Exit gate M2** _(hard — do not start M3 until closed)_
   - [ ] Manual flow: create → chat persists → foundation → lock → outline 10 chapters — works in browser
-  - [ ] `fact-lifecycle`, `outline-downstream`, `progress-view`, `idor`, canon +1 green
+  - [x] `fact-lifecycle`, `outline-downstream`, `progress-view`, canon +1 green locally
+  - [ ] `idor` e2e green (tenant other → NOT_FOUND; project/foundation/fact/reveal/outline)
+  - [ ] `concept-accept` seeded green (fixture concept → foundation draft, not locked)
   - [ ] No query without tenant scope (PR review checklist)
+  - [ ] Draft PR open; 8 required CI checks green; ready-for-review only after gate complete
 
 ---
 
