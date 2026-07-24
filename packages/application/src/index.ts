@@ -108,3 +108,56 @@ export {
   type CanonicalOpPersist,
 } from './change-set/commit-canonical-change-set.js';
 export { applyOperation, type ApplyResult } from './change-set/apply-operations.js';
+
+// Use cases (M2 W2.3).
+export {
+  createCreateProject,
+  jalurToIntakePath,
+  OPENERS,
+  type IntakeJalur,
+  type IntakePathDb,
+  type CreateProjectInput,
+  type CreateProjectOutput,
+} from './use-cases/create-project.js';
+export {
+  createAppendIntakeMessage,
+  type AppendIntakeMessageInput,
+  type AppendIntakeMessageOutput,
+} from './use-cases/append-intake-message.js';
+export {
+  createUpdateFoundationDraft,
+  createConfirmFoundation,
+  createLockFoundation,
+  toReadinessInput,
+  type UpdateFoundationDraftInput,
+  type ConfirmFoundationInput,
+  type LockFoundationInput,
+  type FoundationOutput,
+} from './use-cases/foundation.js';
+export {
+  createUpsertCharacter,
+  type UpsertCharacterInput,
+  type UpsertCharacterOutput,
+} from './use-cases/character.js';
+export {
+  createUpsertFact,
+  type UpsertFactInput,
+  type UpsertFactOutput,
+} from './use-cases/fact.js';
+export {
+  createUpsertOutlineNode,
+  type UpsertOutlineNodeInput,
+  type UpsertOutlineNodeOutput,
+} from './use-cases/outline.js';
+export {
+  createCreateReveal,
+  type CreateRevealInput,
+  type CreateRevealOutput,
+} from './use-cases/reveal.js';
+
+// Progress reducer v1 (W2.4).
+export {
+  projectProgressView,
+  type ProjectProgressSnapshot,
+  type ProjectProgressView,
+} from './progress/project-progress-view.js';
