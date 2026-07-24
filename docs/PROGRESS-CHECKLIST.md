@@ -16,7 +16,7 @@ started early.
 |---|---|---|
 | M0 | Repo, scaffold, auth, shell, CI | ✅ **done** (merged `master`, 8 CI checks green, branch protection on) |
 | M1 | Domain core & critical schema | 🔄 W1.1–W1.5 merged to `master` (PR #1–#5); exit gate M1 still open (S3/S7 unit coverage + migration drift re-check) |
-| M2 | Ports, UnitOfWork, user-origin flow | 🔄 W2.1–W2.4 landed on `feat/m2-ports-uow` (Draft PR); **exit gate open**: manual smoke, `idor` e2e, `concept-accept` seeded, tenant-scope review, CI 8 checks |
+| M2 | Ports, UnitOfWork, user-origin flow | 🔄 W2.1–W2.4 + `idor` e2e + `concept-accept` seeded landed (Draft PR #6); **exit gate open**: tenant-scope review, manual smoke, CI 8 checks |
 | M3 | Jobs, worker, outbox, credit | ⬜ not started |
 | M4 | AI layer (mock + real adapters) | ⬜ not started |
 | M5 | Proposal accept, working draft, validation | ⬜ not started |
@@ -93,23 +93,23 @@ started early.
   - [x] `commitCanonicalChangeSet`: validate → apply canon → bump revisions → `currentCanonicalVersion += 1` (once) → Audit + Outbox
   - [x] User-origin proposal path (fact/reveal/outline) → ChangeSet `origin=user`
   - [x] Tests: `fact-lifecycle`, `accept-proposal` (base: +1 per change set)
-- [~] **W2.3 Use cases + Server Actions** _(Opus)_ — all `authorizeActiveUser` + tenant scope
+- [x] **W2.3 Use cases + Server Actions** _(Opus)_ — all `authorizeActiveUser` + tenant scope
   - [x] `createProject(jalur)` → project + intake session + opening template
   - [x] `appendIntakeMessage` (persist only; AI reply = M4)
   - [x] Foundation: `updateFoundationDraft`, `confirmFoundation`, `lockFoundation` (readiness guard + confirm)
   - [x] Character CRUD; Fact CRUD via change set; Reveal + breadcrumbs CRUD (author_private)
   - [x] Outline CRUD strict; `outline-downstream` guard (accepted-prose beats reject plain upsert)
   - [x] Tests: `outline-downstream`, `active-user-guard`
-  - [ ] Tests: **`concept-accept` (seeded)** — required M2 exit gate (AI gen deferred M4; seeded accept remains M2)
-  - [ ] Tests: **`idor` (e2e)** — security invariant; required M2 exit gate (not deferred polish)
+  - [x] Tests: **`concept-accept` (seeded)** — acceptConcept → foundation draft unlocked, canon +1; foreign/membership NOT_FOUND; stale CAS
+  - [x] Tests: **`idor` (e2e)** — foreign vs random project routes + mutation attempts → branded NOT_FOUND, no data leak
 - [x] **W2.4 Progress reducer v1 + plain pages** _(Opus)_
   - [x] `ProjectProgressView → {stage, blockers[], nextAction, counts}` (`progress-view`)
   - [x] Functional (unpolished) pages: dashboard filled/empty, project home, foundation, character, fact, outline, reveal, chat
 - **Exit gate M2** _(hard — do not start M3 until closed)_
   - [ ] Manual flow: create → chat persists → foundation → lock → outline 10 chapters — works in browser
   - [x] `fact-lifecycle`, `outline-downstream`, `progress-view`, canon +1 green locally
-  - [ ] `idor` e2e green (tenant other → NOT_FOUND; project/foundation/fact/reveal/outline)
-  - [ ] `concept-accept` seeded green (fixture concept → foundation draft, not locked)
+  - [x] `idor` e2e green (tenant other → NOT_FOUND; project/foundation/chat/outline/karakter/fakta/rahasia + mutations)
+  - [x] `concept-accept` seeded green (fixture concept → foundation draft, not locked)
   - [ ] No query without tenant scope (PR review checklist)
   - [ ] Draft PR open; 8 required CI checks green; ready-for-review only after gate complete
 
