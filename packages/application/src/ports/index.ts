@@ -48,6 +48,13 @@ export type {
   IntakeMessageInsertInput,
   IntakeRepo,
 } from './intake-repo.js';
+export type {
+  ConceptRecord,
+  ConceptSetRecord,
+  ConceptSetInsertInput,
+  ConceptInsertInput,
+  ConceptRepo,
+} from './concept-repo.js';
 export type { AuditAppendInput, AuditPort } from './audit-port.js';
 export type { OutboxAppendInput, OutboxPort } from './outbox-port.js';
 export type { SnapshotAppendInput, SnapshotPort } from './snapshot-port.js';

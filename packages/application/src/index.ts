@@ -59,6 +59,11 @@ export type {
   IntakeSessionInsertInput,
   IntakeMessageInsertInput,
   IntakeRepo,
+  ConceptRecord,
+  ConceptSetRecord,
+  ConceptSetInsertInput,
+  ConceptInsertInput,
+  ConceptRepo,
   AuditAppendInput,
   AuditPort,
   OutboxAppendInput,
@@ -154,6 +159,12 @@ export {
   type CreateRevealInput,
   type CreateRevealOutput,
 } from './use-cases/reveal.js';
+export {
+  createAcceptConcept,
+  foundationPayloadFromConcept,
+  type AcceptConceptInput,
+  type AcceptConceptOutput,
+} from './use-cases/accept-concept.js';
 
 // Progress reducer v1 (W2.4).
 export {
