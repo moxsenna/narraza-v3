@@ -61,9 +61,9 @@ export function createUpdateFoundationDraft(
           return { foundation: created };
         }
 
-        if (existing.status !== 'draft') {
-          // confirmed: allow draft-like field edits only via re-open path later;
-          // for M2, only draft is freely editable.
+        // draft and confirmed remain editable so readiness can be completed
+        // before lock; locked is immutable without proposal (M5).
+        if (existing.status !== 'draft' && existing.status !== 'confirmed') {
           throw asDomain(
             appError('FOUNDATION_LOCKED', 'msg.foundation.not_draft', 409, {
               status: existing.status,
@@ -72,6 +72,7 @@ export function createUpdateFoundationDraft(
         }
 
         const expected = input.expectedRevision ?? existing.revision;
+        // Keep status as-is (draft or confirmed); only payload/revision change.
         const updated = await ports.foundation.updateDraft(
           input.projectId,
           input.payload,

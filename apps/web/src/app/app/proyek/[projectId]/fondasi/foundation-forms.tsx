@@ -39,7 +39,7 @@ export type FoundationFormValues = {
 export function FoundationForms(props: FoundationFormValues) {
   const router = useRouter();
   // Application only allows draft updates; confirmed/locked fields are read-only in UI.
-  const canEditDraft = props.status !== 'confirmed' && props.status !== 'locked';
+  const canEditDraft = props.status !== 'locked';
   const [draftState, draftAction, draftPending] = useActionState(
     updateFoundationDraftAction,
     initial,
