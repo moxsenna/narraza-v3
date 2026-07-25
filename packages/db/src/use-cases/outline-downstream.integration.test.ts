@@ -3,7 +3,13 @@
  * Beat with accepted prose rejects plain outline.update.
  */
 import { expect } from 'vitest';
-import { createCreateProject, createUpsertOutlineNode } from '@narraza/application';
+import {
+  createConfirmFoundation,
+  createCreateProject,
+  createLockFoundation,
+  createUpdateFoundationDraft,
+  createUpsertOutlineNode,
+} from '@narraza/application';
 import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
@@ -39,6 +45,57 @@ async function seedUser(prisma: PrismaClient): Promise<string> {
   return rows[0]!.id;
 }
 
+async function lockFoundationForOutline(prisma: PrismaClient, userId: string, projectId: string) {
+  const uow = createUnitOfWork(prisma);
+  const update = createUpdateFoundationDraft(uow);
+  const confirm = createConfirmFoundation(uow);
+  const lock = createLockFoundation(uow);
+  const payload = {
+    coreConcept: 'A promise carries a hidden cost.',
+    conflict: 'The recipient wants the letter destroyed.',
+    endingDirection: 'Mira reveals the cost and chooses exile.',
+    readerPromise: 'A tense moral mystery with earned answers.',
+    mainCharacter: {
+      id: 'main',
+      active: true,
+      identity: 'An idealistic courier',
+      goal: 'Deliver the final letter',
+      motivation: 'Protect her sister',
+      address: 'Mira',
+      speechStyle: 'Brief and formal',
+    },
+    relationships: [
+      {
+        fromCharacterId: 'other',
+        toCharacterId: 'main',
+        active: true,
+        description: 'Former allies forced to cooperate',
+      },
+    ],
+    secrets: [
+      {
+        truth: 'Mira wrote the letter herself.',
+        targetPosition: { chapterId: 'chapter-10', sequence: 10 },
+        breadcrumbPositions: [
+          { chapterId: 'chapter-2', sequence: 2 },
+          { chapterId: 'chapter-5', sequence: 5 },
+        ],
+      },
+    ],
+  };
+  const draft = await update({
+    ownerUserId: userId,
+    projectId,
+    payload,
+    expectedRevision: null,
+  });
+  expect(draft.ok).toBe(true);
+  const confirmed = await confirm({ ownerUserId: userId, projectId });
+  expect(confirmed.ok).toBe(true);
+  const locked = await lock({ ownerUserId: userId, projectId, acknowledged: true });
+  expect(locked.ok).toBe(true);
+}
+
 ucTest('outline-downstream: accepted prose blocks plain beat upsert', async ({ prisma }) => {
   const userId = await seedUser(prisma);
   const uow = createUnitOfWork(prisma);
@@ -49,6 +106,7 @@ ucTest('outline-downstream: accepted prose blocks plain beat upsert', async ({ p
   expect(project.ok).toBe(true);
   if (!project.ok) return;
   const projectId = project.value.project.id;
+  await lockFoundationForOutline(prisma, userId, projectId);
 
   const roadmap = await upsert({
     ownerUserId: userId,

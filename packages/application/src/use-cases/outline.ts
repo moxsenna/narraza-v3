@@ -47,6 +47,36 @@ export function createUpsertOutlineNode(
       return err(appError('NOT_FOUND', 'msg.project.not_found', 404));
     }
 
+    // Outline hierarchy create requires locked foundation (M2 smoke gate).
+    if (!input.nodeId) {
+      const foundation = await uow.execute(async (ports) =>
+        ports.foundation.findByProjectId(input.projectId),
+      );
+      if (!foundation || foundation.status !== 'locked') {
+        return err(
+          appError('VALIDATION', 'msg.outline.foundation_not_locked', 422, {
+            foundationStatus: foundation?.status ?? 'none',
+          }),
+        );
+      }
+    }
+
+    // Parent must exist under the same project for arc/chapter/beat creates.
+    if (!input.nodeId && input.entityType !== 'roadmap') {
+      const parentType =
+        input.entityType === 'arc' ? 'roadmap' : input.entityType === 'chapter' ? 'arc' : 'chapter';
+      const parentId = input.parentId ?? null;
+      if (!parentId) {
+        return err(appError('VALIDATION', 'msg.outline.parent_required', 422));
+      }
+      const parent = await uow.execute(async (ports) =>
+        ports.outline.findNode(input.projectId, parentType, parentId),
+      );
+      if (!parent) {
+        return err(appError('NOT_FOUND', 'msg.outline.parent_not_found', 404));
+      }
+    }
+
     const isCreate = !input.nodeId;
     const nodeId = input.nodeId ?? crypto.randomUUID();
 
