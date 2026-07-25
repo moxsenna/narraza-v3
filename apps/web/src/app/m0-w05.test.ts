@@ -69,19 +69,19 @@ describe('M0 W0.5 public shell', () => {
     for (const label of [...groups, ...items]) expect(combined).toContain(label);
   });
 
-  test('dashboard stays functionally empty until M2', () => {
+  test('dashboard is functional in M2 (list + create entry, no createProject in page)', () => {
     const page = source('app/app/page.tsx');
     const catalog = source('messages/app-id.ts');
     const combined = `${page}\n${catalog}`;
 
-    expect(combined).toContain('Cerita pertamamu belum dimulai');
-    expect(combined).toContain('Aku belum punya ide');
-    expect(combined).toContain('Aku punya ide kasar');
-    expect(combined).toContain('Aku sudah punya draft');
-    expect(combined).toContain('Segera hadir');
-    expect(page).toContain('disabled');
+    // M2: dashboard lists projects and links to create; shell still has disabled nav.
+    expect(page).toContain('listMyProjects');
+    expect(page).toContain('href="/app/proyek/baru"');
+    expect(page).toContain('Buat proyek');
+    // Page must stay a thin RSC adapter — no direct use-case import.
     expect(page).not.toContain('createProject');
-    expect(page).not.toContain('href=');
+    // Catalog still holds empty-state copy for later polish.
+    expect(combined).toContain('Cerita pertamamu belum dimulai');
   });
 
   test('legal, not-found, and error pages are branded and safe', () => {

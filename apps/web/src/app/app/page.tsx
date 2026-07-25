@@ -1,52 +1,52 @@
-import { APP_MESSAGES_ID } from '../../messages/app-id';
+import Link from 'next/link';
+import { listMyProjects } from '../../server/domain/queries';
 
-export default function AppHome() {
-  const copy = APP_MESSAGES_ID.dashboard;
+export default async function AppHome() {
+  const projects = await listMyProjects();
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14 lg:px-10 lg:py-16">
-      <section aria-labelledby="dashboard-empty-title" className="mx-auto max-w-3xl text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#fce6ee]">
-          <span aria-hidden="true" className="h-7 w-7 rounded-[7px_7px_14px_7px] bg-brand-500" />
+    <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-extrabold tracking-[0.14em] text-brand-700">DASHBOARD</p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold sm:text-4xl">
+            {projects.length === 0 ? 'Belum ada proyek' : 'Proyekmu'}
+          </h1>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-[#4a3a42]">
+            {projects.length === 0
+              ? 'Buat proyek baru untuk mulai ngobrol dengan Narra dan menyusun fondasi cerita.'
+              : 'Pilih proyek untuk melanjutkan, atau buat yang baru.'}
+          </p>
         </div>
-        <p className="mt-6 text-xs font-extrabold tracking-[0.14em] text-brand-700">
-          {copy.eyebrow}
-        </p>
-        <h1
-          id="dashboard-empty-title"
-          className="mt-2 text-balance font-serif text-3xl font-semibold sm:text-4xl"
+        <Link
+          href="/app/proyek/baru"
+          className="inline-flex min-h-11 items-center rounded-xl bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-900 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
         >
-          {copy.title}
-        </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#4a3a42]">
-          {copy.description}
-        </p>
+          Buat proyek
+        </Link>
+      </div>
 
-        <div className="mt-9 grid gap-4 text-left sm:grid-cols-3">
-          {copy.paths.map((path) => (
-            <button
-              key={path.title}
-              type="button"
-              disabled
-              aria-disabled="true"
-              aria-label={`${path.title} — ${copy.unavailableLabel}`}
-              className="min-h-44 cursor-not-allowed rounded-2xl border border-[#e8dce1] bg-white p-5 text-left opacity-75"
-            >
-              <span className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-bold text-[#3a2931]">{path.title}</span>
-                {'soon' in path && path.soon ? (
-                  <span className="rounded-full bg-[#f8f1f4] px-2.5 py-1 text-xs font-bold text-[#6f4b68]">
-                    {copy.soon}
-                  </span>
-                ) : null}
-              </span>
-              <span className="mt-3 block text-sm leading-6 text-[#76656d]">
-                {path.description}
-              </span>
-            </button>
+      {projects.length === 0 ? (
+        <section className="mt-10 rounded-2xl border border-[#e8dce1] bg-white p-8 text-center">
+          <p className="text-[#76656d]">Dashboard kosong. Mulai dari ide kasar atau outline.</p>
+        </section>
+      ) : (
+        <ul className="mt-10 grid gap-4 sm:grid-cols-2">
+          {projects.map((project) => (
+            <li key={project.id}>
+              <Link
+                href={`/app/proyek/${project.id}`}
+                className="block rounded-2xl border border-[#e8dce1] bg-white p-5 hover:border-[#ef91af] hover:bg-[#fff5f8] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+              >
+                <span className="font-bold text-[#3a2931]">{project.title}</span>
+                <span className="mt-2 block text-sm text-[#76656d]">
+                  {project.intakePath} · v{project.currentCanonicalVersion}
+                </span>
+              </Link>
+            </li>
           ))}
-        </div>
-      </section>
+        </ul>
+      )}
     </main>
   );
 }
