@@ -18,9 +18,7 @@ export interface CanonicalOpPersist {
   readonly payload: JsonObject;
 }
 
-export type ApplyResult =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly error: AppError };
+export type ApplyResult = { readonly ok: true } | { readonly ok: false; readonly error: AppError };
 
 const M2_UNSUPPORTED: ReadonlySet<string> = new Set([
   'state.append',

@@ -3,10 +3,7 @@
  * Beat with accepted prose rejects plain outline.update.
  */
 import { expect } from 'vitest';
-import {
-  createCreateProject,
-  createUpsertOutlineNode,
-} from '@narraza/application';
+import { createCreateProject, createUpsertOutlineNode } from '@narraza/application';
 import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';

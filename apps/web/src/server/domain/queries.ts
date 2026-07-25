@@ -29,14 +29,10 @@ export async function listMyProjects(): Promise<readonly ProjectRecord[]> {
 export async function getMyProject(projectId: string): Promise<ProjectRecord | null> {
   const userId = await requireActiveUserId();
   if (!userId) return null;
-  return getUnitOfWork().execute((ports) =>
-    ports.project.findByIdForOwner(projectId, userId),
-  );
+  return getUnitOfWork().execute((ports) => ports.project.findByIdForOwner(projectId, userId));
 }
 
-export async function getProjectFoundation(
-  projectId: string,
-): Promise<FoundationRecord | null> {
+export async function getProjectFoundation(projectId: string): Promise<FoundationRecord | null> {
   const project = await getMyProject(projectId);
   if (!project) return null;
   return getUnitOfWork().execute((ports) => ports.foundation.findByProjectId(projectId));
@@ -54,25 +50,19 @@ export async function getProjectIntakeMessages(
   });
 }
 
-export async function getProjectOutline(
-  projectId: string,
-): Promise<readonly OutlineNodeRecord[]> {
+export async function getProjectOutline(projectId: string): Promise<readonly OutlineNodeRecord[]> {
   const project = await getMyProject(projectId);
   if (!project) return [];
   return getUnitOfWork().execute((ports) => ports.outline.listByProject(projectId));
 }
 
-export async function getProjectProgress(
-  projectId: string,
-): Promise<ProjectProgressView | null> {
+export async function getProjectProgress(projectId: string): Promise<ProjectProgressView | null> {
   const project = await getMyProject(projectId);
   if (!project) return null;
 
   return getUnitOfWork().execute(async (ports) => {
     const session = await ports.intake.findSessionByProject(projectId);
-    const messages = session
-      ? await ports.intake.listMessages(projectId, session.id)
-      : [];
+    const messages = session ? await ports.intake.listMessages(projectId, session.id) : [];
     const foundation = await ports.foundation.findByProjectId(projectId);
     const characters = await ports.character.listByProject(projectId);
     const facts = await ports.fact.listByProject(projectId);

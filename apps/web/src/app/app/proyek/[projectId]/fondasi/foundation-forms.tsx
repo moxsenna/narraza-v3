@@ -40,12 +40,20 @@ export function FoundationForms(props: {
 
   return (
     <div className="mt-8 space-y-6">
-      <form action={draftAction} className="space-y-4 rounded-2xl border border-[#e8dce1] bg-white p-6">
+      <form
+        action={draftAction}
+        className="space-y-4 rounded-2xl border border-[#e8dce1] bg-white p-6"
+      >
         <input type="hidden" name="projectId" value={props.projectId} />
         {props.revision !== null ? (
           <input type="hidden" name="expectedRevision" value={String(props.revision)} />
         ) : null}
-        <Field name="coreConcept" label="Konsep inti" defaultValue={props.coreConcept} disabled={locked} />
+        <Field
+          name="coreConcept"
+          label="Konsep inti"
+          defaultValue={props.coreConcept}
+          disabled={locked}
+        />
         <Field name="conflict" label="Konflik" defaultValue={props.conflict} disabled={locked} />
         <Field
           name="endingDirection"
@@ -114,12 +122,7 @@ export function FoundationForms(props: {
   );
 }
 
-function Field(props: {
-  name: string;
-  label: string;
-  defaultValue: string;
-  disabled?: boolean;
-}) {
+function Field(props: { name: string; label: string; defaultValue: string; disabled?: boolean }) {
   return (
     <label className="block">
       <span className="text-sm font-bold">{props.label}</span>

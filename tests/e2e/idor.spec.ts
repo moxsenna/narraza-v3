@@ -151,9 +151,12 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
 
   // Foundation mutation IDOR.
   await page.goto(`/app/proyek/${projectB}/fondasi`);
-  await page.locator('input[name="projectId"]').first().evaluate((el, id) => {
-    (el as HTMLInputElement).value = id;
-  }, projectA);
+  await page
+    .locator('input[name="projectId"]')
+    .first()
+    .evaluate((el, id) => {
+      (el as HTMLInputElement).value = id;
+    }, projectA);
   await page.locator('textarea[name="coreConcept"]').fill('Hacked concept');
   await page.getByRole('button', { name: /Simpan draft/i }).click();
   await expect(page.getByRole('alert')).toBeVisible({ timeout: 15_000 });

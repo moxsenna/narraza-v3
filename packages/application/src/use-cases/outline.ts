@@ -57,12 +57,10 @@ export function createUpsertOutlineNode(
       );
       if (beat?.acceptedProseVersionId) {
         return err(
-          appError(
-            'OUTLINE_DOWNSTREAM_LOCKED',
-            'msg.outline.downstream_locked',
-            409,
-            { beatId: nodeId, acceptedProseVersionId: beat.acceptedProseVersionId },
-          ),
+          appError('OUTLINE_DOWNSTREAM_LOCKED', 'msg.outline.downstream_locked', 409, {
+            beatId: nodeId,
+            acceptedProseVersionId: beat.acceptedProseVersionId,
+          }),
         );
       }
     }
@@ -117,10 +115,7 @@ export function createUpsertOutlineNode(
   };
 }
 
-function buildNodePayload(
-  input: UpsertOutlineNodeInput,
-  title: string,
-): JsonObject {
+function buildNodePayload(input: UpsertOutlineNodeInput, title: string): JsonObject {
   if (input.entityType === 'roadmap') {
     return { kind: 'roadmap', title };
   }

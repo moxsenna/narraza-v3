@@ -15,13 +15,12 @@ export function createUnitOfWork(prisma: PrismaClient): UnitOfWork {
       const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
 
       let attempt = 0;
-       
+
       while (true) {
         try {
-          return await prisma.$transaction(
-            async (tx) => fn(createTxPorts(tx)),
-            { isolationLevel: isolation },
-          );
+          return await prisma.$transaction(async (tx) => fn(createTxPorts(tx)), {
+            isolationLevel: isolation,
+          });
         } catch (e) {
           if (attempt >= maxRetries || !isRetryableTxError(e)) {
             if (isRetryableTxError(e)) {
@@ -64,4 +63,3 @@ function retryExhaustedError(cause: unknown): Error {
 }
 
 export { Prisma };
-

@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  projectProgressView,
-  type ProjectProgressSnapshot,
-} from './project-progress-view.js';
+import { projectProgressView, type ProjectProgressSnapshot } from './project-progress-view.js';
 
 const base = (over: Partial<ProjectProgressSnapshot> = {}): ProjectProgressSnapshot => ({
   projectStatus: 'active',
@@ -24,25 +21,19 @@ describe('progress-view', () => {
   });
 
   it('intake done, no foundation → foundation stage', () => {
-    const v = projectProgressView(
-      base({ hasIntakeMessages: true, foundationStatus: null }),
-    );
+    const v = projectProgressView(base({ hasIntakeMessages: true, foundationStatus: null }));
     expect(v.stage).toBe('foundation');
     expect(v.nextAction.code).toBe('fill_foundation');
   });
 
   it('foundation draft → fill foundation', () => {
-    const v = projectProgressView(
-      base({ hasIntakeMessages: true, foundationStatus: 'draft' }),
-    );
+    const v = projectProgressView(base({ hasIntakeMessages: true, foundationStatus: 'draft' }));
     expect(v.stage).toBe('foundation');
     expect(v.blockers).toContain('foundation_unlocked');
   });
 
   it('foundation confirmed → lock foundation', () => {
-    const v = projectProgressView(
-      base({ hasIntakeMessages: true, foundationStatus: 'confirmed' }),
-    );
+    const v = projectProgressView(base({ hasIntakeMessages: true, foundationStatus: 'confirmed' }));
     expect(v.stage).toBe('foundation');
     expect(v.nextAction.code).toBe('lock_foundation');
     expect(v.blockers).toContain('foundation_not_locked');

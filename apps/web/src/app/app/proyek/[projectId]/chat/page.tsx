@@ -1,16 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  getMyProject,
-  getProjectIntakeMessages,
-} from '../../../../../server/domain/queries';
+import { getMyProject, getProjectIntakeMessages } from '../../../../../server/domain/queries';
 import { ChatForm } from './chat-form';
 
-export default async function ChatPage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
+export default async function ChatPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const project = await getMyProject(projectId);
   if (!project) notFound();

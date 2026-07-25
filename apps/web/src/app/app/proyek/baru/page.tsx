@@ -2,10 +2,7 @@
 
 import { useActionState } from 'react';
 import Link from 'next/link';
-import {
-  createProjectAction,
-  type ActionState,
-} from '../../../../server/domain/actions';
+import { createProjectAction, type ActionState } from '../../../../server/domain/actions';
 
 const JALUR = [
   { value: 'no_idea', label: 'Belum punya ide' },
@@ -25,9 +22,14 @@ export default function NewProjectPage() {
         ← Dashboard
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Buat proyek</h1>
-      <p className="mt-2 text-[#4a3a42]">Pilih jalur mulai. Draft import belum tersedia (Segera hadir).</p>
+      <p className="mt-2 text-[#4a3a42]">
+        Pilih jalur mulai. Draft import belum tersedia (Segera hadir).
+      </p>
 
-      <form action={action} className="mt-8 space-y-5 rounded-2xl border border-[#e8dce1] bg-white p-6">
+      <form
+        action={action}
+        className="mt-8 space-y-5 rounded-2xl border border-[#e8dce1] bg-white p-6"
+      >
         <label className="block">
           <span className="text-sm font-bold">Judul (opsional)</span>
           <input
@@ -41,8 +43,17 @@ export default function NewProjectPage() {
         <fieldset className="space-y-2">
           <legend className="text-sm font-bold">Jalur</legend>
           {JALUR.map((j) => (
-            <label key={j.value} className="flex min-h-11 items-center gap-3 rounded-xl border border-[#e8dce1] px-3 py-2">
-              <input type="radio" name="jalur" value={j.value} defaultChecked={j.value === 'rough_idea'} required />
+            <label
+              key={j.value}
+              className="flex min-h-11 items-center gap-3 rounded-xl border border-[#e8dce1] px-3 py-2"
+            >
+              <input
+                type="radio"
+                name="jalur"
+                value={j.value}
+                defaultChecked={j.value === 'rough_idea'}
+                required
+              />
               <span>{j.label}</span>
             </label>
           ))}

@@ -3,10 +3,7 @@
  * Fact rows exist only after an applied change set (S2 / single write door).
  */
 import { expect } from 'vitest';
-import {
-  createCommitCanonicalChangeSet,
-  type CanonicalOpPersist,
-} from '@narraza/application';
+import { createCommitCanonicalChangeSet, type CanonicalOpPersist } from '@narraza/application';
 import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
@@ -169,9 +166,10 @@ changeSetTest('fact-lifecycle: fact exists only after applied change set', async
   if (!updateResult.ok) return;
   expect(updateResult.value.appliedCanonicalVersion).toBe(2);
 
-  const afterUpdate = await prisma.$queryRawUnsafe<
-    { revision: number; visibility: string }[]
-  >(`SELECT revision, visibility FROM facts WHERE id = $1`, factId);
+  const afterUpdate = await prisma.$queryRawUnsafe<{ revision: number; visibility: string }[]>(
+    `SELECT revision, visibility FROM facts WHERE id = $1`,
+    factId,
+  );
   expect(afterUpdate[0]!.revision).toBe(1);
   expect(afterUpdate[0]!.visibility).toBe('reader_known');
 });

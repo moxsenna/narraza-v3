@@ -10,10 +10,7 @@ import { appError } from '../errors.js';
 import type { Result } from '../result.js';
 import { err, ok } from '../result.js';
 import type { TxPorts, UnitOfWork } from '../ports/unit-of-work.js';
-import {
-  applyOperation,
-  type CanonicalOpPersist,
-} from './apply-operations.js';
+import { applyOperation, type CanonicalOpPersist } from './apply-operations.js';
 
 export interface CommitChangeSetInput {
   readonly projectId: string;

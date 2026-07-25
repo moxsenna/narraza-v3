@@ -41,10 +41,7 @@ export function createUpdateFoundationDraft(
   return async (input) => {
     try {
       const outcome = await uow.execute(async (ports) => {
-        const project = await ports.project.findByIdForOwner(
-          input.projectId,
-          input.ownerUserId,
-        );
+        const project = await ports.project.findByIdForOwner(input.projectId, input.ownerUserId);
         if (!project) {
           throw asDomain(appError('NOT_FOUND', 'msg.project.not_found', 404));
         }
@@ -100,10 +97,7 @@ export function createConfirmFoundation(
   return async (input) => {
     try {
       const outcome = await uow.execute(async (ports) => {
-        const project = await ports.project.findByIdForOwner(
-          input.projectId,
-          input.ownerUserId,
-        );
+        const project = await ports.project.findByIdForOwner(input.projectId, input.ownerUserId);
         if (!project) {
           throw asDomain(appError('NOT_FOUND', 'msg.project.not_found', 404));
         }
@@ -142,10 +136,7 @@ export function createLockFoundation(
     }
     try {
       const outcome = await uow.execute(async (ports) => {
-        const project = await ports.project.findByIdForOwner(
-          input.projectId,
-          input.ownerUserId,
-        );
+        const project = await ports.project.findByIdForOwner(input.projectId, input.ownerUserId);
         if (!project) {
           throw asDomain(appError('NOT_FOUND', 'msg.project.not_found', 404));
         }

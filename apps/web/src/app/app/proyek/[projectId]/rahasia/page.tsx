@@ -3,11 +3,7 @@ import { notFound } from 'next/navigation';
 import { getMyProject } from '../../../../../server/domain/queries';
 import { getUnitOfWork } from '../../../../../server/domain/uow';
 
-export default async function RevealPage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
+export default async function RevealPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const project = await getMyProject(projectId);
   if (!project) notFound();
@@ -32,7 +28,10 @@ export default async function RevealPage({
             <li className="text-sm text-[#76656d]">Belum ada reveal.</li>
           ) : (
             reveals.map((r) => (
-              <li key={r.id} className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3 text-sm">
+              <li
+                key={r.id}
+                className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3 text-sm"
+              >
                 fact {r.factId.slice(0, 8)}… · seq {r.targetSequence}
               </li>
             ))
@@ -46,7 +45,10 @@ export default async function RevealPage({
             <li className="text-sm text-[#76656d]">Belum ada breadcrumb.</li>
           ) : (
             breadcrumbs.map((b) => (
-              <li key={b.id} className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3 text-sm">
+              <li
+                key={b.id}
+                className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3 text-sm"
+              >
                 reveal {b.revealId.slice(0, 8)}… · seq {b.sequence}
               </li>
             ))

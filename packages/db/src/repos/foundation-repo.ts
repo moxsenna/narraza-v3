@@ -1,9 +1,5 @@
 import type { Prisma } from '../generated/client.js';
-import type {
-  FoundationRecord,
-  FoundationRepo,
-  JsonObject,
-} from '@narraza/application';
+import type { FoundationRecord, FoundationRepo, JsonObject } from '@narraza/application';
 import type { TxClient } from './tx-client.js';
 
 const SELECT = {

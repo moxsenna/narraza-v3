@@ -3,10 +3,7 @@
  * Accept concept → foundation draft (not locked), canon +1 via single write door.
  */
 import { expect } from 'vitest';
-import {
-  createAcceptConcept,
-  createCreateProject,
-} from '@narraza/application';
+import { createAcceptConcept, createCreateProject } from '@narraza/application';
 import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
@@ -76,69 +73,70 @@ async function seedConcept(
   return { conceptSetId, conceptId };
 }
 
-ucTest('concept-accept: seeded concept → foundation draft, unlocked, canon +1', async ({
-  prisma,
-}) => {
-  const userId = await seedUser(prisma);
-  const uow = createUnitOfWork(prisma);
-  const createProject = createCreateProject(uow);
-  const accept = createAcceptConcept(uow);
+ucTest(
+  'concept-accept: seeded concept → foundation draft, unlocked, canon +1',
+  async ({ prisma }) => {
+    const userId = await seedUser(prisma);
+    const uow = createUnitOfWork(prisma);
+    const createProject = createCreateProject(uow);
+    const accept = createAcceptConcept(uow);
 
-  const project = await createProject({
-    ownerUserId: userId,
-    jalur: 'rough_idea',
-    title: 'Concept accept',
-  });
-  expect(project.ok).toBe(true);
-  if (!project.ok) return;
-  const projectId = project.value.project.id;
-  expect(project.value.project.currentCanonicalVersion).toBe(0);
+    const project = await createProject({
+      ownerUserId: userId,
+      jalur: 'rough_idea',
+      title: 'Concept accept',
+    });
+    expect(project.ok).toBe(true);
+    if (!project.ok) return;
+    const projectId = project.value.project.id;
+    expect(project.value.project.currentCanonicalVersion).toBe(0);
 
-  const { conceptId } = await seedConcept(prisma, projectId);
+    const { conceptId } = await seedConcept(prisma, projectId);
 
-  const result = await accept({
-    ownerUserId: userId,
-    projectId,
-    conceptId,
-  });
-  expect(result.ok).toBe(true);
-  if (!result.ok) return;
+    const result = await accept({
+      ownerUserId: userId,
+      projectId,
+      conceptId,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
 
-  expect(result.value.foundation.status).toBe('draft');
-  expect(result.value.foundation.lockedAt).toBeNull();
-  expect(result.value.foundation.confirmedAt).toBeNull();
-  expect(result.value.appliedCanonicalVersion).toBe(1);
-  expect(result.value.foundation.payload.sourceConceptId).toBe(conceptId);
-  expect(String(result.value.foundation.payload.coreConcept)).toContain('promise');
+    expect(result.value.foundation.status).toBe('draft');
+    expect(result.value.foundation.lockedAt).toBeNull();
+    expect(result.value.foundation.confirmedAt).toBeNull();
+    expect(result.value.appliedCanonicalVersion).toBe(1);
+    expect(result.value.foundation.payload.sourceConceptId).toBe(conceptId);
+    expect(String(result.value.foundation.payload.coreConcept)).toContain('promise');
 
-  const projectRow = await prisma.$queryRawUnsafe<{ current_canonical_version: number }[]>(
-    `SELECT current_canonical_version FROM projects WHERE id = $1`,
-    projectId,
-  );
-  expect(projectRow[0]!.current_canonical_version).toBe(1);
+    const projectRow = await prisma.$queryRawUnsafe<{ current_canonical_version: number }[]>(
+      `SELECT current_canonical_version FROM projects WHERE id = $1`,
+      projectId,
+    );
+    expect(projectRow[0]!.current_canonical_version).toBe(1);
 
-  const foundations = await prisma.$queryRawUnsafe<{ count: string }[]>(
-    `SELECT count(*)::text AS count FROM foundations WHERE project_id = $1`,
-    projectId,
-  );
-  expect(Number(foundations[0]!.count)).toBe(1);
+    const foundations = await prisma.$queryRawUnsafe<{ count: string }[]>(
+      `SELECT count(*)::text AS count FROM foundations WHERE project_id = $1`,
+      projectId,
+    );
+    expect(Number(foundations[0]!.count)).toBe(1);
 
-  const set = await prisma.$queryRawUnsafe<{ status: string }[]>(
-    `SELECT status FROM concept_sets WHERE project_id = $1`,
-    projectId,
-  );
-  expect(set[0]!.status).toBe('selected');
+    const set = await prisma.$queryRawUnsafe<{ status: string }[]>(
+      `SELECT status FROM concept_sets WHERE project_id = $1`,
+      projectId,
+    );
+    expect(set[0]!.status).toBe('selected');
 
-  // Repeat accept — no duplicate foundation, no extra bump required for same selection.
-  const repeat = await accept({ ownerUserId: userId, projectId, conceptId });
-  expect(repeat.ok).toBe(true);
-  if (!repeat.ok) return;
-  const foundations2 = await prisma.$queryRawUnsafe<{ count: string }[]>(
-    `SELECT count(*)::text AS count FROM foundations WHERE project_id = $1`,
-    projectId,
-  );
-  expect(Number(foundations2[0]!.count)).toBe(1);
-});
+    // Repeat accept — no duplicate foundation, no extra bump required for same selection.
+    const repeat = await accept({ ownerUserId: userId, projectId, conceptId });
+    expect(repeat.ok).toBe(true);
+    if (!repeat.ok) return;
+    const foundations2 = await prisma.$queryRawUnsafe<{ count: string }[]>(
+      `SELECT count(*)::text AS count FROM foundations WHERE project_id = $1`,
+      projectId,
+    );
+    expect(Number(foundations2[0]!.count)).toBe(1);
+  },
+);
 
 ucTest('concept-accept: foreign owner → NOT_FOUND', async ({ prisma }) => {
   const ownerId = await seedUser(prisma);
@@ -184,48 +182,49 @@ ucTest('concept-accept: concept not in project → NOT_FOUND', async ({ prisma }
   expect(result.error.code).toBe('NOT_FOUND');
 });
 
-ucTest('concept-accept: stale baseCanonicalVersion → CAS_FAILED, no partial write', async ({
-  prisma,
-}) => {
-  const userId = await seedUser(prisma);
-  const uow = createUnitOfWork(prisma);
-  const createProject = createCreateProject(uow);
-  const accept = createAcceptConcept(uow);
+ucTest(
+  'concept-accept: stale baseCanonicalVersion → CAS_FAILED, no partial write',
+  async ({ prisma }) => {
+    const userId = await seedUser(prisma);
+    const uow = createUnitOfWork(prisma);
+    const createProject = createCreateProject(uow);
+    const accept = createAcceptConcept(uow);
 
-  const project = await createProject({ ownerUserId: userId, jalur: 'rough_idea' });
-  expect(project.ok).toBe(true);
-  if (!project.ok) return;
-  const projectId = project.value.project.id;
-  const { conceptId } = await seedConcept(prisma, projectId);
+    const project = await createProject({ ownerUserId: userId, jalur: 'rough_idea' });
+    expect(project.ok).toBe(true);
+    if (!project.ok) return;
+    const projectId = project.value.project.id;
+    const { conceptId } = await seedConcept(prisma, projectId);
 
-  // Force project version ahead of claimed base.
-  await prisma.$executeRawUnsafe(
-    `UPDATE projects SET current_canonical_version = 3 WHERE id = $1`,
-    projectId,
-  );
+    // Force project version ahead of claimed base.
+    await prisma.$executeRawUnsafe(
+      `UPDATE projects SET current_canonical_version = 3 WHERE id = $1`,
+      projectId,
+    );
 
-  const result = await accept({
-    ownerUserId: userId,
-    projectId,
-    conceptId,
-    baseCanonicalVersion: 0,
-  });
-  expect(result.ok).toBe(false);
-  if (result.ok) return;
-  expect(result.error.code).toBe('CAS_FAILED');
+    const result = await accept({
+      ownerUserId: userId,
+      projectId,
+      conceptId,
+      baseCanonicalVersion: 0,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe('CAS_FAILED');
 
-  // Foundation may have been pre-inserted in prep path only when base matched —
-  // with early CAS check before prep, no foundation should exist.
-  const foundations = await prisma.$queryRawUnsafe<{ count: string }[]>(
-    `SELECT count(*)::text AS count FROM foundations WHERE project_id = $1`,
-    projectId,
-  );
-  // Acceptable: 0 foundations (preferred) or draft only if prep ran — assert no applied change set.
-  const changeSets = await prisma.$queryRawUnsafe<{ count: string }[]>(
-    `SELECT count(*)::text AS count FROM canonical_change_sets
+    // Foundation may have been pre-inserted in prep path only when base matched —
+    // with early CAS check before prep, no foundation should exist.
+    const foundations = await prisma.$queryRawUnsafe<{ count: string }[]>(
+      `SELECT count(*)::text AS count FROM foundations WHERE project_id = $1`,
+      projectId,
+    );
+    // Acceptable: 0 foundations (preferred) or draft only if prep ran — assert no applied change set.
+    const changeSets = await prisma.$queryRawUnsafe<{ count: string }[]>(
+      `SELECT count(*)::text AS count FROM canonical_change_sets
       WHERE project_id = $1 AND status = 'applied'`,
-    projectId,
-  );
-  expect(Number(changeSets[0]!.count)).toBe(0);
-  expect(Number(foundations[0]!.count)).toBe(0);
-});
+      projectId,
+    );
+    expect(Number(changeSets[0]!.count)).toBe(0);
+    expect(Number(foundations[0]!.count)).toBe(0);
+  },
+);

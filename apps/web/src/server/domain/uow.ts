@@ -1,10 +1,6 @@
 import 'server-only';
 import { loadWebEnv } from '@narraza/shared/env/web';
-import {
-  createPrismaClient,
-  createUnitOfWork,
-  type PrismaClient,
-} from '@narraza/db';
+import { createPrismaClient, createUnitOfWork, type PrismaClient } from '@narraza/db';
 import type { UnitOfWork } from '@narraza/application';
 
 /**

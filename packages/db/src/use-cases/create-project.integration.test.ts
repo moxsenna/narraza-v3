@@ -2,10 +2,7 @@
  * Integration: createProject + appendIntakeMessage (W2.3).
  */
 import { expect } from 'vitest';
-import {
-  createAppendIntakeMessage,
-  createCreateProject,
-} from '@narraza/application';
+import { createAppendIntakeMessage, createCreateProject } from '@narraza/application';
 import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
@@ -41,37 +38,38 @@ async function seedUser(prisma: PrismaClient): Promise<string> {
   return rows[0]!.id;
 }
 
-ucTest('createProject inserts project + intake session + opening assistant message', async ({
-  prisma,
-}) => {
-  const userId = await seedUser(prisma);
-  const uow = createUnitOfWork(prisma);
-  const createProject = createCreateProject(uow);
+ucTest(
+  'createProject inserts project + intake session + opening assistant message',
+  async ({ prisma }) => {
+    const userId = await seedUser(prisma);
+    const uow = createUnitOfWork(prisma);
+    const createProject = createCreateProject(uow);
 
-  const result = await createProject({
-    ownerUserId: userId,
-    jalur: 'rough_idea',
-    title: 'Cerita uji',
-  });
-  expect(result.ok).toBe(true);
-  if (!result.ok) return;
+    const result = await createProject({
+      ownerUserId: userId,
+      jalur: 'rough_idea',
+      title: 'Cerita uji',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
 
-  expect(result.value.project.ownerUserId).toBe(userId);
-  expect(result.value.project.title).toBe('Cerita uji');
-  expect(result.value.project.intakePath).toBe('guided');
-  expect(result.value.project.status).toBe('active');
-  expect(result.value.intakeSession.projectId).toBe(result.value.project.id);
-  expect(result.value.openingMessage.role).toBe('assistant');
-  expect(result.value.openingMessage.sequence).toBe(0);
-  expect(result.value.openingMessage.content.length).toBeGreaterThan(0);
+    expect(result.value.project.ownerUserId).toBe(userId);
+    expect(result.value.project.title).toBe('Cerita uji');
+    expect(result.value.project.intakePath).toBe('guided');
+    expect(result.value.project.status).toBe('active');
+    expect(result.value.intakeSession.projectId).toBe(result.value.project.id);
+    expect(result.value.openingMessage.role).toBe('assistant');
+    expect(result.value.openingMessage.sequence).toBe(0);
+    expect(result.value.openingMessage.content.length).toBeGreaterThan(0);
 
-  const msgs = await prisma.$queryRawUnsafe<{ role: string; sequence: number }[]>(
-    `SELECT role, sequence FROM intake_messages WHERE project_id = $1 ORDER BY sequence`,
-    result.value.project.id,
-  );
-  expect(msgs).toHaveLength(1);
-  expect(msgs[0]!.role).toBe('assistant');
-});
+    const msgs = await prisma.$queryRawUnsafe<{ role: string; sequence: number }[]>(
+      `SELECT role, sequence FROM intake_messages WHERE project_id = $1 ORDER BY sequence`,
+      result.value.project.id,
+    );
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]!.role).toBe('assistant');
+  },
+);
 
 ucTest('createProject rejects has_draft jalur', async ({ prisma }) => {
   const userId = await seedUser(prisma);
@@ -82,9 +80,7 @@ ucTest('createProject rejects has_draft jalur', async ({ prisma }) => {
   expect(result.error.code).toBe('VALIDATION');
 });
 
-ucTest('appendIntakeMessage appends user message with monotonic sequence', async ({
-  prisma,
-}) => {
+ucTest('appendIntakeMessage appends user message with monotonic sequence', async ({ prisma }) => {
   const userId = await seedUser(prisma);
   const uow = createUnitOfWork(prisma);
   const createProject = createCreateProject(uow);

@@ -1,16 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  getMyProject,
-  getProjectOutline,
-} from '../../../../../server/domain/queries';
+import { getMyProject, getProjectOutline } from '../../../../../server/domain/queries';
 import { OutlineForm } from './outline-form';
 
-export default async function OutlinePage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
+export default async function OutlinePage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const project = await getMyProject(projectId);
   if (!project) notFound();

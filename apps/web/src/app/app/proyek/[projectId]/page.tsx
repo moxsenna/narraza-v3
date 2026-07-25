@@ -1,9 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  getMyProject,
-  getProjectProgress,
-} from '../../../../server/domain/queries';
+import { getMyProject, getProjectProgress } from '../../../../server/domain/queries';
 
 export default async function ProjectHomePage({
   params,
@@ -37,7 +34,9 @@ export default async function ProjectHomePage({
 
       {progress ? (
         <section className="mt-6 rounded-2xl border border-[#e8dce1] bg-white p-5">
-          <p className="text-xs font-extrabold tracking-[0.12em] text-brand-700">LANGKAH BERIKUTNYA</p>
+          <p className="text-xs font-extrabold tracking-[0.12em] text-brand-700">
+            LANGKAH BERIKUTNYA
+          </p>
           <p className="mt-2 text-lg font-bold">{progress.stage}</p>
           <p className="mt-1 text-sm text-[#4a3a42]">{progress.nextAction.code}</p>
           {progress.blockers.length > 0 ? (

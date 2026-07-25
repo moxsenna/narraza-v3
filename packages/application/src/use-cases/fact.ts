@@ -83,9 +83,7 @@ export function createUpsertFact(
     });
     if (!result.ok) return result;
 
-    const fact = await uow.execute(async (ports) =>
-      ports.fact.findById(input.projectId, factId),
-    );
+    const fact = await uow.execute(async (ports) => ports.fact.findById(input.projectId, factId));
     if (!fact) {
       return err(appError('NOT_FOUND', 'msg.fact.not_found', 404));
     }

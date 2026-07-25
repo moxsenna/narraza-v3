@@ -2,10 +2,7 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  appendIntakeMessageAction,
-  type ActionState,
-} from '../../../../../server/domain/actions';
+import { appendIntakeMessageAction, type ActionState } from '../../../../../server/domain/actions';
 
 const initial: ActionState = { ok: false };
 

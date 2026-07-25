@@ -3,11 +3,7 @@ import { notFound } from 'next/navigation';
 import { getMyProject } from '../../../../../server/domain/queries';
 import { getUnitOfWork } from '../../../../../server/domain/uow';
 
-export default async function FactPage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
+export default async function FactPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const project = await getMyProject(projectId);
   if (!project) notFound();
@@ -28,7 +24,10 @@ export default async function FactPage({
           <li className="text-sm text-[#76656d]">Belum ada fakta.</li>
         ) : (
           facts.map((f) => (
-            <li key={f.id} className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3 text-sm">
+            <li
+              key={f.id}
+              className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3 text-sm"
+            >
               <span className="font-bold">{f.factKey}</span>
               <span className="ml-2 text-[#76656d]">
                 {f.canonStatus} · {f.visibility}

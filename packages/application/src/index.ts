@@ -6,17 +6,9 @@ export const APPLICATION_PACKAGE = '@narraza/application' as const;
 
 export { ok, err, type Result } from './result.js';
 
-export {
-  appError,
-  notFound,
-  type AppError,
-  type AppErrorCode,
-} from './errors.js';
+export { appError, notFound, type AppError, type AppErrorCode } from './errors.js';
 
-export {
-  authorizeActiveUser,
-  type ActiveUser,
-} from './authz/authorize-active-user.js';
+export { authorizeActiveUser, type ActiveUser } from './authz/authorize-active-user.js';
 
 // Domain ports + UnitOfWork contract (M2). Concrete adapters live in @narraza/db.
 export type {
@@ -144,11 +136,7 @@ export {
   type UpsertCharacterInput,
   type UpsertCharacterOutput,
 } from './use-cases/character.js';
-export {
-  createUpsertFact,
-  type UpsertFactInput,
-  type UpsertFactOutput,
-} from './use-cases/fact.js';
+export { createUpsertFact, type UpsertFactInput, type UpsertFactOutput } from './use-cases/fact.js';
 export {
   createUpsertOutlineNode,
   type UpsertOutlineNodeInput,

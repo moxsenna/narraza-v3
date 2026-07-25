@@ -101,9 +101,7 @@ export async function updateFoundationDraftAction(
   const readerPromise = String(formData.get('readerPromise') ?? '').trim() || null;
   const expectedRevisionRaw = formData.get('expectedRevision');
   const expectedRevision =
-    expectedRevisionRaw === null || expectedRevisionRaw === ''
-      ? null
-      : Number(expectedRevisionRaw);
+    expectedRevisionRaw === null || expectedRevisionRaw === '' ? null : Number(expectedRevisionRaw);
 
   const update = createUpdateFoundationDraft(getUnitOfWork());
   const result = await update({

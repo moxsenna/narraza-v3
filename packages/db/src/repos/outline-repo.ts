@@ -1,9 +1,5 @@
 import type { Prisma } from '../generated/client.js';
-import type {
-  JsonObject,
-  OutlineNodeRecord,
-  OutlineRepo,
-} from '@narraza/application';
+import type { JsonObject, OutlineNodeRecord, OutlineRepo } from '@narraza/application';
 import type { TxClient } from './tx-client.js';
 
 const ROADMAP_SELECT = {
@@ -295,10 +291,26 @@ export function createOutlineRepo(tx: TxClient): OutlineRepo {
 
     async listByProject(projectId) {
       const [roadmaps, arcs, chapters, beats] = await Promise.all([
-        tx.roadmap.findMany({ where: { projectId, deletedAt: null }, select: ROADMAP_SELECT, orderBy: { createdAt: 'asc' } }),
-        tx.arc.findMany({ where: { projectId, deletedAt: null }, select: ARC_SELECT, orderBy: { ordinal: 'asc' } }),
-        tx.chapter.findMany({ where: { projectId, deletedAt: null }, select: CHAPTER_SELECT, orderBy: { narrativeSequence: 'asc' } }),
-        tx.beat.findMany({ where: { projectId, deletedAt: null }, select: BEAT_SELECT, orderBy: { narrativeSequence: 'asc' } }),
+        tx.roadmap.findMany({
+          where: { projectId, deletedAt: null },
+          select: ROADMAP_SELECT,
+          orderBy: { createdAt: 'asc' },
+        }),
+        tx.arc.findMany({
+          where: { projectId, deletedAt: null },
+          select: ARC_SELECT,
+          orderBy: { ordinal: 'asc' },
+        }),
+        tx.chapter.findMany({
+          where: { projectId, deletedAt: null },
+          select: CHAPTER_SELECT,
+          orderBy: { narrativeSequence: 'asc' },
+        }),
+        tx.beat.findMany({
+          where: { projectId, deletedAt: null },
+          select: BEAT_SELECT,
+          orderBy: { narrativeSequence: 'asc' },
+        }),
       ]);
       return [
         ...roadmaps.map(roadmapToRecord),
@@ -417,4 +429,3 @@ function rawBeat(row: RawBeatRow): BeatRow {
     deletedAt: row.deleted_at,
   };
 }
-

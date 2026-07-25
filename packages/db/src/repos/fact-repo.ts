@@ -1,9 +1,5 @@
 import type { Prisma } from '../generated/client.js';
-import type {
-  FactRecord,
-  FactRepo,
-  JsonObject,
-} from '@narraza/application';
+import type { FactRecord, FactRepo, JsonObject } from '@narraza/application';
 import type { TxClient } from './tx-client.js';
 
 const SELECT = {
@@ -54,9 +50,7 @@ export function createFactRepo(tx: TxClient): FactRepo {
 
     async update(input) {
       const expectedClause =
-        input.expectedRevision === null
-          ? ''
-          : `AND revision = ${String(input.expectedRevision)}`;
+        input.expectedRevision === null ? '' : `AND revision = ${String(input.expectedRevision)}`;
       const rows = (await tx.$queryRawUnsafe(
         `UPDATE facts
             SET canon_status = $1,

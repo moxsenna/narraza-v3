@@ -4,10 +4,7 @@
  * with supersede lands in M5; M2 proves the write-door bump invariant.
  */
 import { expect } from 'vitest';
-import {
-  createCommitCanonicalChangeSet,
-  type CanonicalOpPersist,
-} from '@narraza/application';
+import { createCommitCanonicalChangeSet, type CanonicalOpPersist } from '@narraza/application';
 import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';

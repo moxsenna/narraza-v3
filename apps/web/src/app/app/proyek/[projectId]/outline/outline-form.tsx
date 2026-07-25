@@ -2,10 +2,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  createOutlineRoadmapAction,
-  type ActionState,
-} from '../../../../../server/domain/actions';
+import { createOutlineRoadmapAction, type ActionState } from '../../../../../server/domain/actions';
 
 const initial: ActionState = { ok: false };
 
@@ -18,7 +15,10 @@ export function OutlineForm({ projectId }: { projectId: string }) {
   }, [state, router]);
 
   return (
-    <form action={action} className="mt-6 flex flex-wrap items-end gap-3 rounded-2xl border border-[#e8dce1] bg-white p-4">
+    <form
+      action={action}
+      className="mt-6 flex flex-wrap items-end gap-3 rounded-2xl border border-[#e8dce1] bg-white p-4"
+    >
       <input type="hidden" name="projectId" value={projectId} />
       <label className="min-w-[12rem] flex-1">
         <span className="text-sm font-bold">Judul roadmap</span>

@@ -10,20 +10,14 @@ import type { UnitOfWork } from '../ports/unit-of-work.js';
 import type { ProjectRecord, IntakeSessionRecord, IntakeMessageRecord } from '../ports/types.js';
 
 /** Product jalur (UI). "has_draft" disabled D2. */
-export type IntakeJalur =
-  | 'no_idea'
-  | 'rough_idea'
-  | 'has_outline'
-  | 'fix_story';
+export type IntakeJalur = 'no_idea' | 'rough_idea' | 'has_outline' | 'fix_story';
 
 /** Schema CHECK projects_intake_path_check. */
 export type IntakePathDb = 'guided' | 'freeform';
 
 const OPENERS: Record<IntakeJalur, string> = {
-  no_idea:
-    'Ceritakan suasana atau perasaan yang ingin kamu tulis. Nanti kita susun bareng.',
-  rough_idea:
-    'Tulis ide kasarmu dalam beberapa kalimat. Aku bantu merapikan fondasinya.',
+  no_idea: 'Ceritakan suasana atau perasaan yang ingin kamu tulis. Nanti kita susun bareng.',
+  rough_idea: 'Tulis ide kasarmu dalam beberapa kalimat. Aku bantu merapikan fondasinya.',
   has_outline: 'Tempel atau ringkas outline-mu. Kita petakan ke bab dan adegan.',
   fix_story: 'Ceritakan bagian mana yang terasa macet atau tidak nyambung.',
 };
@@ -66,9 +60,7 @@ export function createCreateProject(
       );
     }
     if (!ALLOWED_JALUR.has(input.jalur)) {
-      return err(
-        appError('VALIDATION', 'msg.project.jalur_invalid', 422, { jalur: input.jalur }),
-      );
+      return err(appError('VALIDATION', 'msg.project.jalur_invalid', 422, { jalur: input.jalur }));
     }
     const jalur = input.jalur as IntakeJalur;
     const title = (input.title?.trim() || 'Cerita baru').slice(0, 200);
@@ -120,9 +112,7 @@ export function createCreateProject(
       return ok(outcome);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      return err(
-        appError('VALIDATION', 'msg.project.create_failed', 500, { message }),
-      );
+      return err(appError('VALIDATION', 'msg.project.create_failed', 500, { message }));
     }
   };
 }

@@ -35,10 +35,7 @@ export function createAcceptConcept(
     try {
       // Read path: tenant-scoped lookups only (projectId + owner + concept under project).
       const loaded = await uow.execute(async (ports) => {
-        const project = await ports.project.findByIdForOwner(
-          input.projectId,
-          input.ownerUserId,
-        );
+        const project = await ports.project.findByIdForOwner(input.projectId, input.ownerUserId);
         if (!project) {
           throw asDomain(appError('NOT_FOUND', 'msg.project.not_found', 404));
         }
@@ -109,8 +106,7 @@ export function createAcceptConcept(
         await ports.concept.markSetSelected(input.projectId, loaded.concept.conceptSetId);
       });
 
-      const baseVersion =
-        input.baseCanonicalVersion ?? loaded.project.currentCanonicalVersion;
+      const baseVersion = input.baseCanonicalVersion ?? loaded.project.currentCanonicalVersion;
 
       // Re-read project version after prep tx (may be unchanged).
       const projectNow = await uow.execute(async (ports) =>
@@ -177,9 +173,7 @@ export function createAcceptConcept(
     } catch (e) {
       if (isDomain(e)) return err(e.error);
       const message = e instanceof Error ? e.message : String(e);
-      return err(
-        appError('VALIDATION', 'msg.concept.accept_failed', 500, { message }),
-      );
+      return err(appError('VALIDATION', 'msg.concept.accept_failed', 500, { message }));
     }
   };
 }
@@ -195,8 +189,7 @@ export function foundationPayloadFromConcept(concept: ConceptRecord): JsonObject
     conflict: typeof fromPayload.conflict === 'string' ? fromPayload.conflict : null,
     endingDirection:
       typeof fromPayload.endingDirection === 'string' ? fromPayload.endingDirection : null,
-    readerPromise:
-      typeof fromPayload.readerPromise === 'string' ? fromPayload.readerPromise : null,
+    readerPromise: typeof fromPayload.readerPromise === 'string' ? fromPayload.readerPromise : null,
     mainCharacter: fromPayload.mainCharacter ?? null,
     relationships: Array.isArray(fromPayload.relationships) ? fromPayload.relationships : [],
     secrets: Array.isArray(fromPayload.secrets) ? fromPayload.secrets : [],

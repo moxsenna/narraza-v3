@@ -1,9 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  getMyProject,
-  getProjectFoundation,
-} from '../../../../../server/domain/queries';
+import { getMyProject, getProjectFoundation } from '../../../../../server/domain/queries';
 import { FoundationForms } from './foundation-forms';
 
 export default async function FoundationPage({
@@ -35,9 +32,7 @@ export default async function FoundationPage({
         revision={foundation?.revision ?? null}
         coreConcept={typeof payload.coreConcept === 'string' ? payload.coreConcept : ''}
         conflict={typeof payload.conflict === 'string' ? payload.conflict : ''}
-        endingDirection={
-          typeof payload.endingDirection === 'string' ? payload.endingDirection : ''
-        }
+        endingDirection={typeof payload.endingDirection === 'string' ? payload.endingDirection : ''}
         readerPromise={typeof payload.readerPromise === 'string' ? payload.readerPromise : ''}
       />
     </main>

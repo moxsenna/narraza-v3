@@ -34,10 +34,7 @@ export function createAppendIntakeMessage(
 
     try {
       const outcome = await uow.execute(async (ports) => {
-        const project = await ports.project.findByIdForOwner(
-          input.projectId,
-          input.ownerUserId,
-        );
+        const project = await ports.project.findByIdForOwner(input.projectId, input.ownerUserId);
         if (!project) {
           throw asDomain(appError('NOT_FOUND', 'msg.project.not_found', 404));
         }
@@ -47,10 +44,7 @@ export function createAppendIntakeMessage(
           throw asDomain(appError('NOT_FOUND', 'msg.intake.session_not_found', 404));
         }
 
-        const sequence = await ports.intake.nextMessageSequence(
-          input.projectId,
-          session.id,
-        );
+        const sequence = await ports.intake.nextMessageSequence(input.projectId, session.id);
         const message = await ports.intake.insertMessage({
           id: ports.allocateId(),
           projectId: input.projectId,
@@ -66,9 +60,7 @@ export function createAppendIntakeMessage(
     } catch (e) {
       if (isDomain(e)) return err(e.error);
       const message = e instanceof Error ? e.message : String(e);
-      return err(
-        appError('VALIDATION', 'msg.intake.append_failed', 500, { message }),
-      );
+      return err(appError('VALIDATION', 'msg.intake.append_failed', 500, { message }));
     }
   };
 }
