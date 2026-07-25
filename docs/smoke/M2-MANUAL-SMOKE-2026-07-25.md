@@ -78,7 +78,49 @@ Routes opened without 404/500:
 3. Re-run smoke without any DB assist after those UI gaps close.
 4. Then check manual smoke box, push docs, wait CI green on new head, Ready for review.
 
-## Conclusion
+## Conclusion (initial)
 
 Core persistence + tenant flow + lock guard + progress reducer work in browser.
-**Manual smoke gate remains OPEN** until outline (and ideally full foundation readiness) can be completed purely through UI without SQL seed.
+**Initial manual smoke gate remained OPEN** until outline/foundation readiness could be completed purely through UI without SQL seed.
+
+---
+
+## Re-smoke after functional UI gap fixes
+
+| Field | Value |
+|---|---|
+| previous result | PARTIAL |
+| new tested commit | `d4bbe31` (UI + confirmed-edit fix; smoke run after `0f2ecf1`/`d4bbe31` on `feat/m2-ports-uow`) |
+| new project ID | `77f067ae-f2f2-413b-965d-7b1ceccdb3e4` |
+| account | `m2-resmoke-20260725b@example.test` |
+| no DB assist | **YES** |
+| foundation through UI | **PASS** |
+| outline 10 through UI | **PASS** |
+| regression routes | **PASS** |
+| final result | **PASS** |
+
+### Sequence (pure UI)
+
+1. **Create project** — title `M2 ReSmoke Pure UI 2026-07-25` → redirect + listed on dashboard.
+2. **Chat** — user intake message persisted (visible after navigation).
+3. **Foundation** — filled via UI only: coreConcept, conflict, endingDirection, readerPromise, mainCharacter (identity/goal/motivation/address/speechStyle), relationship, secret + target/breadcrumbs.
+4. **Save draft** → `draft · rev 1`; **Confirm** → `confirmed · rev 2`; **Lock** → `locked · rev 3` with “Fondasi terkunci…”.
+5. **Outline** — UI create roadmap → arc → chapters **#1–#10** with required titles; hard refresh still shows all 10.
+6. **Progress** — project home: `writing` / `write_beat` / **Bab 10**.
+7. **Regression** — `/app`, project home, chat, fondasi, outline, karakter, fakta, rahasia open without error page.
+
+### Screenshots (re-smoke)
+
+- `docs/smoke/r1-project.png`
+- `docs/smoke/r2-chat.png`
+- `docs/smoke/r3-foundation-complete.png`
+- `docs/smoke/r4-foundation-locked.png`
+- `docs/smoke/r5-arc.png`
+- `docs/smoke/r6-outline-10.png`
+- `docs/smoke/r7-progress.png`
+- `docs/smoke/r8-dashboard.png`
+
+### Notes
+
+- Transient Postgres recovery earlier in the session produced historical 5xx on fondasi; after DB restart, full pure-UI path completed without SQL seed.
+- Negative readiness lock was proven on the first smoke (`msg.foundation.not_ready`); re-smoke used complete readiness and locked successfully.
