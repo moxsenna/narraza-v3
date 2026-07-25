@@ -16,7 +16,7 @@ started early.
 |---|---|---|
 | M0 | Repo, scaffold, auth, shell, CI | ✅ **done** (merged `master`, 8 CI checks green, branch protection on) |
 | M1 | Domain core & critical schema | 🔄 W1.1–W1.5 merged to `master` (PR #1–#5); exit gate M1 still open (S3/S7 unit coverage + migration drift re-check) |
-| M2 | Ports, UnitOfWork, user-origin flow | 🔄 W2.1–W2.4 + `idor` e2e + `concept-accept` seeded landed (Draft PR #6); **exit gate open**: tenant-scope review, manual smoke, CI 8 checks |
+| M2 | Ports, UnitOfWork, user-origin flow | 🔄 W2.1–W2.4 + `idor` + `concept-accept` + tenant-scope review landed (Draft PR #6); **exit gate open**: manual smoke, CI 8 checks |
 | M3 | Jobs, worker, outbox, credit | ⬜ not started |
 | M4 | AI layer (mock + real adapters) | ⬜ not started |
 | M5 | Proposal accept, working draft, validation | ⬜ not started |
@@ -110,7 +110,7 @@ started early.
   - [x] `fact-lifecycle`, `outline-downstream`, `progress-view`, canon +1 green locally
   - [x] `idor` e2e green (tenant other → NOT_FOUND; project/foundation/chat/outline/karakter/fakta/rahasia + mutations)
   - [x] `concept-accept` seeded green (fixture concept → foundation draft, not locked)
-  - [ ] No query without tenant scope (PR review checklist)
+  - [x] No query without tenant scope (PR review checklist) — owner scoped at query; child repos require projectId; web via `@narraza/db` only; actions return public message codes
   - [ ] Draft PR open; 8 required CI checks green; ready-for-review only after gate complete
 
 ---

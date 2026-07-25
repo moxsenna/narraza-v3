@@ -1,4 +1,4 @@
-import { Prisma } from '../generated/client.js';
+import type { Prisma } from '../generated/client.js';
 import type { ProposalInsertInput, ProposalRecord, ProposalRepo } from '@narraza/application';
 import type { TxClient } from './tx-client.js';
 

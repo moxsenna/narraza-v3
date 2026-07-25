@@ -1,4 +1,4 @@
-import { Prisma } from '../generated/client.js';
+import type { Prisma } from '../generated/client.js';
 
 /**
  * Transaction-scoped client handed to repositories inside `UnitOfWork.execute`.

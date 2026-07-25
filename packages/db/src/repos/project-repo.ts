@@ -1,4 +1,4 @@
-import { Prisma } from '../generated/client.js';
+import type { Prisma } from '../generated/client.js';
 import type { ProjectRecord, ProjectRepo } from '@narraza/application';
 import type { TxClient } from './tx-client.js';
 
@@ -49,12 +49,13 @@ export function createProjectRepo(tx: TxClient): ProjectRepo {
     },
 
     async findByIdForOwner(projectId, ownerUserId) {
-      const row = await tx.project.findUnique({
-        where: { id: projectId },
+      // Tenant scope in the query (not post-filter) so foreign project existence
+      // is never distinguishable from missing rows (S6 IDOR).
+      const row = await tx.project.findFirst({
+        where: { id: projectId, ownerUserId, deletedAt: null },
         select: SELECT,
       });
-      if (!row || row.ownerUserId !== ownerUserId || row.deletedAt !== null) return null;
-      return toRecord(row);
+      return row ? toRecord(row) : null;
     },
 
     async listByOwner(ownerUserId) {
@@ -67,6 +68,7 @@ export function createProjectRepo(tx: TxClient): ProjectRepo {
     },
 
     async lockForUpdate(projectId) {
+      // Callers (commitCanonicalChangeSet) re-check owner after lock.
       const rows = (await tx.$queryRaw`
         SELECT id, owner_user_id, title, intake_path, status,
                current_canonical_version, revision, deleted_at,
