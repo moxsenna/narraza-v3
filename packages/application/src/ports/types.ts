@@ -2,6 +2,40 @@
 
 export type JsonObject = { readonly [key: string]: unknown };
 
+export type GenerationJobStatus =
+  'queued' | 'running' | 'succeeded' | 'failed' | 'dead' | 'cancelled';
+
+/** Absorbing states: a job in one of these never transitions again. */
+export type TerminalJobStatus = 'succeeded' | 'failed' | 'dead' | 'cancelled';
+
+export interface GenerationJobRecord {
+  readonly id: string;
+  readonly projectId: string;
+  readonly kind: string;
+  readonly status: GenerationJobStatus;
+  readonly priority: number;
+  readonly availableAt: Date;
+  readonly leaseToken: string | null;
+  readonly leaseExpiresAt: Date | null;
+  readonly fenceVersion: number;
+  readonly cancelRequestedAt: Date | null;
+  readonly retryOfJobId: string | null;
+  readonly bundleId: string | null;
+  readonly workflowPlanId: string | null;
+  readonly reservationId: string | null;
+  readonly schemaVersion: number;
+  readonly payload: JsonObject;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+export interface JobLeaseIdentity {
+  readonly projectId: string;
+  readonly jobId: string;
+  readonly leaseToken: string;
+  readonly fenceVersion: number;
+}
+
 export interface ProjectRecord {
   readonly id: string;
   readonly ownerUserId: string;
