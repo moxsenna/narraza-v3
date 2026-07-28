@@ -1,18 +1,15 @@
-import type { JobPort, LedgerPort } from '@narraza/application';
+import type { LedgerPort } from '@narraza/application';
 
-/** Stub adapters for M2 — full engines land in M3. */
+/**
+ * Stub adapter for the credit ledger port. The real engine lands in a later
+ * task; until then any caller that exercises the port surfaces the
+ * not-implemented boundary as an unambiguous thrown string.
+ */
 export function createLedgerStub(): LedgerPort {
-  return {
-    assertNotUsedInM2() {
-      throw new Error('LedgerPort is not implemented until M3.');
+  const stub: LedgerPort = {
+    releaseQueuedCancellation() {
+      return Promise.reject('LedgerPort is not implemented until Task 4');
     },
   };
-}
-
-export function createJobStub(): JobPort {
-  return {
-    assertNotUsedInM2() {
-      throw new Error('JobPort is not implemented until M3.');
-    },
-  };
+  return stub;
 }

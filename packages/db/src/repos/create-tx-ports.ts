@@ -7,7 +7,8 @@ import { createConceptRepo } from './concept-repo.js';
 import { createFactRepo } from './fact-repo.js';
 import { createFoundationRepo } from './foundation-repo.js';
 import { createIntakeRepo } from './intake-repo.js';
-import { createJobStub, createLedgerStub } from './stub-ports.js';
+import { createJobRepo } from './job-repo.js';
+import { createLedgerStub } from './stub-ports.js';
 import { createOutlineRepo } from './outline-repo.js';
 import { createOutboxPort } from './outbox-port.js';
 import { createProjectRepo } from './project-repo.js';
@@ -32,7 +33,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     outbox: createOutboxPort(tx),
     snapshot: createSnapshotPort(tx),
     ledger: createLedgerStub(),
-    job: createJobStub(),
+    job: createJobRepo(tx),
     dbNow: () => dbNow(tx),
     allocateId: () => crypto.randomUUID(),
   };
