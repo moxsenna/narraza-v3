@@ -112,54 +112,67 @@ function isTerminalStatus(status: string | null | undefined): boolean {
   );
 }
 
-/**
- * Map a thrown raw-SQL error to a sentinel string when the SQLSTATE is one of
- * the contract-defined operational codes. Returns `null` to signal "not a
- * mapped operational error", so the caller rethrows the original cause for any
- * genuinely unexpected failure.
- */
-function sqlStateOf(error: unknown): string | null {
-  if (typeof error === 'object' && error !== null && 'code' in error) {
-    const code = (error as { code?: unknown }).code;
-    if (typeof code === 'string' && /^\d{5}$/.test(code)) return code;
-  }
-  return null;
-}
-
 export function createJobRepo(tx: TxClient): JobPort {
   return {
     async insert(input: JobInsertInput): Promise<JobInsertResult> {
-      try {
-        const rows = (await tx.$queryRawUnsafe(
-          `INSERT INTO generation_jobs
-             (id,project_id,kind,status,priority,available_at,lease_token,lease_expires_at,
-              fence_version,cancel_requested_at,retry_of_job_id,bundle_id,workflow_plan_id,
-              reservation_id,schema_version,payload,created_at,updated_at)
-           VALUES ($1,$2,$3,'queued',$4,
-                   now() + ($5::bigint * INTERVAL '1 millisecond'),NULL,NULL,
-                   0,NULL,$6,$7,$8,$9,$10,$11::jsonb,now(),now())
-           RETURNING ${COLUMN_LIST}`,
-          input.id,
-          input.projectId,
-          input.kind,
-          input.priority,
-          BigInt(input.availableInMs),
-          input.retryOfJobId,
-          input.bundleId,
-          input.workflowPlanId,
+      if (input.reservationId !== null) {
+        const eligible = (await tx.$queryRawUnsafe(
+          `SELECT id FROM credit_reservations
+            WHERE id = $1 AND project_id = $2 AND status = 'open'
+              AND job_id IS NULL AND job_project_id IS NULL
+            FOR UPDATE`,
           input.reservationId,
-          input.schemaVersion,
-          JSON.stringify(input.payload),
-        )) as RawRow[];
-        const row = rows[0];
-        if (!row) return { kind: 'binding_invalid' };
-        return { kind: 'inserted', job: toRecord(row) };
-      } catch (error) {
-        const state = sqlStateOf(error);
-        if (state === '23505') return { kind: 'conflict' };
-        if (state === '23503') return { kind: 'binding_invalid' };
-        throw error;
+          input.projectId,
+        )) as Array<{ id: string }>;
+        if (!eligible[0]) return { kind: 'binding_invalid' };
       }
+
+      const rows = (await tx.$queryRawUnsafe(
+        `INSERT INTO generation_jobs
+           (id,project_id,kind,status,priority,available_at,lease_token,lease_expires_at,
+            fence_version,cancel_requested_at,retry_of_job_id,bundle_id,workflow_plan_id,
+            reservation_id,schema_version,payload,created_at,updated_at)
+         VALUES ($1,$2,$3,'queued',$4,
+                 now() + ($5::bigint * INTERVAL '1 millisecond'),NULL,NULL,
+                 0,NULL,$6,$7,$8,NULLIF($9::text,$9::text),$10,$11::jsonb,now(),now())
+         ON CONFLICT DO NOTHING
+         RETURNING ${COLUMN_LIST}`,
+        input.id,
+        input.projectId,
+        input.kind,
+        input.priority,
+        BigInt(input.availableInMs),
+        input.retryOfJobId,
+        input.bundleId,
+        input.workflowPlanId,
+        input.reservationId,
+        input.schemaVersion,
+        JSON.stringify(input.payload),
+      )) as RawRow[];
+      const row = rows[0];
+      if (!row) return { kind: 'conflict' };
+      if (input.reservationId === null) return { kind: 'inserted', job: toRecord(row) };
+
+      const bound = (await tx.$queryRawUnsafe(
+        `WITH reservation AS (
+           UPDATE credit_reservations
+              SET job_project_id = $2, job_id = $3, updated_at = now()
+            WHERE id = $1 AND project_id = $2 AND status = 'open'
+              AND job_id IS NULL AND job_project_id IS NULL
+            RETURNING id
+         )
+         UPDATE generation_jobs
+            SET reservation_id = reservation.id, updated_at = now()
+           FROM reservation
+          WHERE generation_jobs.project_id = $2 AND generation_jobs.id = $3
+          RETURNING ${QUALIFIED_COLUMN_LIST}`,
+        input.reservationId,
+        input.projectId,
+        input.id,
+      )) as RawRow[];
+      const reciprocal = bound[0];
+      if (!reciprocal) return { kind: 'binding_invalid' };
+      return { kind: 'inserted', job: toRecord(reciprocal) };
     },
 
     async findById(input: JobLookupInput): Promise<GenerationJobRecord | null> {

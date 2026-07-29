@@ -44,6 +44,74 @@ schema.test(
   },
 );
 
+schema.test(
+  'credit ledger vocabulary accepts exact entry type and direction matrix',
+  async ({ client }) => {
+    await seedUsersAndProjects(client);
+
+    const acceptedPairs = [
+      ['release', 'credit'],
+      ['charge', 'debit'],
+      ['refund', 'credit'],
+      ['grant', 'credit'],
+      ['adjustment', 'debit'],
+      ['adjustment', 'credit'],
+      ['reservation_settlement', 'debit'],
+    ] as const;
+
+    for (const [index, [entryType, direction]] of acceptedPairs.entries()) {
+      await client.query(
+        `INSERT INTO credit_ledger
+         (id,user_id,project_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at)
+       VALUES ($1,$2,$3,$4,$5,100,$6,now())`,
+        [
+          `ledger-vocabulary-accepted-${index}`,
+          ids.userA,
+          ids.projectA,
+          entryType,
+          direction,
+          `ledger-vocabulary-accepted-${index}`,
+        ],
+      );
+    }
+  },
+);
+
+schema.test(
+  'credit ledger vocabulary rejects old literal and invalid directions',
+  async ({ client }) => {
+    await seedUsersAndProjects(client);
+
+    const rejectedPairs = [
+      ['release', 'debit'],
+      ['reservation_release', 'credit'],
+      ['charge', 'credit'],
+      ['refund', 'debit'],
+      ['grant', 'debit'],
+      ['reservation_settlement', 'credit'],
+    ] as const;
+
+    for (const [index, [entryType, direction]] of rejectedPairs.entries()) {
+      await expectSqlState(
+        client.query(
+          `INSERT INTO credit_ledger
+           (id,user_id,project_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at)
+         VALUES ($1,$2,$3,$4,$5,100,$6,now())`,
+          [
+            `ledger-vocabulary-rejected-${index}`,
+            ids.userA,
+            ids.projectA,
+            entryType,
+            direction,
+            `ledger-vocabulary-rejected-${index}`,
+          ],
+        ),
+        '23514',
+      );
+    }
+  },
+);
+
 schema.test('credit ledger dedupe is global', async ({ client }) => {
   await seedUsersAndProjects(client);
   await client.query(
