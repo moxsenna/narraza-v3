@@ -14,7 +14,6 @@ import {
   setCancelRequested,
   setJobOrdering,
   setRunning,
-  setTerminal,
   withTx,
 } from './job-test-fixtures.js';
 

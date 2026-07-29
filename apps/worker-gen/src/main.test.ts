@@ -11,7 +11,7 @@ const env = {
   JOB_SHUTDOWN_DRAIN_MS: 30000,
 };
 
-function deps(processor?: (...args: any[]) => Promise<void>) {
+function deps(processor?: (...args: unknown[]) => Promise<void>) {
   const loop = { start: vi.fn(), shutdown: vi.fn().mockResolvedValue(undefined) };
   return {
     processor,
