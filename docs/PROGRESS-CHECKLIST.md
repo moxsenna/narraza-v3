@@ -17,7 +17,7 @@ started early.
 | M0  | Repo, scaffold, auth, shell, CI            | ✅ **done** (merged `master`, 8 CI checks green, branch protection on)                                               |
 | M1  | Domain core & critical schema              | 🔄 W1.1–W1.5 merged to `master` (PR #1–#5); exit gate M1 still open (S3/S7 unit coverage + migration drift re-check) |
 | M2  | Ports, UnitOfWork, user-origin flow        | ✅ **done** (PR #6 merged; latest-head CI run 30166400617, 8/8 green)                                                |
-| M3  | Jobs, worker, outbox, credit               | 🔄 in progress at W3.1                                                                                               |
+| M3  | Jobs, worker, outbox, credit               | 🔄 W3.1 done; next W3.2                                                                                              |
 | M4  | AI layer (mock + real adapters)            | ⬜ not started                                                                                                       |
 | M5  | Proposal accept, working draft, validation | ⬜ not started                                                                                                       |
 | M6  | Full UI, design system, a11y, e2e          | ⬜ not started                                                                                                       |
@@ -117,12 +117,12 @@ started early.
 
 ## M3 — Jobs, worker, outbox, credit
 
-- [ ] **W3.1 Job state machine** _(Fable)_
-  - [ ] `GenerationJob` + `FOR UPDATE SKIP LOCKED` + leaseToken/fenceVersion; heartbeat (D12); reclaim sweeper
-  - [ ] CAS transitions; running→queued (fenced exec retry); terminal immutable
-  - [ ] Cancel (queued=release; running=`cancelRequestedAt`); manual retry = new job `retryOfJobId`
-  - [ ] `apps/worker-gen` gated claim loop (`JOB_PROCESSOR_ENABLED=false` lifecycle-only W3.1 host), env-validated poll/backoff/drain, graceful SIGTERM shutdown, PM2 `30000ms` drain / `35000ms` kill timeout
-  - [ ] Tests: `job-terminal`, `exec-retry`, `cancel-queued`, `retry-new-job`, `lease-fence-publish`
+- [x] **W3.1 Job state machine** _(Fable)_
+  - [x] `GenerationJob` + global `FOR UPDATE SKIP LOCKED` claim/reclaim + leaseToken/fenceVersion; heartbeat (D12); reclaim sweeper
+  - [x] CAS transitions; running→queued (fenced exec retry); terminal immutable
+  - [x] Cancel (queued=release; running=`cancelRequestedAt`); manual retry = new job `retryOfJobId`
+  - [x] `apps/worker-gen` gated claim loop (`JOB_PROCESSOR_ENABLED=false` lifecycle-only W3.1 host), env-validated poll/backoff/drain, graceful SIGTERM shutdown, PM2 `30000ms` drain / `35000ms` kill timeout
+  - [x] Tests: `job-terminal`, `exec-retry`, `cancel-queued`, `retry-new-job`, `lease-fence-publish` — local unit/worker/contract and focused Testcontainers PostgreSQL 16 green; migration empty/upgrade/drift green
 - [ ] **W3.2 WorkflowInvocation & three-phase attempt** _(Fable)_
   - [ ] Invocation per stage key; attempts; CAS winner; late attempt records usage, not winner
   - [ ] Three-phase harness (Tx create attempt → external mock → Tx finalize+settle → CPU validate → Tx C fenced publish)
