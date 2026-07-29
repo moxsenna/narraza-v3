@@ -551,6 +551,46 @@ describe('manual retry', () => {
 });
 
 describe('owner wrappers and reclaim', () => {
+  it('claim and reclaim contracts are global while claimed identity uses returned project', async () => {
+    expectTypeOf<Parameters<JobPort['claimNext']>[0]>().not.toHaveProperty('projectId');
+    expectTypeOf<Parameters<JobPort['reclaimNextExpired']>[0]>().not.toHaveProperty('projectId');
+    expectTypeOf<Parameters<ReturnType<typeof createJobService>['claim']>[0]>().not.toHaveProperty(
+      'projectId',
+    );
+    expectTypeOf<
+      Parameters<ReturnType<typeof createJobService>['reclaimOne']>[0]
+    >().not.toHaveProperty('projectId');
+
+    const h = makeHarness();
+    const foreignProjectJob = job({
+      projectId: 'project-global-winner',
+      status: 'running',
+      leaseToken: 'lease-global',
+      fenceVersion: 1,
+    });
+    h.jobPort.claimNext.mockResolvedValueOnce({
+      kind: 'claimed',
+      job: foreignProjectJob,
+      identity: {
+        projectId: foreignProjectJob.projectId,
+        jobId: foreignProjectJob.id,
+        leaseToken: 'lease-global',
+        fenceVersion: 1,
+      },
+    });
+
+    const result = await createJobService(h.unitOfWork).claim({
+      leaseToken: 'lease-global',
+      leaseDurationMs: 30_000,
+    });
+
+    expect(result).toMatchObject({
+      kind: 'claimed',
+      job: { projectId: 'project-global-winner' },
+      identity: { projectId: 'project-global-winner' },
+    });
+  });
+
   it('claim forwards lease token and numeric duration in one UoW for every outcome', async () => {
     const h = makeHarness();
     const claimed = {
@@ -567,19 +607,17 @@ describe('owner wrappers and reclaim', () => {
     const service = createJobService(h.unitOfWork);
 
     await expect(
-      service.claim({ projectId: 'project-1', leaseToken: 'lease-new', leaseDurationMs: 60_000 }),
+      service.claim({ leaseToken: 'lease-new', leaseDurationMs: 60_000 }),
     ).resolves.toEqual(claimed);
     await expect(
-      service.claim({ projectId: 'project-1', leaseToken: 'lease-next', leaseDurationMs: 30_000 }),
+      service.claim({ leaseToken: 'lease-next', leaseDurationMs: 30_000 }),
     ).resolves.toEqual({ kind: 'none' });
 
     expect(h.jobPort.claimNext).toHaveBeenNthCalledWith(1, {
-      projectId: 'project-1',
       leaseToken: 'lease-new',
       leaseDurationMs: 60_000,
     });
     expect(h.jobPort.claimNext).toHaveBeenNthCalledWith(2, {
-      projectId: 'project-1',
       leaseToken: 'lease-next',
       leaseDurationMs: 30_000,
     });
@@ -662,11 +700,11 @@ describe('owner wrappers and reclaim', () => {
     const h = makeHarness();
     h.jobPort.reclaimNextExpired.mockResolvedValueOnce(portResult);
 
-    const result = await createJobService(h.unitOfWork).reclaimOne({ projectId: 'project-1' });
+    const result = await createJobService(h.unitOfWork).reclaimOne({});
 
     expect(result).toEqual(portResult);
     expect(h.jobPort.reclaimNextExpired).toHaveBeenCalledOnce();
-    expect(h.jobPort.reclaimNextExpired).toHaveBeenCalledWith({ projectId: 'project-1' });
+    expect(h.jobPort.reclaimNextExpired).toHaveBeenCalledWith({});
     expect(h.executeCount()).toBe(1);
   });
 

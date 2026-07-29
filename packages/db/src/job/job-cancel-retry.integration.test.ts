@@ -119,7 +119,6 @@ schema.test(
       const [cancel, claim] = await Promise.all([
         cancellation,
         createJobService(createUnitOfWork(prisma)).claim({
-          projectId: ids.projectA,
           leaseToken: leaseTokens.bob,
           leaseDurationMs: 30_000,
         }),

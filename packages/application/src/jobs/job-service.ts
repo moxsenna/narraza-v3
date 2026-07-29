@@ -45,7 +45,6 @@ export type ManualRetryResult =
   | { readonly kind: 'reservation_binding_invalid' };
 
 export interface ClaimInput {
-  readonly projectId: string;
   readonly leaseToken: string;
   readonly leaseDurationMs: number;
 }
@@ -62,9 +61,7 @@ export interface FinishInput extends JobLeaseIdentity {
   readonly status: RunningTerminalStatus;
 }
 
-export interface ReclaimOneInput {
-  readonly projectId: string;
-}
+export type ReclaimOneInput = Record<string, never>;
 
 export interface FencedPublishSentinelInput {
   readonly aggregateType: string;

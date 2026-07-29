@@ -31,7 +31,6 @@ export interface JobLookupInput {
 }
 
 export interface JobClaimInput {
-  readonly projectId: string;
   readonly leaseToken: string;
   readonly leaseDurationMs: number;
 }
@@ -88,9 +87,7 @@ export type JobRunningCancellationResult =
   | { readonly kind: 'already_requested' }
   | { readonly kind: 'state_conflict' };
 
-export interface JobReclaimInput {
-  readonly projectId: string;
-}
+export type JobReclaimInput = Record<string, never>;
 
 export type JobReclaimResult =
   | { readonly kind: 'requeued'; readonly job: GenerationJobRecord }

@@ -44,7 +44,6 @@ schema.test('lease-fence-publish', async ({ client, databaseUrl }) => {
 
   try {
     const claimA = await service.claim({
-      projectId: ids.projectA,
       leaseToken: leaseTokens.alice,
       leaseDurationMs: 30_000,
     });
@@ -58,13 +57,12 @@ schema.test('lease-fence-publish', async ({ client, databaseUrl }) => {
         WHERE project_id = $1 AND id = $2`,
       [ids.projectA, jobIds.a],
     );
-    await expect(service.reclaimOne({ projectId: ids.projectA })).resolves.toMatchObject({
+    await expect(service.reclaimOne({})).resolves.toMatchObject({
       kind: 'requeued',
       job: { id: jobIds.a, status: 'queued', fenceVersion: identityA.fenceVersion + 1 },
     });
 
     const claimB = await service.claim({
-      projectId: ids.projectA,
       leaseToken: leaseTokens.bob,
       leaseDurationMs: 30_000,
     });
@@ -154,7 +152,6 @@ schema.test(
 
     try {
       const claim = await service.claim({
-        projectId: ids.projectA,
         leaseToken: leaseTokens.bob,
         leaseDurationMs: 30_000,
       });
@@ -207,7 +204,6 @@ schema.test(
           prisma = createPrismaForUrl(databaseUrl);
           const service = createJobService(createUnitOfWork(prisma));
           const claim = await service.claim({
-            projectId: ids.projectA,
             leaseToken: leaseTokens.bob,
             leaseDurationMs: 30_000,
           });
@@ -244,7 +240,6 @@ schema.test(
 
     try {
       const claim = await service.claim({
-        projectId: ids.projectA,
         leaseToken: leaseTokens.bob,
         leaseDurationMs: 1_000,
       });

@@ -58,7 +58,11 @@ jobTest(
       [jobIds.d, 9],
       [jobIds.e, 9],
     ] as const) {
-      await insertQueuedJobRow(client, { id, projectId: ids.projectA, priority });
+      await insertQueuedJobRow(client, {
+        id,
+        projectId: id === jobIds.a || id === jobIds.c ? ids.projectB : ids.projectA,
+        priority,
+      });
     }
     await setJobOrdering(client, [
       { id: jobIds.a, availableOffsetMs: -20_000, createdOffsetMs: -1_000 },
@@ -71,12 +75,14 @@ jobTest(
     const claimedIds: string[] = [];
     for (const leaseToken of ['order-1', 'order-2', 'order-3', 'order-4', 'order-5']) {
       const result = await repo.claimNext({
-        projectId: ids.projectA,
         leaseToken,
         leaseDurationMs: 30_000,
       });
       expect(result.kind).toBe('claimed');
-      if (result.kind === 'claimed') claimedIds.push(result.job.id);
+      if (result.kind === 'claimed') {
+        claimedIds.push(result.job.id);
+        expect(result.identity.projectId).toBe(result.job.projectId);
+      }
     }
     expect(claimedIds).toEqual([jobIds.a, jobIds.b, jobIds.c, jobIds.d, jobIds.e]);
   },
@@ -90,7 +96,6 @@ jobTest('claimNext returns none when only future jobs exist', async ({ repo, cli
   });
   expect(
     await repo.claimNext({
-      projectId: ids.projectA,
       leaseToken: leaseTokens.alice,
       leaseDurationMs: 30_000,
     }),
@@ -109,7 +114,7 @@ schema.test(
     });
     await insertQueuedJobRow(client, {
       id: jobIds.b,
-      projectId: ids.projectA,
+      projectId: ids.projectB,
       availableOffsetMs: -1_000,
     });
     const blocker = await client.connect();
@@ -119,12 +124,15 @@ schema.test(
       await blocker.query('SELECT id FROM generation_jobs WHERE id = $1 FOR UPDATE', [jobIds.a]);
       const result = await withTx(prisma, 'read_committed', (tx) =>
         createJobRepo(tx).claimNext({
-          projectId: ids.projectA,
           leaseToken: leaseTokens.bob,
           leaseDurationMs: 30_000,
         }),
       );
-      expect(result).toMatchObject({ kind: 'claimed', job: { id: jobIds.b } });
+      expect(result).toMatchObject({
+        kind: 'claimed',
+        job: { id: jobIds.b, projectId: ids.projectB },
+        identity: { projectId: ids.projectB },
+      });
     } finally {
       await blocker.query('ROLLBACK');
       blocker.release();
@@ -207,7 +215,6 @@ schema.test(
         const identities: JobLeaseIdentity[] = [];
         for (const leaseToken of ['short-heartbeat', 'short-finish', 'short-publish']) {
           const result = await repo.claimNext({
-            projectId: ids.projectA,
             leaseToken,
             leaseDurationMs: 100,
           });
@@ -301,11 +308,11 @@ jobTest(
 );
 
 jobTest('reclaimNextExpired requeues uncancelled expired lease', async ({ repo, client }) => {
-  await insertQueuedJobRow(client, { id: jobIds.a, projectId: ids.projectA, fenceVersion: 2 });
+  await insertQueuedJobRow(client, { id: jobIds.a, projectId: ids.projectB, fenceVersion: 2 });
   await setRunning(client, jobIds.a, leaseTokens.alice, -1_000);
-  expect(await repo.reclaimNextExpired({ projectId: ids.projectA })).toMatchObject({
+  expect(await repo.reclaimNextExpired({})).toMatchObject({
     kind: 'requeued',
-    job: { id: jobIds.a, status: 'queued', fenceVersion: 3 },
+    job: { id: jobIds.a, projectId: ids.projectB, status: 'queued', fenceVersion: 3 },
   });
 });
 
@@ -317,11 +324,11 @@ jobTest(
     await setCancelRequested(client, jobIds.a);
     await insertQueuedJobRow(client, { id: jobIds.b, projectId: ids.projectA });
     await setRunning(client, jobIds.b, leaseTokens.bob, 60_000);
-    expect(await repo.reclaimNextExpired({ projectId: ids.projectA })).toMatchObject({
+    expect(await repo.reclaimNextExpired({})).toMatchObject({
       kind: 'cancelled',
       job: { id: jobIds.a, status: 'cancelled' },
     });
-    expect((await repo.reclaimNextExpired({ projectId: ids.projectA })).kind).toBe('none');
+    expect((await repo.reclaimNextExpired({})).kind).toBe('none');
   },
 );
 
@@ -339,7 +346,7 @@ schema.test(
       await blocker.query('BEGIN');
       await blocker.query('SELECT id FROM generation_jobs WHERE id = $1 FOR UPDATE', [jobIds.a]);
       const result = await withTx(prisma, 'read_committed', (tx) =>
-        createJobRepo(tx).reclaimNextExpired({ projectId: ids.projectA }),
+        createJobRepo(tx).reclaimNextExpired({}),
       );
       expect(result).toMatchObject({ kind: 'requeued', job: { id: jobIds.b } });
     } finally {
@@ -473,7 +480,6 @@ jobTest(
 
       expect(
         await repo.claimNext({
-          projectId: ids.projectA,
           leaseToken: leaseTokens.bob,
           leaseDurationMs: 30_000,
         }),
@@ -500,10 +506,27 @@ jobTest(
       expect(
         await repo.transitionRunningToTerminal({ ...staleIdentity, status: 'failed' }),
       ).toEqual({ kind: 'already_terminal', status });
-      expect(await repo.reclaimNextExpired({ projectId: ids.projectA })).toEqual({ kind: 'none' });
+      expect(await repo.reclaimNextExpired({})).toEqual({ kind: 'none' });
       expect((await repo.lockForFencedPublish(staleIdentity)).kind).toBe('lost');
       expect(await fetchJobRow(client, id)).toEqual(before);
     }
+  },
+);
+
+jobTest(
+  'owner operations reject an otherwise exact identity from another project',
+  async ({ repo, client }) => {
+    await insertQueuedJobRow(client, { id: jobIds.a, projectId: ids.projectB });
+    await setRunning(client, jobIds.a, leaseTokens.alice, 30_000);
+    const wrongProject = identity(jobIds.a);
+
+    expect((await repo.heartbeat({ ...wrongProject, leaseDurationMs: 30_000 })).kind).toBe(
+      'lost_ownership',
+    );
+    expect(
+      (await repo.transitionRunningToTerminal({ ...wrongProject, status: 'failed' })).kind,
+    ).toBe('lost_ownership');
+    expect((await repo.lockForFencedPublish(wrongProject)).kind).toBe('lost');
   },
 );
 

@@ -217,7 +217,7 @@ export function createJobRepo(tx: TxClient): JobPort {
       const rows = (await tx.$queryRawUnsafe(
         `WITH candidate AS (
             SELECT id FROM generation_jobs
-             WHERE project_id = $1 AND status = 'queued'
+             WHERE status = 'queued'
                AND available_at <= now()
              ORDER BY available_at ASC, priority DESC, created_at ASC, id ASC
              FOR UPDATE OF generation_jobs SKIP LOCKED
@@ -226,8 +226,8 @@ export function createJobRepo(tx: TxClient): JobPort {
            claimed AS (
              UPDATE generation_jobs
                 SET status = 'running',
-                    lease_token = $2,
-                    lease_expires_at = clock_timestamp() + ($3::bigint * INTERVAL '1 millisecond'),
+                    lease_token = $1,
+                    lease_expires_at = clock_timestamp() + ($2::bigint * INTERVAL '1 millisecond'),
                     fence_version = fence_version + 1,
                     updated_at = now()
               FROM candidate
@@ -235,7 +235,6 @@ export function createJobRepo(tx: TxClient): JobPort {
              RETURNING ${QUALIFIED_COLUMN_LIST}
            )
          SELECT * FROM claimed`,
-        input.projectId,
         input.leaseToken,
         BigInt(input.leaseDurationMs),
       )) as RawRow[];
@@ -243,7 +242,7 @@ export function createJobRepo(tx: TxClient): JobPort {
       if (!row) return { kind: 'none' };
       const job = toRecord(row);
       const identity: JobLeaseIdentity = {
-        projectId: input.projectId,
+        projectId: job.projectId,
         jobId: job.id,
         leaseToken: job.leaseToken ?? '',
         fenceVersion: job.fenceVersion,
@@ -467,14 +466,14 @@ export function createJobRepo(tx: TxClient): JobPort {
       return row ? { kind: 'terminalized', job: toRecord(row) } : { kind: 'lost_ownership' };
     },
 
-    async reclaimNextExpired(input: JobReclaimInput): Promise<JobReclaimResult> {
+    async reclaimNextExpired(_input: JobReclaimInput): Promise<JobReclaimResult> {
       // Reclaim the oldest expired lease for this project with SKIP LOCKED,
       // then decide fate: cancel-requested -> cancelled terminal; otherwise
       // requeue for retry with a fresh fence and zero lease.
       const rows = (await tx.$queryRawUnsafe(
         `WITH candidate AS (
             SELECT id FROM generation_jobs
-             WHERE project_id = $1 AND status = 'running'
+             WHERE status = 'running'
                AND lease_expires_at <= clock_timestamp()
              ORDER BY lease_expires_at ASC, id ASC
              FOR UPDATE OF generation_jobs SKIP LOCKED
@@ -508,7 +507,6 @@ export function createJobRepo(tx: TxClient): JobPort {
          (SELECT * FROM terminalized)
          UNION ALL
          (SELECT * FROM requeued)`,
-        input.projectId,
       )) as RawRow[];
       const row = rows[0];
       if (!row) return { kind: 'none' };
