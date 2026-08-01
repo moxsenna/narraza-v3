@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { composeWorker, workerSettingsFromEnv } from './main.js';
+import { composeWorker, workerSettingsFromEnv } from './composition.js';
 
 const env = {
   JOB_PROCESSOR_ENABLED: false,
