@@ -32,7 +32,7 @@ export async function createVerifiedSession(
 export async function createOwnedProject(
   page: Page,
 ): Promise<{ projectId: string; title: string }> {
-  const title = `Project Foundation ${randomUUID()}`;
+  const title = 'Proyek Demo Frontend';
   await page.goto('/app/proyek/baru');
   await page.locator('input[name="title"]').fill(title);
   await page.locator('input[name="jalur"][value="rough_idea"]').check();

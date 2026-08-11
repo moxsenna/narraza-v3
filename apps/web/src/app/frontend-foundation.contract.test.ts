@@ -1,21 +1,25 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 const srcRoot = resolve(import.meta.dirname, '..');
 
 export function source(relativePath: string): string {
-  try {
-    return readFileSync(resolve(srcRoot, relativePath), 'utf8');
-  } catch {
-    return '';
-  }
+  return readFileSync(resolve(srcRoot, relativePath), 'utf8');
+}
+
+function sourceExists(relativePath: string): boolean {
+  return existsSync(resolve(srcRoot, relativePath));
 }
 
 describe('frontend foundation contracts', () => {
+  test('required source inspection fails when target is missing', () => {
+    expect(() => source('components/__missing-required-source__.tsx')).toThrow();
+  });
+
   test('deferred authoring routes do not exist in PR1', () => {
-    expect(source('app/app/proyek/[projectId]/tulis/page.tsx')).toBe('');
-    expect(source('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx')).toBe('');
+    expect(sourceExists('app/app/proyek/[projectId]/tulis/page.tsx')).toBe(false);
+    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx')).toBe(false);
   });
 
   test('capability notice uses user-facing status copy', () => {

@@ -71,7 +71,14 @@ test('global and project shells plus distinct mobile sheet and tablet drawer', a
   for (const width of widths) {
     await setViewport(page, width);
     await page.goto('/app');
-    await expect(page.getByTestId('global-shell')).toBeVisible();
+    const globalShell = page.getByTestId('global-shell');
+    await expect(globalShell).toBeVisible();
+    await expect(
+      globalShell.getByRole('heading', { name: /^(Belum ada proyek|Proyekmu)$/ }),
+    ).toBeVisible();
+    await expect(page.getByTestId('project-shell')).toHaveCount(0);
+    await expect(page.getByTestId('project-sidebar')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Menu proyek' })).toHaveCount(0);
     await noOverflow(page);
     await shot(page, 'global-shell', width);
   }
@@ -89,7 +96,14 @@ test('global and project shells plus distinct mobile sheet and tablet drawer', a
   for (const width of widths) {
     await setViewport(page, width);
     await page.goto(`/app/proyek/${project.projectId}`);
-    await expect(page.getByTestId('project-shell')).toContainText(project.title);
+    const projectShell = page.getByTestId('project-shell');
+    await expect(projectShell).toBeVisible();
+    await expect(
+      projectShell.getByRole('heading', { name: project.title, exact: true }),
+    ).toBeVisible();
+    await expect(projectShell.locator('nav:visible').first()).toBeVisible();
+    await expect(page.getByTestId('global-shell')).toHaveCount(0);
+    expect(await page.locator('body').innerText()).not.toContain(project.projectId);
 
     if (width === 375) {
       await expect(page.getByRole('link', { name: 'Beranda', exact: true })).toHaveAttribute(
@@ -109,8 +123,10 @@ test('global and project shells plus distinct mobile sheet and tablet drawer', a
       const dialog = page.getByRole('dialog', { name: 'Lainnya' });
       await expect(dialog).toBeVisible();
       await expect(page.getByRole('button', { name: 'Tutup' })).toBeFocused();
-      await expect(dialog.getByText('Naskah')).toBeVisible();
-      await expect(dialog.getByText('Naskah')).not.toHaveAttribute('href');
+      await expect(
+        dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Naskah' }),
+      ).toHaveCount(1);
+      await expect(dialog.getByRole('link', { name: 'Naskah' })).toHaveCount(0);
       await expect(dialog.getByText('Kemampuan ini belum tersedia.').first()).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(dialog).toBeHidden();
