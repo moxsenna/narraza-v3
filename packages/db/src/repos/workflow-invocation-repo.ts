@@ -77,7 +77,7 @@ export function createWorkflowInvocationRepo(
   return {
     async beginAttempt(input: BeginAttemptInput): Promise<BeginAttemptPortResult> {
       await tx.$queryRawUnsafe(
-        `INSERT INTO workflow_invocations (id,project_id,job_id,stage_key,status,winner_attempt_id,fence_version,created_at,updated_at) VALUES ($1,$2,$3,$4,'running',NULL,0,now(),now()) ON CONFLICT (job_id,stage_key) DO NOTHING`,
+        `INSERT INTO workflow_invocations (id,project_id,job_id,stage_key,status,winner_attempt_id,fence_version,created_at,updated_at) VALUES ($1,$2,$3,$4,'running',NULL,0,now(),now()) ON CONFLICT DO NOTHING`,
         input.invocationId,
         input.projectId,
         input.jobId,
@@ -239,7 +239,7 @@ export function createWorkflowInvocationRepo(
         input.jobId,
         input.invocationId,
       )) as Array<{ winner_attempt_id: string | null }>;
-      if (!rows[0]) return { kind: 'conflict' };
+      if (!rows[0] || rows[0].winner_attempt_id === null) return { kind: 'conflict' };
       return {
         kind: 'classified',
         winner:
