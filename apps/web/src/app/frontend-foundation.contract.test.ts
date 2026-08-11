@@ -113,4 +113,39 @@ describe('frontend foundation contracts', () => {
     expect(drawer).toContain('<ProjectNavigation');
     expect(drawer).not.toContain('BottomSheet');
   });
+
+  test('server boundaries and authored files avoid restricted contracts', () => {
+    for (const file of [
+      'components/composites/GlobalAppShell.tsx',
+      'components/composites/ProjectAppShell.tsx',
+      'lib/frontend/capabilities.ts',
+      'lib/frontend/view-state.ts',
+      'lib/frontend/view-model.ts',
+    ])
+      expect(source(file)).not.toContain("'use client'");
+
+    const files = [
+      'components/primitives/Button.tsx',
+      'components/primitives/Input.tsx',
+      'components/composites/AppHeader.tsx',
+      'components/composites/ProjectSidebar.tsx',
+      'lib/frontend/view-model.ts',
+    ]
+      .map(source)
+      .join('\n');
+    expect(files).not.toMatch(/#[0-9a-f]{3,8}|\b(?:pink|gray|neutral|red)-\d+/i);
+    expect(source('lib/frontend/view-model.ts')).not.toMatch(
+      /token|password|rawPayload|serviceRestricted|securityDetails|internalRationale|actionsEnabled/,
+    );
+    expect(source('lib/frontend/capabilities.ts')).not.toMatch(
+      /actionsEnabled|realData\s*\?\?|NEXT_PUBLIC/,
+    );
+  });
+
+  test('logout remains direct form action', () => {
+    const header = source('components/composites/AppHeader.tsx');
+    expect(header).toContain('<form action={logoutAction}>');
+    expect(header).toContain('Keluar');
+    expect(header).not.toContain('ConfirmationDialog');
+  });
 });
