@@ -123,7 +123,7 @@ export function deriveEffectiveCapability(
   decision: ServerCapabilityDecision,
 ): EffectiveCapability {
   const enabled = decision.allowed;
-  if (declaration.actionPolicy === 'STATIC_AVAILABLE') {
+  if (declaration.actionPolicy !== 'SERVER_DERIVED') {
     throw new Error('Only SERVER_DERIVED capability accepts a server decision');
   }
   if (enabled && declaration.mode !== 'REAL') {
