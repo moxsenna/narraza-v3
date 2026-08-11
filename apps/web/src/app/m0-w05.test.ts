@@ -12,6 +12,19 @@ function source(relativePath: string): string {
   }
 }
 
+function between(sourceText: string, start: string, end: string): string {
+  const from = sourceText.indexOf(start);
+  const to = sourceText.indexOf(end, from + start.length);
+  expect(from).toBeGreaterThanOrEqual(0);
+  expect(to).toBeGreaterThan(from);
+  return sourceText.slice(from, to);
+}
+
+function expectCardArray(block: string, labels: readonly string[]) {
+  expect(block.match(/\{\s*title:/g)).toHaveLength(labels.length);
+  for (const label of labels) expect(block).toContain(`title: '${label}'`);
+}
+
 describe('M0 W0.5 public shell', () => {
   test('landing exposes exact prototype hero, CTA routes, workflow, and legal links', () => {
     const page = source('app/page.tsx');
@@ -34,6 +47,113 @@ describe('M0 W0.5 public shell', () => {
     }
 
     expect(combined).not.toContain('Masuk tanpa kata sandi');
+  });
+
+  test('landing preserves exact reference composition in canonical sections', () => {
+    const page = source('app/page.tsx');
+    const catalog = source('messages/app-id.ts');
+    const header = source('components/composites/PublicHeader.tsx');
+    const mobileMenu = source('components/composites/PublicMobileMenu.tsx');
+    const ids = ['masalah', 'cara-kerja', 'fitur', 'untuk-siapa', 'kredit', 'cta-final'];
+
+    for (const id of ids) expect(page).toContain(`id="${id}"`);
+    for (let index = 1; index < ids.length; index += 1) {
+      expect(page.indexOf(`id="${ids[index - 1]}"`)).toBeLessThan(
+        page.indexOf(`id="${ids[index]}"`),
+      );
+    }
+    expect(page.indexOf('id="cta-final"')).toBeLessThan(page.indexOf('<footer'));
+
+    for (const [label, href] of [
+      ['Cara kerja', '#cara-kerja'],
+      ['Fitur', '#fitur'],
+      ['Untuk siapa', '#untuk-siapa'],
+      ['Kredit', '#kredit'],
+    ] as const) {
+      expect(header).toContain(`['${label}', '${href}']`);
+    }
+    expect(header).toContain('<PublicMobileMenu links={links} />');
+    expect(mobileMenu).toContain('links.map(([label, href])');
+    expect(mobileMenu).toContain('href={href}');
+    expect(mobileMenu).toMatch(/\{label\}\s*<\/a>/);
+
+    const problems = between(catalog, 'problemCards: [', 'featureCards: [');
+    const features = between(catalog, 'featureCards: [', 'personaCards: [');
+    const personas = between(catalog, 'personaCards: [', 'creditTierCards: [');
+    const credits = between(catalog, 'creditTierCards: [', 'trust:');
+    expectCardArray(problems, [
+      '“Ideku berantakan.”',
+      '“AI selalu lupa cerita sebelumnya.”',
+      '“Rahasia Bab 25 bocor di Bab 3.”',
+    ]);
+    expectCardArray(features, [
+      'Fondasi Cerita',
+      'Fakta yang Dikunci',
+      'Jadwal Rahasia',
+      'Ruang Tulis',
+      'Cek Otomatis',
+      'Paket Publish',
+    ]);
+    expectCardArray(personas, [
+      'Belum pernah menulis',
+      'Punya ide kasar',
+      'Punya outline',
+      'Penulis berpengalaman',
+    ]);
+    expectCardArray(credits, ['Hemat', 'Seimbang', 'Terbaik']);
+    expect(credits).toContain("badge: 'Disarankan'");
+    expect(credits).toContain('emphasized: true');
+    expect(catalog).toContain(
+      "creditDisclosure: 'Detail kredit akan tersedia saat fitur ini diluncurkan.'",
+    );
+
+    const workflowCatalog = between(catalog, 'workflow: {', 'finalCta: {');
+    expect(workflowCatalog.match(/number: '[1-6]'/g)).toHaveLength(6);
+    for (const title of ['Ngobrol', 'Fondasi', 'Rencana', 'Tulis', 'Cek', 'Publish']) {
+      expect(workflowCatalog).toContain(`title: '${title}'`);
+    }
+
+    const problemSection = between(page, 'id="masalah"', 'id="cara-kerja"');
+    const workflowSection = between(page, 'id="cara-kerja"', 'id="fitur"');
+    const featureSection = between(page, 'id="fitur"', 'id="untuk-siapa"');
+    const personaSection = between(page, 'id="untuk-siapa"', 'id="kredit"');
+    const creditSection = between(page, 'id="kredit"', 'id="cta-final"');
+    expect(problemSection).toContain('copy.problemCards.map');
+    expect(workflowSection).toContain('copy.workflow.steps.map');
+    expect(featureSection).toContain('copy.featureCards.map');
+    expect(personaSection).toContain('copy.personaCards.map');
+    expect(creditSection).toContain('copy.creditTierCards.map');
+    for (const [section, identifier] of [
+      [problemSection, 'copy.problemCards.map'],
+      [workflowSection, 'copy.workflow.steps.map'],
+      [featureSection, 'copy.featureCards.map'],
+      [personaSection, 'copy.personaCards.map'],
+      [creditSection, 'copy.creditTierCards.map'],
+    ] as const) {
+      expect(section.match(new RegExp(identifier.replaceAll('.', '\\.'), 'g'))).toHaveLength(1);
+    }
+
+    // Scope forbidden marketing promises to landing catalog. Dashboard copy is outside Task 5.
+    const landingCatalog = between(catalog, 'landing: {', 'shell: {');
+    const landingSource = `${page}\n${landingCatalog}`;
+    expect(page).not.toContain('/app/proyek/impor');
+    expect(landingSource).not.toMatch(
+      /Sudah punya draft|Bawa draftmu|Narraza membacanya|impor(?:t)?\s+(?:draft|naskah)|(?:kredit|biaya)[^.\n]*(?:dikembalikan|kembali|refund)|(?:dikembalikan|refund)[^.\n]*(?:kredit|biaya)/i,
+    );
+    expect(landingSource).not.toContain('PR1 tidak menampilkan angka kredit');
+  });
+
+  test('public mobile menu exposes dialog semantics and accessible close behavior', () => {
+    const menu = source('components/composites/PublicMobileMenu.tsx');
+
+    expect(menu).toContain("'use client'");
+    expect(menu).toContain('aria-haspopup="dialog"');
+    expect(menu).toContain('aria-expanded={open}');
+    expect(menu).toContain('<dialog');
+    expect(menu).toContain('aria-label="Navigasi utama mobile"');
+    expect(menu).toContain('aria-label="Tutup menu"');
+    expect(menu).toMatch(/event\.key\s*===\s*'Escape'/);
+    expect(menu).toContain('previouslyFocused.current?.focus()');
   });
 
   test('authenticated layout guards once and renders exact disabled navigation', () => {
