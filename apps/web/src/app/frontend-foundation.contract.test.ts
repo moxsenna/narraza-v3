@@ -24,4 +24,52 @@ describe('frontend foundation contracts', () => {
     expect(notice).toContain('Segera tersedia');
     expect(notice).not.toMatch(/>\{capability\.mode\}</);
   });
+
+  test('existing auth behavior preserves action identifiers labels and current pending guard', () => {
+    const files = [
+      'LoginForm.tsx',
+      'RegisterForm.tsx',
+      'ForgotPasswordForm.tsx',
+      'NewPasswordForm.tsx',
+      'ConfirmVerificationForm.tsx',
+      'ResendVerificationForm.tsx',
+    ]
+      .map((file) => source(`components/auth/${file}`))
+      .join('\n');
+
+    for (const label of [
+      'Alamat email',
+      'Kata sandi',
+      'Ulangi kata sandi',
+      'Buat akun',
+      'Verifikasi & masuk',
+      'Masuk',
+      'Lupa kata sandi?',
+      'Kata sandi baru',
+      'Ulangi kata sandi baru',
+      'Simpan kata sandi baru',
+    ])
+      expect(files).toContain(label);
+    for (const action of [
+      'loginAction',
+      'registerAction',
+      'requestPasswordResetAction',
+      'completeResetAction',
+      'completeVerificationAction',
+      'resendVerificationAction',
+    ])
+      expect(files).toContain(action);
+    expect(files).toContain('useActionState');
+    const fields = source('components/auth/fields.tsx');
+    expect(fields).toContain('useFormStatus');
+    expect(fields).toContain('disabled={pending}');
+  });
+
+  test('resend verification prevents duplicate submit while pending', () => {
+    const resend = source('components/auth/ResendVerificationForm.tsx');
+    expect(resend).toContain("import { useFormStatus } from 'react-dom'");
+    expect(resend).toContain('const { pending } = useFormStatus()');
+    expect(resend).toContain('disabled={pending}');
+    expect(resend).toContain("pending ? 'Mengirim…' : 'Kirim ulang'");
+  });
 });
