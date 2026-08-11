@@ -36,6 +36,39 @@ export interface JobLeaseIdentity {
   readonly fenceVersion: number;
 }
 
+export type WorkflowInvocationStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+export type GenerationAttemptStatus = 'started' | 'succeeded' | 'failed' | 'cancelled';
+
+export interface WorkflowInvocationRecord {
+  readonly id: string;
+  readonly projectId: string;
+  readonly jobId: string;
+  readonly stageKey: string;
+  readonly status: WorkflowInvocationStatus;
+  readonly winnerAttemptId: string | null;
+  readonly fenceVersion: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+export interface GenerationAttemptRecord {
+  readonly id: string;
+  readonly projectId: string;
+  readonly jobId: string;
+  readonly invocationId: string;
+  readonly ordinal: number;
+  readonly status: GenerationAttemptStatus;
+  readonly providerRequestId: string | null;
+  readonly resultHash: string | null;
+  readonly startedAt: Date;
+  readonly finishedAt: Date | null;
+  readonly schemaVersion: number;
+  readonly payload: JsonObject;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
 export interface ProjectRecord {
   readonly id: string;
   readonly ownerUserId: string;

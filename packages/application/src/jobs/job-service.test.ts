@@ -93,6 +93,7 @@ function makeHarness(options: HarnessOptions = {}) {
     transitionRunningToTerminal: vi.fn(),
     reclaimNextExpired: vi.fn(),
     lockForFencedPublish: vi.fn(),
+    lockLiveOwnerForAttempt: vi.fn(),
   } satisfies JobPort;
 
   const ledgerPort = {
