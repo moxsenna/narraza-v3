@@ -135,6 +135,15 @@ export {
   createWorkflowInvocationService,
   type WorkflowInvocationService,
 } from './workflows/workflow-invocation-service.js';
+export {
+  createThreePhaseAttemptHarness,
+  type ExecutorOutcome,
+  type ValidatorOutcome,
+  type ThreePhaseEvent,
+  type ThreePhaseAttemptResult,
+  type ThreePhaseAttemptDependencies,
+  type ThreePhaseAttemptHarness,
+} from './workflows/three-phase-attempt.js';
 
 // Namespace for the auth service + helpers.
 export * as auth from './auth/index.js';
