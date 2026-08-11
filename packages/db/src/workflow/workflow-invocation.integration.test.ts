@@ -294,7 +294,7 @@ suite.test(
 );
 
 suite.test(
-  'stale owner and cancellation precedence commit lifecycle usage without winner',
+  'late-attempt: stale owner and cancellation precedence commit lifecycle usage without winner',
   async ({ client, databaseUrl }) => {
     await seedUsersAndProjects(client);
     await client.query(

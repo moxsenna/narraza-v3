@@ -9,6 +9,7 @@ import {
 import type { Pool } from 'pg';
 import { expect } from 'vitest';
 import { createUnitOfWork } from '../unit-of-work.js';
+import { createProjectRepo } from '../repos/project-repo.js';
 import {
   createPrismaForUrl,
   insertQueuedJobRow,
@@ -168,6 +169,86 @@ suite.test(
       [jobId, `workflow-attempt-validated:${invocationId}:${attemptId}`],
     );
     expect(final.rows[0]).toEqual({ status: 'succeeded', sentinel: 1 });
+    await prisma.$disconnect();
+  },
+);
+
+suite.test(
+  'tombstone-mid-attempt: project-lock writer wins before Tx B so cost commits without winner or publish',
+  async ({ client, databaseUrl }) => {
+    await seedAttemptTest(client);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const uow = createUnitOfWork(prisma);
+    const executorEntered = wait();
+    const executorGate = wait();
+    const validator = async () => ({ kind: 'valid' as const });
+    const harness = createThreePhaseAttemptHarness({
+      workflow: createWorkflowInvocationService(uow),
+      jobs: createJobService(uow),
+      executor: async () => {
+        executorEntered.release();
+        await executorGate.promise;
+        return billableOutcome;
+      },
+      validator,
+    });
+    const running = harness.run(harnessInput);
+    await executorEntered.promise;
+    await prisma.$transaction(async (tx) => {
+      const project = await createProjectRepo(tx).lockForUpdate(ids.projectA);
+      expect(project?.deletedAt).toBeNull();
+      await tx.$executeRaw`UPDATE projects SET deleted_at=now() WHERE id=${ids.projectA}`;
+    });
+    executorGate.release();
+
+    await expect(running).resolves.toMatchObject({
+      kind: 'finalized_without_publish',
+      winner: 'project_tombstoned',
+    });
+    expect(await durableSnapshot(client)).toMatchObject({
+      status: 'running',
+      winner_attempt_id: null,
+      usage: 1,
+      sentinel: 0,
+    });
+    await prisma.$disconnect();
+  },
+);
+
+suite.test(
+  'tombstone-after-winner denies Tx C callback and job success with project-lock ordering',
+  async ({ client, databaseUrl }) => {
+    await seedAttemptTest(client);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const uow = createUnitOfWork(prisma);
+    const workflow = createWorkflowInvocationService(uow);
+    expect(await workflow.beginAttempt(harnessInput)).toMatchObject({ kind: 'started' });
+    expect(
+      await workflow.finalizeAttempt({
+        ...harnessInput,
+        ...billableOutcome,
+      }),
+    ).toMatchObject({ kind: 'finalized', winner: 'selected' });
+
+    await prisma.$transaction(async (tx) => {
+      const project = await createProjectRepo(tx).lockForUpdate(ids.projectA);
+      expect(project?.deletedAt).toBeNull();
+      await tx.$executeRaw`UPDATE projects SET deleted_at=now() WHERE id=${ids.projectA}`;
+    });
+
+    let callbackCalls = 0;
+    await expect(
+      createJobService(uow).withFencedPublish(harnessInput, async () => {
+        callbackCalls++;
+      }),
+    ).resolves.toEqual({ kind: 'project_tombstoned' });
+    expect(callbackCalls).toBe(0);
+    expect(await durableSnapshot(client)).toMatchObject({
+      status: 'running',
+      winner_attempt_id: attemptId,
+      usage: 1,
+      sentinel: 0,
+    });
     await prisma.$disconnect();
   },
 );

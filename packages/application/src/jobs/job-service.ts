@@ -78,6 +78,7 @@ export interface FencedPublishContext {
 
 export type FencedPublishResult =
   | { readonly kind: 'published'; readonly job: GenerationJobRecord }
+  | { readonly kind: 'project_tombstoned' }
   | { readonly kind: 'lost' }
   | { readonly kind: 'already_terminal'; readonly status: TerminalJobStatus }
   | { readonly kind: 'lost_ownership' }
@@ -234,6 +235,11 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
     async withFencedPublish(identity, publish) {
       try {
         return await unitOfWork.execute<FencedPublishResult>(async (ports) => {
+          const project = await ports.project.lockForUpdate(identity.projectId);
+          if (project === null || project.deletedAt !== null) {
+            return { kind: 'project_tombstoned' };
+          }
+
           const lock = await ports.job.lockForFencedPublish(identity);
           if (lock.kind === 'lost') return { kind: 'lost' };
 
