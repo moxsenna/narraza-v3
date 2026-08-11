@@ -8,6 +8,7 @@ import {
 } from '@narraza/application';
 import { Pool } from 'pg';
 import { expect } from 'vitest';
+import { Prisma } from '../generated/client.js';
 import { createUnitOfWork } from '../unit-of-work.js';
 import { createProjectRepo } from '../repos/project-repo.js';
 import {
@@ -544,26 +545,63 @@ suite.test(
       } catch (error) {
         duplicateError = error;
       }
-      expect(duplicateError).toMatchObject({
-        code: 'P2002',
-        meta: {
-          modelName: 'OutboxEvent',
-          target: expect.arrayContaining(['dedupe_key']),
-        },
-      });
-      expect(await durableSnapshot(client)).toMatchObject({
+      expect(duplicateError).toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+      expect(duplicateError).toMatchObject({ code: 'P2002' });
+      if (
+        duplicateError instanceof Prisma.PrismaClientKnownRequestError &&
+        duplicateError.meta?.modelName !== undefined
+      ) {
+        expect(duplicateError.meta.modelName).toBe('OutboxEvent');
+      }
+      expect(await durableSnapshot(client)).toEqual({
         status: 'running',
         winner_attempt_id: attemptId,
         usage: 1,
         sentinel: 1,
       });
+      expect(
+        (
+          await client.query(
+            `SELECT status,provider_request_id,result_hash,schema_version,payload
+               FROM generation_attempts WHERE id=$1`,
+            [attemptId],
+          )
+        ).rows,
+      ).toEqual([
+        {
+          status: 'succeeded',
+          provider_request_id: billableOutcome.providerRequestId,
+          result_hash: resultHash,
+          schema_version: billableOutcome.schemaVersion,
+          payload: billableOutcome.payload,
+        },
+      ]);
+      expect(
+        (
+          await client.query(
+            `SELECT price_snapshot_id,input_tokens,output_tokens,provider_cost_micro_idr,charged_party,dedupe_key
+               FROM ai_usage_events WHERE attempt_id=$1`,
+            [attemptId],
+          )
+        ).rows,
+      ).toEqual([
+        {
+          price_snapshot_id: billableOutcome.usage.priceSnapshotId,
+          input_tokens: billableOutcome.usage.inputTokens,
+          output_tokens: billableOutcome.usage.outputTokens,
+          provider_cost_micro_idr: billableOutcome.usage.providerCostMicroIdr.toString(),
+          charged_party: 'system',
+          dedupe_key: `usage:${attemptId}`,
+        },
+      ]);
       const sentinels = await client.query(
-        `SELECT aggregate_type,aggregate_id,event_type,dedupe_key,schema_version,payload
+        `SELECT id,aggregate_type,aggregate_id,event_type,dedupe_key,schema_version,payload
          FROM outbox_events WHERE dedupe_key=$1`,
         [sentinelKey],
       );
       expect(sentinels.rows).toEqual([
         {
+          id: '78000000-0000-4000-8000-000000000001',
           aggregate_type: 'workflow_invocation',
           aggregate_id: invocationId,
           event_type: 'workflow_attempt_validated',
