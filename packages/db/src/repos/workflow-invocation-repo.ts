@@ -176,6 +176,26 @@ export function createWorkflowInvocationRepo(
       attempt: GenerationAttemptRecord,
       allowSelection: boolean,
     ): Promise<WinnerClassificationResult> {
+      if (!allowSelection) {
+        const replay = (await tx.$queryRawUnsafe(
+          `SELECT winner_attempt_id FROM workflow_invocations
+            WHERE project_id=$1 AND job_id=$2 AND id=$3`,
+          input.projectId,
+          input.jobId,
+          input.invocationId,
+        )) as Array<{ winner_attempt_id: string | null }>;
+        if (!replay[0]) return { kind: 'not_authorized' };
+        return {
+          kind: 'classified',
+          winner:
+            replay[0].winner_attempt_id === null
+              ? 'not_selected'
+              : replay[0].winner_attempt_id === input.attemptId
+                ? 'selected_replay'
+                : 'already_won_by_other',
+        };
+      }
+
       const projects = (await tx.$queryRawUnsafe(
         `SELECT deleted_at FROM projects WHERE id=$1 FOR UPDATE`,
         input.projectId,

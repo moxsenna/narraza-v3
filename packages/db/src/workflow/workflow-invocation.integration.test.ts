@@ -323,6 +323,10 @@ suite.test(
       kind: 'finalized',
       winner: 'cancelled',
     });
+    expect(await finalize(attemptA, leaseTokens.stale)).toMatchObject({
+      kind: 'replayed',
+      winner: 'not_selected',
+    });
     expect(await finalize(attemptB, leaseTokens.alice)).toMatchObject({
       kind: 'finalized',
       winner: 'cancelled',
@@ -332,6 +336,131 @@ suite.test(
       [invocationId],
     );
     expect(snapshot.rows[0]).toEqual({ winner_attempt_id: null, usage: 2 });
+    await prisma.$disconnect();
+  },
+);
+
+suite.test(
+  'replay matrix: divergent preexisting usage rolls back fresh finalization',
+  async ({ client, databaseUrl }) => {
+    await seedUsersAndProjects(client);
+    await client.query(
+      `INSERT INTO model_price_snapshots (id,provider_id,requested_model_id,resolved_model_id,input_rate_micro_idr,output_rate_micro_idr,currency,effective_at,schema_version,payload,created_at) VALUES ('price-1','provider','model','model',1,1,'IDR',now(),1,'{}',now())`,
+    );
+    await insertQueuedJobRow(client, { id: jobId, projectId: ids.projectA });
+    await setRunning(client, jobId, leaseTokens.alice, 60_000);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const service = createWorkflowInvocationService(createUnitOfWork(prisma));
+    const identity = {
+      projectId: ids.projectA,
+      jobId,
+      leaseToken: leaseTokens.alice,
+      fenceVersion: 0,
+    };
+    await service.beginAttempt({
+      ...identity,
+      invocationId,
+      attemptId: attemptA,
+      stageKey: 'writer',
+      schemaVersion: 1,
+      payload: {},
+    });
+    await client.query(
+      `INSERT INTO ai_usage_events (id,project_id,job_id,attempt_id,price_snapshot_id,input_tokens,output_tokens,provider_cost_micro_idr,charged_party,dedupe_key,created_at) VALUES ('usage-forged',$1,$2,$3,'price-1',99,99,99,'user',$4,now())`,
+      [ids.projectA, jobId, attemptA, `usage:${attemptA}`],
+    );
+    const result = await service.finalizeAttempt({
+      ...identity,
+      invocationId,
+      attemptId: attemptA,
+      status: 'succeeded',
+      providerRequestId: null,
+      resultHash: null,
+      schemaVersion: 1,
+      payload: { done: true },
+      usage: {
+        priceSnapshotId: 'price-1',
+        inputTokens: 1,
+        outputTokens: 2,
+        providerCostMicroIdr: 3n,
+      },
+    });
+    expect(result).toEqual({ kind: 'conflict' });
+    const snapshot = await client.query(
+      `SELECT ga.status,ga.finished_at,wi.winner_attempt_id,(SELECT count(*) FROM ai_usage_events)::int AS usage,(SELECT charged_party FROM ai_usage_events LIMIT 1) AS charged_party,(SELECT count(*) FROM credit_reservations)::int AS reservations,(SELECT count(*) FROM credit_ledger)::int AS ledger FROM generation_attempts ga JOIN workflow_invocations wi ON wi.id=ga.invocation_id WHERE ga.id=$1`,
+      [attemptA],
+    );
+    expect(snapshot.rows[0]).toMatchObject({
+      status: 'started',
+      finished_at: null,
+      winner_attempt_id: null,
+      usage: 1,
+      charged_party: 'user',
+      reservations: 0,
+      ledger: 0,
+    });
+    await prisma.$disconnect();
+  },
+);
+
+suite.test(
+  'replay matrix: terminal matching missing usage inserts once without selecting winner',
+  async ({ client, databaseUrl }) => {
+    await seedUsersAndProjects(client);
+    await client.query(
+      `INSERT INTO model_price_snapshots (id,provider_id,requested_model_id,resolved_model_id,input_rate_micro_idr,output_rate_micro_idr,currency,effective_at,schema_version,payload,created_at) VALUES ('price-1','provider','model','model',1,1,'IDR',now(),1,'{}',now())`,
+    );
+    await insertQueuedJobRow(client, { id: jobId, projectId: ids.projectA });
+    await setRunning(client, jobId, leaseTokens.alice, 60_000);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const service = createWorkflowInvocationService(createUnitOfWork(prisma));
+    const identity = {
+      projectId: ids.projectA,
+      jobId,
+      leaseToken: leaseTokens.alice,
+      fenceVersion: 0,
+    };
+    await service.beginAttempt({
+      ...identity,
+      invocationId,
+      attemptId: attemptA,
+      stageKey: 'writer',
+      schemaVersion: 1,
+      payload: {},
+    });
+    await client.query(
+      `UPDATE generation_attempts SET status='succeeded',finished_at=now(),payload='{"done":true}'::jsonb WHERE id=$1`,
+      [attemptA],
+    );
+    const input = {
+      ...identity,
+      invocationId,
+      attemptId: attemptA,
+      status: 'succeeded' as const,
+      providerRequestId: null,
+      resultHash: null,
+      schemaVersion: 1,
+      payload: { done: true },
+      usage: {
+        priceSnapshotId: 'price-1',
+        inputTokens: 1,
+        outputTokens: 2,
+        providerCostMicroIdr: 3n,
+      },
+    };
+    expect(await service.finalizeAttempt(input)).toMatchObject({
+      kind: 'replayed',
+      winner: 'not_selected',
+    });
+    expect(await service.finalizeAttempt(input)).toMatchObject({
+      kind: 'replayed',
+      winner: 'not_selected',
+    });
+    const snapshot = await client.query(
+      `SELECT winner_attempt_id,(SELECT count(*) FROM ai_usage_events)::int AS usage FROM workflow_invocations WHERE id=$1`,
+      [invocationId],
+    );
+    expect(snapshot.rows[0]).toEqual({ winner_attempt_id: null, usage: 1 });
     await prisma.$disconnect();
   },
 );

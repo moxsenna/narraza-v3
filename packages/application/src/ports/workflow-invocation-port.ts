@@ -48,7 +48,8 @@ export type WinnerOutcome =
   | 'ineligible_owner'
   | 'cancelled'
   | 'project_tombstoned'
-  | 'attempt_failed';
+  | 'attempt_failed'
+  | 'not_selected';
 
 export type FinalizeAttemptResult =
   | {

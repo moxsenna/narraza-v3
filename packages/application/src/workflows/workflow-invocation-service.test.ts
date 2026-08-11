@@ -78,6 +78,7 @@ interface HarnessOptions {
     | 'cancelled'
     | 'project_tombstoned'
     | 'attempt_failed'
+    | 'not_selected'
     | 'conflict'
     | 'not_authorized';
   retryFinalizeOnce?: boolean;
@@ -259,6 +260,19 @@ describe('workflow invocation service Tx B', () => {
       ]);
     },
   );
+
+  it('returns explicit not_selected for exact terminal replay with no invocation winner', async () => {
+    const h = harness({ finalize: 'replayed', usage: 'replayed', winner: 'not_selected' });
+    expect(await h.service.finalizeAttempt(finalizeInput)).toMatchObject({
+      kind: 'replayed',
+      winner: 'not_selected',
+    });
+    expect(h.workflow.classifyWinner).toHaveBeenCalledWith(
+      finalizeInput,
+      expect.any(Object),
+      false,
+    );
+  });
 
   it.each([
     ['attempt semantic conflict', { finalize: 'conflict' }],
