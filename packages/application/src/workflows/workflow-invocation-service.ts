@@ -45,6 +45,7 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
           const classified = await ports.workflowInvocation.classifyWinner(
             input,
             finalized.attempt,
+            finalized.kind === 'finalized',
           );
           if (classified.kind === 'conflict') throw new FinalizeRollback({ kind: 'conflict' });
           if (classified.kind === 'not_authorized') return classified;

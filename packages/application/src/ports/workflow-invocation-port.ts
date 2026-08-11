@@ -83,6 +83,7 @@ export interface WorkflowInvocationPort {
   classifyWinner(
     input: FinalizeAttemptInput,
     attempt: GenerationAttemptRecord,
+    allowSelection: boolean,
   ): Promise<WinnerClassificationResult>;
 }
 
