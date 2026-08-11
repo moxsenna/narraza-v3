@@ -35,20 +35,33 @@ export function createAiUsagePort(tx: TxClient, allocateId: () => string): AiUsa
            provider_cost_micro_idr,charged_party,dedupe_key,created_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'system',$9,now())
          ON CONFLICT (dedupe_key) DO NOTHING RETURNING dedupe_key`,
-        allocateId(), attempt.projectId, attempt.jobId, attempt.id, metrics.priceSnapshotId,
-        metrics.inputTokens, metrics.outputTokens, metrics.providerCostMicroIdr, dedupeKey,
+        allocateId(),
+        attempt.projectId,
+        attempt.jobId,
+        attempt.id,
+        metrics.priceSnapshotId,
+        metrics.inputTokens,
+        metrics.outputTokens,
+        metrics.providerCostMicroIdr,
+        dedupeKey,
       )) as Array<{ dedupe_key: string }>;
       if (inserted[0]) return { kind: 'appended' };
       const rows = (await tx.$queryRawUnsafe(
         `SELECT project_id,job_id,attempt_id,price_snapshot_id,input_tokens,output_tokens,
                 provider_cost_micro_idr,charged_party,dedupe_key
-           FROM ai_usage_events WHERE dedupe_key=$1`, dedupeKey,
+           FROM ai_usage_events WHERE dedupe_key=$1`,
+        dedupeKey,
       )) as UsageRow[];
       const row = rows[0];
-      const equal = row?.project_id === attempt.projectId && row.job_id === attempt.jobId &&
-        row.attempt_id === attempt.id && row.price_snapshot_id === metrics.priceSnapshotId &&
-        row.input_tokens === metrics.inputTokens && row.output_tokens === metrics.outputTokens &&
-        row.provider_cost_micro_idr === metrics.providerCostMicroIdr && row.charged_party === 'system';
+      const equal =
+        row?.project_id === attempt.projectId &&
+        row.job_id === attempt.jobId &&
+        row.attempt_id === attempt.id &&
+        row.price_snapshot_id === metrics.priceSnapshotId &&
+        row.input_tokens === metrics.inputTokens &&
+        row.output_tokens === metrics.outputTokens &&
+        row.provider_cost_micro_idr === metrics.providerCostMicroIdr &&
+        row.charged_party === 'system';
       return equal ? { kind: 'replayed' } : { kind: 'conflict' };
     },
   };

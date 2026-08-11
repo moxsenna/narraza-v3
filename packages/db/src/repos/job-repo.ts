@@ -534,9 +534,7 @@ export function createJobRepo(tx: TxClient): JobPort {
       return row ? { kind: 'locked', job: toRecord(row) } : { kind: 'lost' };
     },
 
-    async lockLiveOwnerForAttempt(
-      identity: JobLeaseIdentity,
-    ): Promise<JobLiveOwnerLockResult> {
+    async lockLiveOwnerForAttempt(identity: JobLeaseIdentity): Promise<JobLiveOwnerLockResult> {
       const rows = (await tx.$queryRawUnsafe(
         `SELECT ${COLUMN_LIST}
            FROM generation_jobs
