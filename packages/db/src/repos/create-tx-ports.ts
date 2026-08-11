@@ -1,5 +1,6 @@
 import type { TxPorts } from '@narraza/application';
 import { dbNow } from '../db-now.js';
+import { createAiUsagePort } from './ai-usage-port.js';
 import { createAuditPort } from './audit-port.js';
 import { createChangeSetRepo } from './change-set-repo.js';
 import { createCharacterRepo } from './character-repo.js';
@@ -19,6 +20,7 @@ import type { TxClient } from './tx-client.js';
 import { createWorkflowInvocationRepo } from './workflow-invocation-repo.js';
 
 export function createTxPorts(tx: TxClient): TxPorts {
+  const allocateId = () => crypto.randomUUID();
   const workflowInvocation = createWorkflowInvocationRepo(tx);
   return {
     project: createProjectRepo(tx),
@@ -38,8 +40,8 @@ export function createTxPorts(tx: TxClient): TxPorts {
     job: createJobRepo(tx),
     workflowInvocation,
     generationAttempt: workflowInvocation,
-    aiUsage: undefined as never,
+    aiUsage: createAiUsagePort(tx, allocateId),
     dbNow: () => dbNow(tx),
-    allocateId: () => crypto.randomUUID(),
+    allocateId,
   };
 }
