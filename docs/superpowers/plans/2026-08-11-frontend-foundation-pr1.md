@@ -4,13 +4,13 @@
 
 **Goal:** Membangun foundation frontend PR1 yang typed, accessible, responsive, dan setara referensi untuk landing, auth, global shell, serta project shell tanpa mengubah capability backend atau perilaku M2.
 
-**Architecture:** Tailwind v4 CSS-first di `globals.css` menjadi runtime source token. Server Component tetap default; client boundary hanya hook native `<dialog>`, kontrol mobile `Lainnya`, dan leaf pathname navigation untuk `aria-current`. Root authenticated layout menjaga satu auth guard serta direct logout; nested project layout memakai existing owner-scoped `getMyProject(projectId)` untuk identity dan `notFound()`.
+**Architecture:** Tailwind v4 CSS-first di `globals.css` menjadi runtime source token. Server Component tetap default; client boundary hanya hook native `<dialog>`, kontrol mobile `Lainnya`, tablet project navigation drawer, dan leaf pathname navigation untuk `aria-current`. Root authenticated layout menjaga satu auth guard serta direct logout; nested project layout memakai existing owner-scoped `getMyProject(projectId)` untuk identity dan `notFound()`.
 
 **Tech Stack:** Next.js 16.2.10 App Router, React 19.2.7, TypeScript 5.9.3 strict, Tailwind CSS 4.3.3 CSS-first, `next/font/google`, native HTML `<dialog>`, Vitest 4.1.10, Playwright 1.61.1, ESLint 10.7.0, Prettier 3.9.6, dependency-cruiser 18.1.0, pnpm 11.9.0.
 
 ## Global Constraints
 
-- Kerja hanya di `D:\Coding\Narraza Fix\Narraza v3\.worktrees\feat-frontend-foundation`. Primary checkout tidak disentuh.
+- Kerja hanya di `D:\Coding\Narraza Fix\Narraza v3\.worktrees\feat-frontend-foundation`. Primary checkout tidak disentuh. Satu-satunya command terhadap primary pada final gate adalah read-only `git status --short` dan `git hash-object` untuk membuktikan dirty baseline tetap identik.
 - PR1 saja: tokens/fonts, primitive yang dipakai PR1, composite landing/auth/shell, capability metadata, exact orthogonal state types, small serializable ViewModel, landing/auth parity, distinct shells, responsive checks, evidence.
 - Tidak menambah package atau component framework. `package.json`, `pnpm-lock.yaml`, dan `playwright.config.ts` tidak berubah.
 - Gunakan variable font `Plus_Jakarta_Sans` (`400–800`) dan `Lora` (supported variable range `400–700`) melalui `next/font/google`; jangan gunakan static weight arrays. Bila focused build membuktikan network unavailable, hentikan task dan laporkan blocker; jangan membuat fallback architecture.
@@ -43,7 +43,7 @@
 - Create: `apps/web/src/components/composites/use-native-dialog.ts`, `ConfirmationDialog.tsx`, `BottomSheet.tsx`, `dialog.contract.test.ts`.
 - Create: `apps/web/src/lib/frontend/capabilities.ts`, `capabilities.test.ts`, `view-state.ts`, `view-state.test.ts`, `view-model.ts`, `view-model.test.ts`.
 - Create: `apps/web/src/app/frontend-foundation.contract.test.ts` pada Task 4; semua task berikut mengubah file yang sudah ada.
-- Create: `apps/web/src/components/composites/BrandMark.tsx`, `PublicHeader.tsx`, `CapabilityNotice.tsx`, `AppHeader.tsx`, `GlobalAppShell.tsx`, `ProjectAppShell.tsx`, `ProjectSidebar.tsx`, `MobileBottomNav.tsx`, `MobileMoreControl.tsx`, `MobileMoreSheet.tsx`, `RouteAwareNavLink.tsx`.
+- Create: `apps/web/src/components/composites/BrandMark.tsx`, `PublicHeader.tsx`, `PublicMobileMenu.tsx`, `CapabilityNotice.tsx`, `AppHeader.tsx`, `GlobalAppShell.tsx`, `ProjectAppShell.tsx`, `ProjectSidebar.tsx`, `ProjectNavigationDrawer.tsx`, `MobileBottomNav.tsx`, `MobileMoreControl.tsx`, `MobileMoreSheet.tsx`, `RouteAwareNavLink.tsx`.
 - Modify: `apps/web/src/components/BrandMark.tsx`, `apps/web/src/app/page.tsx`, `apps/web/src/messages/app-id.ts`, `apps/web/src/components/auth/AuthCard.tsx`, `apps/web/src/components/auth/fields.tsx`, `apps/web/src/components/auth/ResendVerificationForm.tsx`.
 - Modify: `apps/web/src/app/app/layout.tsx`, `apps/web/src/app/app/page.tsx`, `apps/web/src/app/app/proyek/baru/page.tsx`, `apps/web/src/app/m0-w05.test.ts`.
 - Create: `apps/web/src/app/app/proyek/[projectId]/layout.tsx`.
@@ -357,6 +357,12 @@ test('keeps protected declarations separate from server-derived effective state'
       reasonCode: 'AVAILABLE',
     }),
   ).toThrow('Only REAL capability can derive an enabled primary action');
+  expect(() =>
+    deriveEffectiveCapability(declaration, {
+      allowed: false,
+      reasonCode: 'AVAILABLE',
+    }),
+  ).toThrow('Disabled primary action requires an unavailable reason');
 });
 ```
 
@@ -386,7 +392,7 @@ const staticAvailable = (key: CapabilityKey, label: string) => declare(key, labe
 const serverDerived = (key: CapabilityKey, label: string) => declare(key, label, 'REAL', 'PREREQUISITE_MISSING', 'SERVER_DERIVED');
 const presentation = (key: CapabilityKey, label: string, reasonCode: CapabilityReasonCode = 'BACKEND_NOT_AVAILABLE') => declare(key, label, 'PRESENTATION', reasonCode, 'UNAVAILABLE');
 const disabled = (key: CapabilityKey, label: string, reasonCode: CapabilityReasonCode) => declare(key, label, 'DISABLED', reasonCode, 'UNAVAILABLE');
-export function deriveEffectiveCapability(declaration: CapabilityDeclaration, decision: ServerCapabilityDecision): EffectiveCapability { const enabled = decision.allowed; if (enabled && declaration.mode !== 'REAL') throw new Error('Only REAL capability can derive an enabled primary action'); if (enabled && decision.reasonCode !== 'AVAILABLE') throw new Error('Enabled primary action requires AVAILABLE reason'); return Object.freeze({ key: declaration.key, mode: declaration.mode, reasonCode: decision.reasonCode, primaryAction: Object.freeze({ label: declaration.primaryAction.label, enabled }) }); }
+export function deriveEffectiveCapability(declaration: CapabilityDeclaration, decision: ServerCapabilityDecision): EffectiveCapability { const enabled = decision.allowed; if (enabled && declaration.mode !== 'REAL') throw new Error('Only REAL capability can derive an enabled primary action'); if (enabled && decision.reasonCode !== 'AVAILABLE') throw new Error('Enabled primary action requires AVAILABLE reason'); if (!enabled && decision.reasonCode === 'AVAILABLE') throw new Error('Disabled primary action requires an unavailable reason'); return Object.freeze({ key: declaration.key, mode: declaration.mode, reasonCode: decision.reasonCode, primaryAction: Object.freeze({ label: declaration.primaryAction.label, enabled }) }); }
 export const CAPABILITIES = {
   'landing.view':staticAvailable('landing.view','Mulai dari ide'), 'auth.login':staticAvailable('auth.login','Masuk'), 'auth.register':staticAvailable('auth.register','Buat akun'), 'auth.password-reset':staticAvailable('auth.password-reset','Simpan kata sandi baru'), 'auth.verification':staticAvailable('auth.verification','Verifikasi & masuk'), 'legal.privacy':staticAvailable('legal.privacy','Baca Kebijakan Privasi'), 'legal.terms':staticAvailable('legal.terms','Baca Ketentuan Layanan'),
   'app.dashboard.view':serverDerived('app.dashboard.view','Buat proyek'), 'app.project.create':serverDerived('app.project.create','Buat proyek'), 'app.project.import':disabled('app.project.import','Impor draft','IMPORT_OUT_OF_SCOPE'), 'app.credit.view':presentation('app.credit.view','Lihat penggunaan'), 'app.settings.view':presentation('app.settings.view','Buka pengaturan'),
@@ -438,7 +444,13 @@ describe('frontend foundation contracts',()=>{test('deferred authoring routes do
 
 // CapabilityNotice.tsx
 import{Badge,LinkButton,Surface}from'../primitives';import{CAPABILITIES,CAPABILITY_REASON_MESSAGES}from'../../lib/frontend/capabilities';import type{CapabilityNoticeViewModel}from'../../lib/frontend/view-model';
-export function CapabilityNotice({notice}:{notice:CapabilityNoticeViewModel}){const capability=CAPABILITIES[notice.capabilityKey];if(capability.mode==='REAL')return null;return <Surface className="rounded-lg border border-default p-4"><Badge tone="warning">{capability.mode}</Badge><p className="mt-2 text-sm text-secondary">{CAPABILITY_REASON_MESSAGES[notice.reasonCode]}</p>{notice.nextAction?<LinkButton aria-label={`${capability.primaryAction.label}: ${notice.nextAction.label}`} className="mt-3" variant="secondary" href={notice.nextAction.href}>{notice.nextAction.label}</LinkButton>:null}</Surface>;}
+export function CapabilityNotice({notice}:{notice:CapabilityNoticeViewModel}){const capability=CAPABILITIES[notice.capabilityKey];if(capability.mode==='REAL')return null;const label=capability.mode==='PRESENTATION'?'Pratinjau fitur':'Segera tersedia';return <Surface className="rounded-lg border border-default p-4"><Badge tone="warning">{label}</Badge><p className="mt-2 text-sm text-secondary">{CAPABILITY_REASON_MESSAGES[notice.reasonCode]}</p>{notice.nextAction?<LinkButton aria-label={`${capability.primaryAction.label}: ${notice.nextAction.label}`} className="mt-3" variant="secondary" href={notice.nextAction.href}>{notice.nextAction.label}</LinkButton>:null}</Surface>;}
+```
+
+Tambah source assertion pada `frontend-foundation.contract.test.ts` agar UI notice tidak membocorkan enum implementasi:
+
+```ts
+test('capability notice uses user-facing status copy',()=>{const notice=source('components/composites/CapabilityNotice.tsx');expect(notice).toContain('Pratinjau fitur');expect(notice).toContain('Segera tersedia');expect(notice).not.toMatch(/>\{capability\.mode\}</);});
 ```
 
 - [ ] **Step 6: Green gate dan commit**
@@ -454,17 +466,24 @@ git commit -m "feat(web): add capability and presentation contracts"
 
 ### Task 5: Landing Parity dan Public Composites
 
-**Files:** Create `apps/web/src/components/composites/BrandMark.tsx`, `PublicHeader.tsx`; modify compatibility `BrandMark.tsx`, `app/page.tsx`, `messages/app-id.ts`, `m0-w05.test.ts`.
+**Files:** Create `apps/web/src/components/composites/BrandMark.tsx`, `PublicHeader.tsx`, `PublicMobileMenu.tsx`; modify compatibility `BrandMark.tsx`, `app/page.tsx`, `messages/app-id.ts`, `m0-w05.test.ts`.
 
-**Interfaces:** Produces exact sections/copy below; existing hero/workflow/legal contracts remain.
+**Interfaces:** Produces desktop anchors `Cara kerja`, `Fitur`, `Untuk siapa`, `Kredit`, accessible mobile menu, dan canonical section order `masalah` → `cara-kerja` → `fitur` → `untuk-siapa` → `kredit` → final CTA → footer. Komposisi reference wajib tetap: exact 3 problem cards, 6 workflow steps dalam urutan canonical, 6 feature cards, 4 persona cards termasuk `Penulis berpengalaman`, serta 3 credit tier cards dengan `Seimbang` emphasized, badge `Disarankan`, dan disclosure. Trust/FAQ boleh additive setelah `kredit` dan sebelum final CTA; existing hero/workflow/legal contracts remain.
 
 - [ ] **Step 1: Tambah red landing assertions ke existing `m0-w05.test.ts`**
 
 ```ts
-test('landing adds approved parity sections without import promise',()=>{const page=source('app/page.tsx');const catalog=source('messages/app-id.ts');const combined=`${page}\n${catalog}`;for(const id of ['masalah','cara-kerja','nilai','cara-mulai','kepercayaan'])expect(page).toContain(`id="${id}"`);for(const text of ['Ide berantakan','AI lupa arah cerita','Cerita cepat habis','Kredit tanpa kejutan','Cerita tetap milikmu'])expect(combined).toContain(text);expect(combined).not.toContain('Lanjutkan draft');expect(page).not.toContain('/app/proyek/impor');});
+function between(sourceText:string,start:string,end:string):string{const from=sourceText.indexOf(start);const to=sourceText.indexOf(end,from+start.length);expect(from).toBeGreaterThanOrEqual(0);expect(to).toBeGreaterThan(from);return sourceText.slice(from,to);}
+function expectCardArray(block:string,labels:readonly string[]){expect(block.match(/\{\s*title:/g)).toHaveLength(labels.length);for(const label of labels)expect(block).toContain(`title: '${label}'`);}
+test('landing preserves exact reference composition in canonical sections',()=>{const page=source('app/page.tsx');const catalog=source('messages/app-id.ts');const header=source('components/composites/PublicHeader.tsx');const mobileMenu=source('components/composites/PublicMobileMenu.tsx');const ids=['masalah','cara-kerja','fitur','untuk-siapa','kredit','cta-final'];for(const id of ids)expect(page).toContain(`id="${id}"`);for(let index=1;index<ids.length;index+=1)expect(page.indexOf(`id="${ids[index-1]}"`)).toBeLessThan(page.indexOf(`id="${ids[index]}"`));expect(page.indexOf('id="cta-final"')).toBeLessThan(page.indexOf('<footer'));for(const [label,href] of [['Cara kerja','#cara-kerja'],['Fitur','#fitur'],['Untuk siapa','#untuk-siapa'],['Kredit','#kredit']] as const)expect(header).toContain(`['${label}', '${href}']`);expect(header).toContain('<PublicMobileMenu links={links} />');expect(mobileMenu).toContain('links.map(([label, href])');expect(mobileMenu).toContain('href={href}');expect(mobileMenu).toContain('{label}</a>');
+  const problems=between(catalog,'problemCards: [','featureCards: [');const features=between(catalog,'featureCards: [','personaCards: [');const personas=between(catalog,'personaCards: [','creditTierCards: [');const credits=between(catalog,'creditTierCards: [','trust:');
+  expectCardArray(problems,['“Ideku berantakan.”','“AI selalu lupa cerita sebelumnya.”','“Rahasia Bab 25 bocor di Bab 3.”']);expectCardArray(features,['Fondasi Cerita','Fakta yang Dikunci','Jadwal Rahasia','Ruang Tulis','Cek Otomatis','Paket Publish']);expectCardArray(personas,['Belum pernah menulis','Punya ide kasar','Sudah punya draft','Penulis berpengalaman']);expectCardArray(credits,['Hemat','Seimbang','Terbaik']);expect(credits).toContain("badge: 'Disarankan'");expect(credits).toContain('emphasized: true');expect(catalog).toContain("creditDisclosure: 'Harga paket kredit akan diumumkan menjelang rilis.'");
+  const workflowCatalog=between(catalog,'workflow: {','finalCta: {');expect(workflowCatalog.match(/number: '[1-6]'/g)).toHaveLength(6);for(const title of ['Ngobrol','Fondasi','Rencana','Tulis','Cek','Publish'])expect(workflowCatalog).toContain(`title: '${title}'`);
+  const problemSection=between(page,'id="masalah"','id="cara-kerja"');const workflowSection=between(page,'id="cara-kerja"','id="fitur"');const featureSection=between(page,'id="fitur"','id="untuk-siapa"');const personaSection=between(page,'id="untuk-siapa"','id="kredit"');const creditSection=between(page,'id="kredit"','id="cta-final"');expect(problemSection).toContain('copy.problemCards.map');expect(workflowSection).toContain('copy.workflow.steps.map');expect(featureSection).toContain('copy.featureCards.map');expect(personaSection).toContain('copy.personaCards.map');expect(creditSection).toContain('copy.creditTierCards.map');for(const [section,identifier] of [[problemSection,'copy.problemCards.map'],[workflowSection,'copy.workflow.steps.map'],[featureSection,'copy.featureCards.map'],[personaSection,'copy.personaCards.map'],[creditSection,'copy.creditTierCards.map']] as const)expect(section.match(new RegExp(identifier.replaceAll('.','\\.'),'g'))).toHaveLength(1);expect(page).not.toContain('/app/proyek/impor');expect(`${page}\n${catalog}`).not.toContain('PR1 tidak menampilkan angka kredit');});
+test('public mobile menu exposes dialog semantics and accessible close behavior',()=>{const menu=source('components/composites/PublicMobileMenu.tsx');expect(menu).toContain("'use client'");expect(menu).toContain('aria-haspopup="dialog"');expect(menu).toContain('aria-expanded={open}');expect(menu).toContain('<dialog');expect(menu).toContain('aria-label="Navigasi utama mobile"');expect(menu).toContain('aria-label="Tutup menu"');expect(menu).toMatch(/event\.key\s*===\s*'Escape'/);expect(menu).toContain('previouslyFocused.current?.focus()');});
 ```
 
-Run: `pnpm --dir apps/web exec vitest run src/app/m0-w05.test.ts -t "landing adds approved parity"`
+Run: `pnpm --dir apps/web exec vitest run src/app/m0-w05.test.ts -t "landing preserves exact reference|public mobile menu"`
 
 Expected: FAIL.
 
@@ -478,16 +497,30 @@ export{BrandMark}from'./composites/BrandMark';export type{BrandMarkProps}from'./
 
 ```tsx
 // PublicHeader.tsx
-import{BrandMark}from'./BrandMark';import{LinkButton}from'../primitives';
-export function PublicHeader(){return <header className="sticky top-0 z-[var(--z-header)] border-b border-default bg-canvas/95 backdrop-blur"><div className="mx-auto flex min-h-[68px] max-w-[var(--container-marketing)] items-center gap-3 px-4 sm:px-6 lg:px-8"><BrandMark href="/"/><nav aria-label="Navigasi utama" className="ml-auto flex items-center gap-2"><a href="#cara-kerja" className="hidden min-h-11 items-center px-3 text-sm font-semibold text-secondary sm:inline-flex">Cara kerja</a><LinkButton href="/masuk" variant="secondary">Masuk</LinkButton><LinkButton href="/daftar" className="hidden sm:inline-flex">Mulai gratis</LinkButton></nav></div></header>;}
+import{BrandMark}from'./BrandMark';import{PublicMobileMenu}from'./PublicMobileMenu';import{LinkButton}from'../primitives';
+const links=[['Cara kerja','#cara-kerja'],['Fitur','#fitur'],['Untuk siapa','#untuk-siapa'],['Kredit','#kredit']]as const;
+export function PublicHeader(){return <header className="sticky top-0 z-[var(--z-header)] border-b border-default bg-canvas/95 backdrop-blur"><div className="mx-auto flex min-h-[68px] max-w-[var(--container-marketing)] items-center gap-3 px-4 sm:px-6 lg:px-8"><BrandMark href="/"/><nav aria-label="Navigasi utama" className="ml-auto hidden items-center gap-1 lg:flex">{links.map(([label,href])=><a key={href} href={href} className="inline-flex min-h-11 items-center px-3 text-sm font-semibold text-secondary">{label}</a>)}<LinkButton href="/masuk" variant="secondary">Masuk</LinkButton><LinkButton href="/daftar">Mulai gratis</LinkButton></nav><div className="ml-auto lg:hidden"><PublicMobileMenu links={links}/></div></div></header>;}
+
+// PublicMobileMenu.tsx
+'use client';
+import{useEffect,useRef,useState}from'react';import{IconButton,LinkButton}from'../primitives';
+export function PublicMobileMenu({links}:{links:readonly (readonly [label:string,href:string])[]}){const[open,setOpen]=useState(false);const dialogRef=useRef<HTMLDialogElement>(null);const triggerRef=useRef<HTMLButtonElement>(null);const previouslyFocused=useRef<HTMLElement|null>(null);useEffect(()=>{const dialog=dialogRef.current;if(!dialog)return;if(open&&!dialog.open){previouslyFocused.current=document.activeElement instanceof HTMLElement?document.activeElement:triggerRef.current;dialog.showModal();dialog.querySelector<HTMLElement>('a')?.focus();}else if(!open&&dialog.open)dialog.close();},[open]);useEffect(()=>{const dialog=dialogRef.current;if(!dialog)return;const cancel=(event:Event)=>{event.preventDefault();setOpen(false);};const keydown=(event:KeyboardEvent)=>{if(event.key==='Escape')setOpen(false);};const close=()=>{previouslyFocused.current?.focus();previouslyFocused.current=null;};dialog.addEventListener('cancel',cancel);dialog.addEventListener('keydown',keydown);dialog.addEventListener('close',close);return()=>{dialog.removeEventListener('cancel',cancel);dialog.removeEventListener('keydown',keydown);dialog.removeEventListener('close',close);};},[]);return <><button ref={triggerRef} type="button" aria-haspopup="dialog" aria-expanded={open} className="min-h-11 rounded-md border border-default px-3 font-semibold" onClick={()=>setOpen(true)}>Menu</button><dialog ref={dialogRef} aria-label="Navigasi utama mobile" className="m-0 ml-auto min-h-dvh w-[min(320px,calc(100%-48px))] max-w-none bg-surface p-0 text-primary backdrop:bg-brand-ink/40"><div className="flex justify-end border-b border-default p-3"><IconButton aria-label="Tutup menu" onClick={()=>setOpen(false)}>×</IconButton></div><nav aria-label="Navigasi utama mobile" className="flex flex-col gap-2 p-4">{links.map(([label,href])=><a key={href} href={href} className="flex min-h-11 items-center rounded-md px-3 font-semibold" onClick={()=>setOpen(false)}>{label}</a>)}<LinkButton href="/masuk" variant="secondary">Masuk</LinkButton><LinkButton href="/daftar">Mulai gratis</LinkButton></nav></dialog></>;}
 ```
+
+Native modal `<dialog>` memberi scrim dan focus containment. Explicit close, `Escape`, close-on-link, focus awal, dan focus restoration wajib dipertahankan; mobile menu bukan pengganti empat anchor desktop.
 
 - [ ] **Step 3: Tambah exact catalog data**
 
 ```ts
-problems:{title:'Masalah yang terasa saat cerita memanjang',items:[{title:'Ide berantakan',description:'Mulai dari rasa atau konflik, lalu susun arah cerita bertahap.'},{title:'AI lupa arah cerita',description:'Fondasi, fakta, dan rahasia membantu menjaga konteks saat cerita tumbuh.'},{title:'Cerita cepat habis',description:'Rencana bab membantu konflik berkembang tanpa kehilangan tujuan.'}]},
-value:{title:'Bantuan terarah, bukan cerita sekali klik',items:[{title:'Penulis tetap memutuskan',description:'Usulan Narra tetap perlu kamu tinjau sebelum menjadi bagian cerita.'},{title:'Kredit tanpa kejutan',description:'Biaya harus terlihat sebelum proses berbayar dijalankan. PR1 tidak menampilkan angka kredit yang belum tersedia.'}]},
-entryPaths:{title:'Mulai dari titik yang kamu punya',items:[{title:'Belum punya ide',description:'Mulai lewat percakapan ringan.'},{title:'Punya ide kasar',description:'Bentuk premis menjadi fondasi.'},{title:'Punya outline',description:'Susun ulang arah cerita menjadi proyek baru.'}]},
+problemSection:{title:'Menulis panjang itu berat bukan karena idemu jelek',description:'Tiga masalah yang paling sering menghentikan serial di tengah jalan.'},
+problemCards:[{title:'“Ideku berantakan.”',description:'Narra mengubah percakapan santai menjadi fondasi cerita yang rapi: tokoh, konflik, janji pembaca, dan arah ending — tanpa istilah teknis.'},{title:'“AI selalu lupa cerita sebelumnya.”',description:'Fakta, relasi, dan rahasia disimpan sebagai catatan cerita yang dijaga. Setiap adegan baru ditulis dari catatan itu, bukan dari ingatan kosong.'},{title:'“Rahasia Bab 25 bocor di Bab 3.”',description:'Jadwal Rahasia menjaga kapan petunjuk boleh muncul dan kapan jawaban boleh terbuka. Cek Otomatis memperingatkan sebelum terlambat.'}],
+featureSection:{title:'Yang dijaga Narraza untukmu'},
+featureCards:[{title:'Fondasi Cerita',description:'Tokoh, konflik, janji pembaca, dan arah ending tersimpan rapi. Dikunci saat kamu siap — bukan sebelum itu.'},{title:'Fakta yang Dikunci',description:'Fakta penting buatan AI selalu berupa usulan dulu. Kamu yang menerima, mengubah, atau menolak.'},{title:'Jadwal Rahasia',description:'Atur kapan petunjuk muncul dan kapan jawaban terbuka. Rahasiamu tidak bocor sebelum waktunya.'},{title:'Ruang Tulis',description:'Editor per adegan dengan arahan, versi yang bisa dibandingkan, dan perbaikan terarah — bukan textarea kosong.'},{title:'Cek Otomatis',description:'Cerita nyambung, pengetahuan tokoh sesuai, ending bab cukup kuat — diperiksa sebelum kamu menerima versi.'},{title:'Paket Publish',description:'Teaser, sinopsis, caption promosi, dan preview HP dari bab yang sudah kamu setujui.'}],
+personaSection:{title:'Mulai dari titik manapun kamu berada'},
+personaCards:[{title:'Belum pernah menulis',description:'Tidak perlu tahu istilah premis atau plot. Jawab pertanyaan ringan Narra, dan lihat ceritamu terbentuk.'},{title:'Punya ide kasar',description:'Satu kalimat konflik cukup. Narraza membantu mengubahnya menjadi konsep, karakter, dan rencana bab.'},{title:'Sudah punya draft',description:'Bawa draftmu. Narraza membacanya, menemukan tokoh dan fakta, lalu membantu melanjutkan dengan konsisten.'},{title:'Penulis berpengalaman',description:'Kontrol penuh atas fondasi, fakta, reveal, outline, dan setiap perubahan cerita resmi.'}],
+creditSection:{title:'Bayar sesuai yang kamu pakai, tanpa kejutan',description:'Narraza memakai kredit. Sebelum setiap adegan dibuat, kamu melihat perkiraan biayanya lebih dulu. Kalau proses gagal, kreditmu dikembalikan.'},
+creditTierCards:[{title:'Hemat',description:'Untuk draft cepat dan eksperimen ide. Biaya per adegan paling rendah.'},{title:'Seimbang',description:'Kualitas dan biaya seimbang untuk penulisan serial rutin.',badge:'Disarankan',emphasized:true},{title:'Terbaik',description:'Untuk bab penting: reveal besar, ending arc, adegan emosional kunci.'}],
+creditDisclosure:'Harga paket kredit akan diumumkan menjelang rilis.',
 trust:{title:'Cerita tetap milikmu',description:'Narraza membantu menyusun dan memeriksa. Keputusan kreatif tetap ada di tanganmu.',faq:[{question:'Siapa yang bisa membaca ceritaku?',answer:'Akses cerita mengikuti akun dan proyekmu. Informasi hukum lengkap tetap mengikuti Kebijakan Privasi.'},{question:'Apakah Narraza menjamin cerita selalu benar?',answer:'Tidak. Narraza membantu menjaga konsistensi, tetapi hasil tetap perlu kamu tinjau.'},{question:'Apa yang dikirim ke penyedia AI?',answer:'Hanya konteks yang diperlukan untuk proses yang kamu jalankan. Rincian final mengikuti Kebijakan Privasi dan kebijakan penyedia yang disetujui.'}]},
 ```
 
@@ -496,18 +529,23 @@ Copy tidak mengklaim no-training, export, permanent deletion, atau provider guar
 - [ ] **Step 4: Mekanically refactor `app/page.tsx`**
 
 1. Replace header lines 20–41 dengan `<PublicHeader />`.
-2. Pertahankan hero h1, copy, `/daftar`, `#cara-kerja`, preview, workflow six steps, final CTA, footer legal links.
-3. Insert setelah hero `<section id="masalah">` yang maps `copy.problems.items` menjadi `<Card>` tiga-column pada `lg`.
-4. Insert setelah workflow `<section id="nilai">` yang maps `copy.value.items` menjadi dua `<Card>`.
-5. Insert `<section id="cara-mulai">` yang maps exact three `entryPaths`; section hanya copy, tanpa href selain CTA `/daftar` setelah list.
-6. Insert `<section id="kepercayaan">` dengan trust description dan `<dl>`; setiap FAQ menjadi `<div><dt>{question}</dt><dd>{answer}</dd></div>`.
-7. Replace raw colors hanya pada landing file dengan semantic utilities Task 1. Jangan mengubah route behavior.
+2. Pertahankan hero h1, user-facing copy, `/daftar`, `#cara-kerja`, preview, exact six workflow steps dalam urutan `Ngobrol`, `Fondasi`, `Rencana`, `Tulis`, `Cek`, `Publish`, final CTA, dan footer legal links.
+3. Setelah hero render `<section id="masalah">` yang maps dedicated `copy.problemCards` menjadi exact 3 `<Card>` pada `lg`; jangan pakai replacement labels.
+4. Setelah masalah render existing six-step workflow sebagai `<section id="cara-kerja">`.
+5. Setelah workflow render `<section id="fitur">` yang maps dedicated `copy.featureCards` menjadi exact 6 `<Card>`.
+6. Setelah fitur render `<section id="untuk-siapa">` yang maps dedicated `copy.personaCards` menjadi exact 4 `<Card>`, termasuk `Penulis berpengalaman`; section hanya copy, tanpa fabricated route.
+7. Setelah persona render `<section id="kredit">` dengan `copy.creditSection`, lalu map dedicated `copy.creditTierCards` menjadi exact 3 tier cards. `Seimbang` memakai emphasized border/treatment dan visible badge `Disarankan`; render `copy.creditDisclosure` setelah grid.
+8. Trust/FAQ bersifat additive: bila dipertahankan, render `<section id="kepercayaan">` setelah `#kredit` dan sebelum final CTA, dengan trust description dan `<dl>`; setiap FAQ menjadi `<div><dt>{question}</dt><dd>{answer}</dd></div>`. Copy tambahan tetap tunduk pada approved security/legal constraints dan tidak boleh mengklaim backend guarantee.
+9. Beri existing final CTA `id="cta-final"`, lalu footer tetap setelahnya. Urutan canonical yang diuji harus `#masalah` → `#cara-kerja` → `#fitur` → `#untuk-siapa` → `#kredit` → optional `#kepercayaan` → `#cta-final` → footer.
+10. Replace raw colors hanya pada landing file dengan semantic utilities Task 1. Jangan mengubah route behavior atau menampilkan copy milestone internal seperti `PR1 tidak menampilkan angka kredit...`.
 
 Render strategy exact untuk setiap list:
 
 ```tsx
-<div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{copy.problems.items.map((item)=><Card key={item.title}><h3 className="text-lg font-bold">{item.title}</h3><p className="mt-2 text-secondary">{item.description}</p></Card>)}</div>
+<div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{copy.problemCards.map((item)=><Card key={item.title}><h3 className="text-lg font-bold">{item.title}</h3><p className="mt-2 text-secondary">{item.description}</p></Card>)}</div>
 ```
+
+Gunakan identifier map dedicated yang sama untuk section lain: `copy.featureCards.map`, `copy.personaCards.map`, dan `copy.creditTierCards.map`. Ini membuat source test mengikat count/label ke section yang benar, bukan lolos karena label kebetulan muncul pada catalog atau section lain.
 
 - [ ] **Step 5: Green gate dan commit**
 
@@ -516,7 +554,7 @@ Run: `pnpm --dir apps/web exec vitest run src/app/m0-w05.test.ts && pnpm --filte
 Expected: PASS.
 
 ```bash
-git add apps/web/src/app/page.tsx apps/web/src/messages/app-id.ts apps/web/src/app/m0-w05.test.ts apps/web/src/components/BrandMark.tsx apps/web/src/components/composites/BrandMark.tsx apps/web/src/components/composites/PublicHeader.tsx
+git add apps/web/src/app/page.tsx apps/web/src/messages/app-id.ts apps/web/src/app/m0-w05.test.ts apps/web/src/components/BrandMark.tsx apps/web/src/components/composites/BrandMark.tsx apps/web/src/components/composites/PublicHeader.tsx apps/web/src/components/composites/PublicMobileMenu.tsx
 git commit -m "feat(web): align landing with approved reference"
 ```
 
@@ -526,24 +564,34 @@ git commit -m "feat(web): align landing with approved reference"
 
 **Interfaces:** Existing `TextField`, `SubmitButton`, `FormError`, `FormNotice` APIs remain. Existing form files/actions remain unchanged except `ResendVerificationForm` consumes `Input`/`Button` while preserving `resendVerificationAction`.
 
-- [ ] **Step 1: Tambah baseline-green behavior lock ke existing Task 4 contract file**
+- [ ] **Step 1: Tambah existing-auth characterization lock ke existing Task 4 contract file dan buktikan green**
 
 ```ts
-test('auth visual changes preserve action identifiers labels and pending guards',()=>{const files=['LoginForm.tsx','RegisterForm.tsx','ForgotPasswordForm.tsx','NewPasswordForm.tsx','ConfirmVerificationForm.tsx','ResendVerificationForm.tsx'].map((file)=>source(`components/auth/${file}`)).join('\n');for(const label of ['Alamat email','Kata sandi','Ulangi kata sandi','Buat akun','Verifikasi & masuk','Masuk','Lupa kata sandi?','Kata sandi baru','Ulangi kata sandi baru','Simpan kata sandi baru'])expect(files).toContain(label);for(const action of ['loginAction','registerAction','requestPasswordResetAction','completeResetAction','completeVerificationAction','resendVerificationAction'])expect(files).toContain(action);expect(files).toContain('useActionState');const fields=source('components/auth/fields.tsx');expect(fields).toContain('useFormStatus');expect(fields).toContain('disabled={pending}');const resend=source('components/auth/ResendVerificationForm.tsx');expect(resend).toContain('useFormStatus');expect(resend).toContain('disabled={pending}');expect(resend).toContain("pending?'Mengirim…':'Kirim ulang'");});
+test('existing auth behavior preserves action identifiers labels and current pending guard',()=>{const files=['LoginForm.tsx','RegisterForm.tsx','ForgotPasswordForm.tsx','NewPasswordForm.tsx','ConfirmVerificationForm.tsx','ResendVerificationForm.tsx'].map((file)=>source(`components/auth/${file}`)).join('\n');for(const label of ['Alamat email','Kata sandi','Ulangi kata sandi','Buat akun','Verifikasi & masuk','Masuk','Lupa kata sandi?','Kata sandi baru','Ulangi kata sandi baru','Simpan kata sandi baru'])expect(files).toContain(label);for(const action of ['loginAction','registerAction','requestPasswordResetAction','completeResetAction','completeVerificationAction','resendVerificationAction'])expect(files).toContain(action);expect(files).toContain('useActionState');const fields=source('components/auth/fields.tsx');expect(fields).toContain('useFormStatus');expect(fields).toContain('disabled={pending}');});
 ```
 
-Run: `pnpm --dir apps/web exec vitest run src/app/frontend-foundation.contract.test.ts -t "auth visual"`
+Run: `pnpm --dir apps/web exec vitest run src/app/frontend-foundation.contract.test.ts -t "existing auth behavior"`
 
-Expected: PASS before visual edit. Ini characterization gate, bukan red test.
+Expected: PASS before visual edit. Ini characterization gate hanya untuk behavior yang sudah ada; jangan memasukkan atau mengklaim guard resend baru di gate ini.
 
-- [ ] **Step 2: Replace AuthCard implementation dengan concrete composition**
+- [ ] **Step 2: Tambah separate resend pending guard test dan buktikan red sebelum implementation**
+
+```ts
+test('resend verification prevents duplicate submit while pending',()=>{const resend=source('components/auth/ResendVerificationForm.tsx');expect(resend).toContain("import { useFormStatus } from 'react-dom'");expect(resend).toContain('const { pending } = useFormStatus()');expect(resend).toContain('disabled={pending}');expect(resend).toContain("pending ? 'Mengirim…' : 'Kirim ulang'");});
+```
+
+Run: `pnpm --dir apps/web exec vitest run src/app/frontend-foundation.contract.test.ts -t "resend verification prevents"`
+
+Expected: FAIL pada current code karena `ResendVerificationForm.tsx` belum memakai `useFormStatus`; kegagalan ini menjadi red guard terpisah.
+
+- [ ] **Step 3: Replace AuthCard implementation dengan concrete composition**
 
 ```tsx
 import type{ReactNode}from'react';import{BrandMark}from'../BrandMark';import{Card,Container,Stack}from'../primitives';
 export function AuthCard({title,subtitle,children}:{title:string;subtitle?:string;children:ReactNode}){return <main className="flex min-h-screen items-center bg-canvas py-12"><Container size="form"><Stack gap={6}><BrandMark href="/"/><Card className="mx-auto w-full max-w-md"><h1 className="font-serif text-3xl font-bold text-primary">{title}</h1>{subtitle?<p className="mt-2 mb-6 text-secondary">{subtitle}</p>:<div className="mb-6"/>}{children}</Card></Stack></Container></main>;}
 ```
 
-- [ ] **Step 3: Replace fields implementation dengan concrete primitive usage**
+- [ ] **Step 4: Replace fields implementation dengan concrete primitive usage**
 
 ```tsx
 'use client';import{useFormStatus}from'react-dom';import{Button,Field,Input}from'../primitives';
@@ -553,17 +601,17 @@ export function FormError({message}:{message?:string}){return message?<p role="a
 export function FormNotice({message}:{message:string}){return <p className="rounded-sm bg-status-info-soft px-3 py-2 text-sm text-status-info">{message}</p>;}
 ```
 
-- [ ] **Step 4: Mechanically edit ResendVerificationForm styling dan pending guard**
+- [ ] **Step 5: Mechanically edit ResendVerificationForm styling dan implement pending guard**
 
 Keep `'use client'`, `useActionState(resendVerificationAction, initialFormState)`, success branch, form action, error branch, action identity, dan payload. Add `import { useFormStatus } from 'react-dom';` serta `import { Button, Input } from '../primitives';`. Tambah leaf submit di file sama agar status membaca parent form action tanpa state kedua:
 
 ```tsx
-function ResendSubmitButton(){const{pending}=useFormStatus();return <Button type="submit" variant="secondary" className="min-h-10" disabled={pending}>{pending?'Mengirim…':'Kirim ulang'}</Button>;}
+function ResendSubmitButton(){const { pending } = useFormStatus();return <Button type="submit" variant="secondary" className="min-h-10" disabled={pending}>{pending ? 'Mengirim…' : 'Kirim ulang'}</Button>;}
 ```
 
 Replace existing input element with `<Input name="email" type="email" required placeholder="Email untuk kirim ulang" className="min-h-10 flex-1" />` dan existing submit element dengan `<ResendSubmitButton />`. Set form class to `flex flex-col gap-2 rounded-sm bg-surface-soft p-3`; set explanatory paragraph class to `text-sm text-secondary`; keep wrapping `<div className="flex gap-2">`. `useFormStatus().pending` menjadi single duplicate-submit guard; jangan tambah local pending state, debounce, perubahan Server Action, atau perubahan success/error semantics.
 
-- [ ] **Step 5: Green contract, auth E2E, commit**
+- [ ] **Step 6: Green characterization plus resend guard, auth E2E, commit**
 
 Run: `pnpm --dir apps/web exec vitest run src/app/frontend-foundation.contract.test.ts src/app/m0-w05.test.ts && pnpm --filter @narraza/web typecheck`
 
@@ -580,15 +628,15 @@ git commit -m "feat(web): align auth visuals without semantic changes"
 
 ### Task 7: Distinct Global dan Project Shells
 
-**Files:** Create shell composites and nested project layout; modify root app layout/global pages/messages/tests.
+**Files:** Create shell composites including `ProjectNavigationDrawer.tsx` and nested project layout; modify root app layout/global pages/messages/tests.
 
-**Interfaces:** `AppHeader({account,logoutAction})` remains Server Component-compatible; `RouteAwareNavLink` menjadi narrow pathname client leaf dan satu-satunya authority active route; `MobileMoreControl` tetap client owner untuk open state saja; `buildProjectNavigation(projectId)` memakai typed `CapabilityKey` arrays below.
+**Interfaces:** `AppHeader({account,logoutAction})` remains Server Component-compatible; `RouteAwareNavLink` menjadi narrow pathname client leaf dan satu-satunya authority active route; `MobileMoreControl` tetap client owner untuk mobile `Lainnya` state saja; `ProjectNavigationDrawer` menjadi distinct tablet side drawer at `768–1279`; `buildProjectNavigation(projectId)` menjadi shared typed `CapabilityKey` source untuk desktop sidebar dan tablet drawer.
 
 - [ ] **Step 1: Tambah red shell contracts dan migrasikan broad M0 W0.5 assertions tanpa mengecilkan coverage**
 
 ```ts
 // frontend-foundation.contract.test.ts
-test('shell preserves guard logout typed IA and route-authoritative active state',()=>{const layout=source('app/app/layout.tsx');expect(layout.match(/getCurrentUser\(\)/g)).toHaveLength(1);expect(layout).toContain("redirect('/masuk')");expect(layout).toContain('logoutAction');const nav=[source('components/composites/ProjectSidebar.tsx'),source('components/composites/MobileBottomNav.tsx'),source('components/composites/MobileMoreSheet.tsx')].join('\n');expect(nav).toContain('CapabilityKey');expect(nav).toContain('CAPABILITIES');expect(nav).toContain('CAPABILITY_REASON_MESSAGES');const active=source('components/composites/RouteAwareNavLink.tsx');expect(active).toContain("'use client'");expect(active).toContain('usePathname');expect(active).toContain("aria-current={active?'page':undefined}");expect(active).not.toContain('useState');});
+test('shell preserves guard logout typed IA and route-authoritative active state',()=>{const layout=source('app/app/layout.tsx');expect(layout.match(/getCurrentUser\(\)/g)).toHaveLength(1);expect(layout).toContain("redirect('/masuk')");expect(layout).toContain('logoutAction');const nav=[source('components/composites/ProjectSidebar.tsx'),source('components/composites/ProjectNavigationDrawer.tsx'),source('components/composites/MobileBottomNav.tsx'),source('components/composites/MobileMoreSheet.tsx')].join('\n');expect(nav).toContain('CapabilityKey');expect(nav).toContain('CAPABILITIES');expect(nav).toContain('CAPABILITY_REASON_MESSAGES');expect(nav).toContain('CAPABILITY_REASON_MESSAGES[capability.reasonCode]');const active=source('components/composites/RouteAwareNavLink.tsx');expect(active).toContain("'use client'");expect(active).toContain('usePathname');expect(active).toContain("aria-current={active?'page':undefined}");expect(active).not.toContain('useState');});
 test('project layout resolves identity owner scoped',()=>{const layout=source('app/app/proyek/[projectId]/layout.tsx');expect(layout).toContain('getMyProject(projectId)');expect(layout).toContain('if (!project) notFound()');});
 
 // Replace only old `authenticated layout guards once and renders exact disabled navigation`
@@ -597,15 +645,17 @@ test('authenticated layout guards once and renders exact canonical navigation', 
   const layout = source('app/app/layout.tsx');
   const nav = [
     source('components/composites/ProjectSidebar.tsx'),
+    source('components/composites/ProjectNavigationDrawer.tsx'),
     source('components/composites/MobileBottomNav.tsx'),
     source('components/composites/MobileMoreSheet.tsx'),
-    source('lib/frontend/capabilities.ts'),
   ].join('\n');
   expect(layout.match(/getCurrentUser\(\)/g)).toHaveLength(1);
   expect(layout).toContain("redirect('/masuk')");
   expect(`${layout}\n${source('components/composites/AppHeader.tsx')}`).toContain('action={logoutAction}');
   expect(nav).toContain('aria-disabled="true"');
   expect(nav).not.toMatch(/<a[^>]+aria-disabled="true"/);
+  expect(nav).toContain('CAPABILITY_REASON_MESSAGES[capability.reasonCode]');
+  expect(nav).toMatch(/aria-disabled="true"[\s\S]{0,500}\{reason\}/);
   expect(`${layout}\n${source('messages/app-id.ts')}`).toContain('Kredit — segera hadir');
   const groups = ['PERSIAPAN', 'PERENCANAAN', 'PENULISAN', 'PEMERIKSAAN', 'PUBLIKASI', 'LAINNYA'];
   const items = ['Beranda', 'Chat Narra', 'Fondasi', 'Karakter', 'Rencana Cerita', 'Jadwal Rahasia', 'Fakta', 'Naskah', 'Tulis', 'Cek Cerita', 'Paket Publish', 'Kredit & Penggunaan', 'Pengaturan'];
@@ -614,7 +664,7 @@ test('authenticated layout guards once and renders exact canonical navigation', 
 });
 ```
 
-Migration wajib mempertahankan seluruh broad assertions lama: auth guard count, redirect, logout action, disabled non-anchor semantics, credit copy, semua enam group, dan setiap canonical item. Hanya label lama yang berubah ke IA approved. `Tutup Bab` harus asserted absent karena `Selesaikan Bab` adalah CTA kontekstual chapter, bukan sidebar/mobile item. Jangan mengganti broad test dengan subset contract test.
+Migration wajib mempertahankan seluruh broad assertions lama: auth guard count, redirect, logout action, disabled non-anchor semantics, visible disabled reason, credit copy, semua enam group, dan setiap canonical item. Broad migration test hanya membaca rendered navigation sources (`ProjectSidebar.tsx`, `ProjectNavigationDrawer.tsx`, `MobileBottomNav.tsx`, `MobileMoreSheet.tsx`); jangan memasukkan `capabilities.ts` karena registry metadata dapat membuat label lolos tanpa dirender. Registry tetap diuji terpisah oleh `capabilities.test.ts`. Hanya label lama yang berubah ke IA approved. `Tutup Bab` harus asserted absent karena `Selesaikan Bab` adalah CTA kontekstual chapter, bukan sidebar/mobile item. Jangan mengganti broad test dengan subset contract test.
 
 Run: `pnpm --dir apps/web exec vitest run src/app/frontend-foundation.contract.test.ts -t "shell|project layout"`
 
@@ -640,12 +690,28 @@ export function buildProjectNavigation(projectId:string):readonly ProjectNavigat
 {label:'PEMERIKSAAN',items:[{label:'Cek Cerita',capabilityKey:'chapter.check.run'}]},
 {label:'PUBLIKASI',items:[{label:'Paket Publish',capabilityKey:'project.publish.view'}]},
 {label:'LAINNYA',items:[{label:'Kredit & Penggunaan',capabilityKey:'app.credit.view'},{label:'Pengaturan',capabilityKey:'app.settings.view'}]},]as const;}
-export function ProjectSidebar({projectId}:{projectId:string}){return <aside data-testid="project-sidebar" className="hidden w-64 shrink-0 border-r border-default bg-surface xl:block"><nav aria-label="Navigasi proyek" className="sticky top-[68px] max-h-[calc(100vh-68px)] overflow-y-auto p-4">{buildProjectNavigation(projectId).map((group)=><section key={group.label} aria-labelledby={`nav-${group.label}`} className="mb-6"><h2 id={`nav-${group.label}`} className="px-3 text-xs font-bold text-muted">{group.label}</h2><ul className="mt-2 space-y-1">{group.items.map((item)=>{const capability=CAPABILITIES[item.capabilityKey];const reason=CAPABILITY_REASON_MESSAGES[capability.reasonCode];return <li key={item.capabilityKey}>{item.href?<RouteAwareNavLink href={item.href} className="flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-secondary hover:bg-brand-soft" activeClassName="bg-brand-soft text-primary">{item.label}</RouteAwareNavLink>:<span aria-disabled="true" title={reason} className="flex min-h-11 cursor-not-allowed items-center rounded-md px-3 text-sm text-muted">{item.label}<span className="sr-only"> — {reason}</span></span>}</li>;})}</ul></section>)}</nav></aside>;}
+export function ProjectNavigation({projectId,labelledBy,idPrefix}:{projectId:string;labelledBy?:string;idPrefix:string}){return <nav aria-label={labelledBy?undefined:'Navigasi proyek'} aria-labelledby={labelledBy} className="p-4">{buildProjectNavigation(projectId).map((group)=>{const headingId=`${idPrefix}-${group.label.toLocaleLowerCase('id-ID')}`;return <section key={group.label} aria-labelledby={headingId} className="mb-6"><h2 id={headingId} className="px-3 text-xs font-bold text-muted">{group.label}</h2><ul className="mt-2 space-y-1">{group.items.map((item)=>{const capability=CAPABILITIES[item.capabilityKey];const reason=CAPABILITY_REASON_MESSAGES[capability.reasonCode];return <li key={item.capabilityKey}>{item.href?<RouteAwareNavLink href={item.href} className="flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-secondary hover:bg-brand-soft" activeClassName="bg-brand-soft text-primary">{item.label}</RouteAwareNavLink>:<div aria-disabled="true" className="rounded-md px-3 py-2 text-muted"><span className="block text-sm font-semibold">{item.label}</span><span className="mt-1 block text-xs">{reason}</span></div>}</li>;})}</ul></section>;})}</nav>;}export function ProjectSidebar({projectId}:{projectId:string}){return <aside data-testid="project-sidebar" className="hidden w-64 shrink-0 border-r border-default bg-surface xl:block"><div className="sticky top-[68px] max-h-[calc(100vh-68px)] overflow-y-auto"><ProjectNavigation projectId={projectId} idPrefix="sidebar-nav"/></div></aside>;}
 ```
 
-`href` hanya ada untuk existing PR1/M2 routes. Registry declaration tidak membuat href. Item protected yang sudah punya existing route tetap navigable setelah owner-scoped project layout lolos; action enablement di halaman tetap server-authoritative dan bukan hasil registry.
+`href` hanya ada untuk existing PR1/M2 routes. Registry declaration tidak membuat href. Item protected yang sudah punya existing route tetap navigable setelah owner-scoped project layout lolos; action enablement di halaman tetap server-authoritative dan bukan hasil registry. Disabled reason wajib tampak sebagai caption non-hover; `title` dan `sr-only` saja tidak cukup.
 
-- [ ] **Step 4: Buat direct-logout server-compatible AppHeader**
+- [ ] **Step 4: Buat distinct tablet project navigation drawer**
+
+`ProjectNavigationDrawer.tsx` harus memakai shared `ProjectNavigation`, bukan menduplikasi data. Drawer aktif hanya `md` sampai sebelum `xl` (`768–1279`), berbeda dari mobile `Lainnya` bottom sheet. Native modal `<dialog>` memberi focus trap dan scrim; `useNativeDialog` memberi `Escape`, close, dan focus restoration ke trigger.
+
+```tsx
+'use client';
+import{useState}from'react';import{IconButton}from'../primitives';import{ProjectNavigation}from'./ProjectSidebar';import{useNativeDialog}from'./use-native-dialog';
+export function ProjectNavigationDrawer({projectId}:{projectId:string}){const[open,setOpen]=useState(false);const dialogRef=useNativeDialog({open,onOpenChange:setOpen});return <div className="hidden md:block xl:hidden"><button type="button" aria-haspopup="dialog" aria-expanded={open} aria-controls="project-navigation-drawer" className="m-3 min-h-11 rounded-md border border-default px-3 font-semibold" onClick={()=>setOpen(true)}><span aria-hidden="true">☰</span> Menu proyek</button><dialog id="project-navigation-drawer" ref={dialogRef} aria-labelledby="project-navigation-drawer-title" className="m-0 h-dvh w-[min(360px,calc(100%-64px))] max-w-none bg-surface p-0 text-primary shadow-lg backdrop:bg-brand-ink/40"><div className="flex min-h-11 items-center justify-between border-b border-default p-3"><h2 id="project-navigation-drawer-title" className="font-bold">Navigasi proyek</h2><IconButton data-dialog-initial-focus aria-label="Tutup navigasi proyek" onClick={()=>setOpen(false)}>×</IconButton></div><div className="h-[calc(100dvh-68px)] overflow-y-auto"><ProjectNavigation projectId={projectId} labelledBy="project-navigation-drawer-title" idPrefix="drawer-nav"/></div></dialog></div>;}
+```
+
+Tambah source contract:
+
+```ts
+test('tablet project navigation is a distinct accessible drawer',()=>{const drawer=source('components/composites/ProjectNavigationDrawer.tsx');expect(drawer).toContain("'use client'");expect(drawer).toContain('md:block xl:hidden');expect(drawer).toContain('aria-haspopup="dialog"');expect(drawer).toContain('aria-expanded={open}');expect(drawer).toContain('<dialog');expect(drawer).toContain('backdrop:bg-brand-ink/40');expect(drawer).toContain('useNativeDialog');expect(drawer).toContain('<ProjectNavigation');expect(drawer).not.toContain('BottomSheet');});
+```
+
+- [ ] **Step 5: Buat direct-logout server-compatible AppHeader**
 
 ```tsx
 import type{ShellAccountViewModel}from'../../lib/frontend/view-model';import{BrandMark}from'./BrandMark';import{Button}from'../primitives';
@@ -654,16 +720,16 @@ export function AppHeader({account,logoutAction}:{account:ShellAccountViewModel;
 
 No `'use client'`; no dialog; direct interaction unchanged.
 
-- [ ] **Step 5: Buat GlobalAppShell dan ProjectAppShell**
+- [ ] **Step 6: Buat GlobalAppShell dan ProjectAppShell**
 
 ```tsx
 // GlobalAppShell.tsx
 import type{ReactNode}from'react';import{MobileBottomNav}from'./MobileBottomNav';export function GlobalAppShell({children}:{children:ReactNode}){return <div className="min-w-0 pb-20 xl:pb-0"><div data-testid="global-shell">{children}</div><MobileBottomNav context={{kind:'global'}}/></div>;}
 // ProjectAppShell.tsx
-import type{ReactNode}from'react';import type{ProjectIdentityViewModel}from'../../lib/frontend/view-model';import{ProjectSidebar}from'./ProjectSidebar';import{MobileBottomNav}from'./MobileBottomNav';export function ProjectAppShell({project,children}:{project:ProjectIdentityViewModel;children:ReactNode}){return <div data-testid="project-shell" className="mx-auto flex w-full max-w-[1600px]"><ProjectSidebar projectId={project.projectId}/><div className="min-w-0 flex-1 pb-20 xl:pb-0"><div className="border-b border-default bg-surface px-4 py-3 sm:px-6"><p className="text-xs font-semibold text-muted">PROYEK</p><p className="truncate font-bold text-primary">{project.title}</p></div>{children}</div><MobileBottomNav context={{kind:'project',projectId:project.projectId}}/></div>;}
+import type{ReactNode}from'react';import type{ProjectIdentityViewModel}from'../../lib/frontend/view-model';import{MobileBottomNav}from'./MobileBottomNav';import{ProjectNavigationDrawer}from'./ProjectNavigationDrawer';import{ProjectSidebar}from'./ProjectSidebar';export function ProjectAppShell({project,children}:{project:ProjectIdentityViewModel;children:ReactNode}){return <div data-testid="project-shell" className="mx-auto flex w-full max-w-[1600px]"><ProjectSidebar projectId={project.projectId}/><div className="min-w-0 flex-1 pb-20 xl:pb-0"><div className="border-b border-default bg-surface px-4 py-3 sm:px-6"><ProjectNavigationDrawer projectId={project.projectId}/><p className="text-xs font-semibold text-muted">PROYEK</p><p className="truncate font-bold text-primary">{project.title}</p></div>{children}</div><MobileBottomNav context={{kind:'project',projectId:project.projectId}}/></div>;}
 ```
 
-- [ ] **Step 6: Buat narrow pathname boundary serta reachable mobile control/sheet dengan exact nav semantics**
+- [ ] **Step 7: Buat narrow pathname boundary serta reachable mobile control/sheet dengan exact nav semantics**
 
 `RouteAwareNavLink.tsx` adalah leaf client boundary. Tidak ada selected state; `usePathname()` menjadi satu-satunya route authority. Exact match dipakai untuk project home, prefix match hanya saat `match="prefix"` diberikan oleh caller untuk section yang memang mencakup descendants.
 
@@ -678,7 +744,7 @@ export function RouteAwareNavLink({href,children,className,activeClassName,match
 // MobileMoreSheet.tsx
 'use client';import{logoutAction}from'../../server/auth/actions';import{CAPABILITIES,CAPABILITY_REASON_MESSAGES}from'../../lib/frontend/capabilities';import type{CapabilityKey}from'../../lib/frontend/capabilities';import{BottomSheet}from'./BottomSheet';import{RouteAwareNavLink}from'./RouteAwareNavLink';import{Button}from'../primitives';
 type Context={kind:'global'}|{kind:'project';projectId:string};type SheetItem=Readonly<{label:string;capabilityKey:CapabilityKey;href?:string}>;
-export function MobileMoreSheet({open,onOpenChange,context}:{open:boolean;onOpenChange(open:boolean):void;context:Context}){const base=context.kind==='project'?`/app/proyek/${encodeURIComponent(context.projectId)}`:null;const items:readonly SheetItem[]=base?[{label:'Chat Narra',capabilityKey:'project.chat.user-message',href:`${base}/chat`},{label:'Fondasi',capabilityKey:'project.foundation.manage',href:`${base}/fondasi`},{label:'Karakter',capabilityKey:'project.characters.read',href:`${base}/karakter`},{label:'Jadwal Rahasia',capabilityKey:'project.secrets.read',href:`${base}/rahasia`},{label:'Fakta',capabilityKey:'project.facts.read',href:`${base}/fakta`},{label:'Naskah',capabilityKey:'project.manuscript.view'},{label:'Paket Publish',capabilityKey:'project.publish.view'},{label:'Kredit & Penggunaan',capabilityKey:'app.credit.view'},{label:'Pengaturan',capabilityKey:'app.settings.view'}]:[];return <BottomSheet open={open} onOpenChange={onOpenChange} title="Lainnya" description="Navigasi dan akun"><nav aria-label="Navigasi lainnya"><ul className="space-y-1">{items.map((item)=>{const capability=CAPABILITIES[item.capabilityKey];const reason=CAPABILITY_REASON_MESSAGES[capability.reasonCode];return <li key={item.capabilityKey}>{item.href?<RouteAwareNavLink className="flex min-h-11 items-center rounded-md px-3 font-semibold text-secondary" activeClassName="bg-brand-soft text-primary" href={item.href}>{item.label}</RouteAwareNavLink>:<span aria-disabled="true" className="flex min-h-11 items-center rounded-md px-3 text-muted">{item.label}<span className="sr-only"> — {reason}</span></span>}</li>;})}</ul></nav><form action={logoutAction} className="mt-4 border-t border-default pt-4"><Button type="submit" variant="secondary" className="w-full">Keluar</Button></form></BottomSheet>;}
+export function MobileMoreSheet({open,onOpenChange,context}:{open:boolean;onOpenChange(open:boolean):void;context:Context}){const base=context.kind==='project'?`/app/proyek/${encodeURIComponent(context.projectId)}`:null;const items:readonly SheetItem[]=base?[{label:'Chat Narra',capabilityKey:'project.chat.user-message',href:`${base}/chat`},{label:'Fondasi',capabilityKey:'project.foundation.manage',href:`${base}/fondasi`},{label:'Karakter',capabilityKey:'project.characters.read',href:`${base}/karakter`},{label:'Jadwal Rahasia',capabilityKey:'project.secrets.read',href:`${base}/rahasia`},{label:'Fakta',capabilityKey:'project.facts.read',href:`${base}/fakta`},{label:'Naskah',capabilityKey:'project.manuscript.view'},{label:'Paket Publish',capabilityKey:'project.publish.view'},{label:'Kredit & Penggunaan',capabilityKey:'app.credit.view'},{label:'Pengaturan',capabilityKey:'app.settings.view'}]:[];return <BottomSheet open={open} onOpenChange={onOpenChange} title="Lainnya" description="Navigasi dan akun"><nav aria-label="Navigasi lainnya"><ul className="space-y-1">{items.map((item)=>{const capability=CAPABILITIES[item.capabilityKey];const reason=CAPABILITY_REASON_MESSAGES[capability.reasonCode];return <li key={item.capabilityKey}>{item.href?<RouteAwareNavLink className="flex min-h-11 items-center rounded-md px-3 font-semibold text-secondary" activeClassName="bg-brand-soft text-primary" href={item.href}>{item.label}</RouteAwareNavLink>:<div aria-disabled="true" className="rounded-md px-3 py-2 text-muted"><span className="block font-semibold">{item.label}</span><span className="mt-1 block text-xs">{reason}</span></div>}</li>;})}</ul></nav><form action={logoutAction} className="mt-4 border-t border-default pt-4"><Button type="submit" variant="secondary" className="w-full">Keluar</Button></form></BottomSheet>;}
 
 // MobileMoreControl.tsx
 'use client';import{useState}from'react';import{MobileMoreSheet}from'./MobileMoreSheet';export function MobileMoreControl({context}:{context:{kind:'global'}|{kind:'project';projectId:string}}){const[open,setOpen]=useState(false);return <><button type="button" className="min-h-11 min-w-11 px-2 text-xs font-semibold" aria-haspopup="dialog" aria-expanded={open} onClick={()=>setOpen(true)}>Lainnya</button><MobileMoreSheet open={open} onOpenChange={setOpen} context={context}/></>;}
@@ -688,14 +754,14 @@ export function MobileMoreSheet({open,onOpenChange,context}:{open:boolean;onOpen
 
 ```tsx
 import{CAPABILITIES,CAPABILITY_REASON_MESSAGES}from'../../lib/frontend/capabilities';import type{CapabilityKey}from'../../lib/frontend/capabilities';import{MobileMoreControl}from'./MobileMoreControl';import{RouteAwareNavLink}from'./RouteAwareNavLink';type Context={kind:'global'}|{kind:'project';projectId:string};type MobileItem=Readonly<{label:string;capabilityKey:CapabilityKey;href?:string}>;
-export function MobileBottomNav({context}:{context:Context}){const base=context.kind==='project'?`/app/proyek/${encodeURIComponent(context.projectId)}`:null;const items:readonly MobileItem[]=[{label:'Beranda',capabilityKey:base?'project.home.view':'app.dashboard.view',href:base??'/app'},{label:'Rencana',capabilityKey:'project.outline.create',href:base?`${base}/outline`:undefined},{label:'Tulis',capabilityKey:'project.write.resume'},{label:'Cek',capabilityKey:'chapter.check.run'}];return <nav aria-label="Navigasi aplikasi mobile" className="fixed inset-x-0 bottom-0 z-[var(--z-header)] grid grid-cols-5 border-t border-default bg-surface pb-[env(safe-area-inset-bottom)] xl:hidden">{items.map((item)=>{const capability=CAPABILITIES[item.capabilityKey];const reason=base?CAPABILITY_REASON_MESSAGES[capability.reasonCode]:CAPABILITY_REASON_MESSAGES.PROJECT_CONTEXT_REQUIRED;return item.href?<RouteAwareNavLink key={item.capabilityKey} className="flex min-h-11 items-center justify-center px-2 text-xs font-semibold" activeClassName="bg-brand-soft text-primary" href={item.href}>{item.label}</RouteAwareNavLink>:<span key={item.capabilityKey} aria-disabled="true" className="flex min-h-11 items-center justify-center px-2 text-xs text-muted">{item.label}<span className="sr-only"> — {reason}</span></span>;})}<MobileMoreControl context={context}/></nav>;}
+export function MobileBottomNav({context}:{context:Context}){const base=context.kind==='project'?`/app/proyek/${encodeURIComponent(context.projectId)}`:null;const items:readonly MobileItem[]=[{label:'Beranda',capabilityKey:base?'project.home.view':'app.dashboard.view',href:base??'/app'},{label:'Rencana',capabilityKey:'project.outline.create',href:base?`${base}/outline`:undefined},{label:'Tulis',capabilityKey:'project.write.resume'},{label:'Cek',capabilityKey:'chapter.check.run'}];return <nav aria-label="Navigasi aplikasi mobile" className="fixed inset-x-0 bottom-0 z-[var(--z-header)] grid grid-cols-5 border-t border-default bg-surface pb-[env(safe-area-inset-bottom)] xl:hidden">{items.map((item)=>{const capability=CAPABILITIES[item.capabilityKey];const reason=base?CAPABILITY_REASON_MESSAGES[capability.reasonCode]:CAPABILITY_REASON_MESSAGES.PROJECT_CONTEXT_REQUIRED;return item.href?<RouteAwareNavLink key={item.capabilityKey} className="flex min-h-11 items-center justify-center px-2 text-xs font-semibold" activeClassName="bg-brand-soft text-primary" href={item.href}>{item.label}</RouteAwareNavLink>:<span key={item.capabilityKey} aria-disabled="true" className="flex min-h-11 flex-col items-center justify-center px-1 text-muted"><span className="text-xs">{item.label}</span><span className="text-[10px] leading-tight">{reason}</span></span>;})}<MobileMoreControl context={context}/></nav>;}
 ```
 
-`MobileMoreControl` button tidak mendapat `aria-current`; open sheet state bukan selected navigation state. E2E Task 8 wajib membuka project home, outline, dan satu nested existing route lalu assert tepat link route aktif memiliki `aria-current="page"`, termasuk update setelah client navigation.
+`MobileMoreControl` button tidak mendapat `aria-current`; open sheet state bukan selected navigation state. Disabled reasons selalu visible caption/treatment pada sidebar, drawer, bottom nav, dan sheet; `title` atau `sr-only` tidak boleh menjadi satu-satunya penjelasan. E2E Task 8 wajib membuka project home, outline, dan satu nested existing route lalu assert tepat link route aktif memiliki `aria-current="page"`, termasuk update setelah client navigation. Pada width 768, lakukan assertions melalui tablet drawer, bukan `Lainnya` bottom sheet.
 
 `MobileMoreSheet` imports existing module-level Server Action exactly as current client auth forms import actions. Both header and sheet keep direct form submission; no action prop is serialized through unrelated layouts.
 
-- [ ] **Step 7: Refactor layouts/pages with exact mechanical edits**
+- [ ] **Step 8: Refactor layouts/pages with exact mechanical edits**
 
 `app/app/layout.tsx`: retain imports/session guard; replace rendered shell with skip link, `<AppHeader account={makeShellAccountViewModel(user.email)} logoutAction={logoutAction}/>` and `<div id="app-main-content">{children}</div>`. Exactly one `getCurrentUser()` remains.
 
@@ -710,7 +776,7 @@ import{notFound}from'next/navigation';import type{ReactNode}from'react';import{P
 export default async function ProjectLayout({children,params}:{children:ReactNode;params:Promise<{projectId:string}>}){const{projectId}=await params;const project=await getMyProject(projectId);if(!project)notFound();return <ProjectAppShell project={makeProjectIdentityViewModel(project.id,project.title)}>{children}</ProjectAppShell>;}
 ```
 
-- [ ] **Step 8: Green source/type/IDOR gate dan commit**
+- [ ] **Step 9: Green source/type/IDOR gate dan commit**
 
 Run: `pnpm --dir apps/web exec vitest run src/app/m0-w05.test.ts src/app/frontend-foundation.contract.test.ts && pnpm --filter @narraza/web typecheck && pnpm arch`
 
@@ -721,7 +787,7 @@ Run with services: `pnpm exec playwright test tests/e2e/idor.spec.ts --project=d
 Expected: PASS.
 
 ```bash
-git add apps/web/src/components/composites/AppHeader.tsx apps/web/src/components/composites/GlobalAppShell.tsx apps/web/src/components/composites/ProjectAppShell.tsx apps/web/src/components/composites/ProjectSidebar.tsx apps/web/src/components/composites/MobileBottomNav.tsx apps/web/src/components/composites/MobileMoreControl.tsx apps/web/src/components/composites/MobileMoreSheet.tsx apps/web/src/components/composites/RouteAwareNavLink.tsx apps/web/src/app/app/layout.tsx apps/web/src/app/app/page.tsx apps/web/src/app/app/proyek/baru/page.tsx apps/web/src/app/app/proyek/'[projectId]'/layout.tsx apps/web/src/app/m0-w05.test.ts apps/web/src/app/frontend-foundation.contract.test.ts apps/web/src/messages/app-id.ts
+git add apps/web/src/components/composites/AppHeader.tsx apps/web/src/components/composites/GlobalAppShell.tsx apps/web/src/components/composites/ProjectAppShell.tsx apps/web/src/components/composites/ProjectSidebar.tsx apps/web/src/components/composites/ProjectNavigationDrawer.tsx apps/web/src/components/composites/MobileBottomNav.tsx apps/web/src/components/composites/MobileMoreControl.tsx apps/web/src/components/composites/MobileMoreSheet.tsx apps/web/src/components/composites/RouteAwareNavLink.tsx apps/web/src/app/app/layout.tsx apps/web/src/app/app/page.tsx apps/web/src/app/app/proyek/baru/page.tsx apps/web/src/app/app/proyek/'[projectId]'/layout.tsx apps/web/src/app/m0-w05.test.ts apps/web/src/app/frontend-foundation.contract.test.ts apps/web/src/messages/app-id.ts
 git commit -m "feat(web): add distinct global and project shells"
 ```
 
@@ -762,8 +828,24 @@ const capture=process.env.CAPTURE_PR1_EVIDENCE==='1';const evidenceRoot=resolve(
 async function noOverflow(page:Page){expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBe(true);}
 async function shot(page:Page,name:string,width:number){if(!capture)return;await mkdir(evidenceRoot,{recursive:true});await page.screenshot({path:resolve(evidenceRoot,`${name}-${width}.png`),fullPage:true});}
 async function set(page:Page,width:number){await page.setViewportSize({width,height:width<=768?900:1000});}
-test('landing and auth responsive evidence',async({page},testInfo)=>{const widths=testInfo.project.name==='mobile'?[375,768]:[1280,1440];for(const width of widths){await set(page,width);await page.goto('/');await expect(page.getByRole('heading',{name:'Tulis serial panjang tanpa kehilangan arah.'})).toBeVisible();await expect(page.getByRole('link',{name:'Masuk'})).toBeVisible();await noOverflow(page);await shot(page,'landing',width);await page.goto('/masuk');await expect(page.getByRole('heading',{name:'Masuk'})).toBeVisible();await expect(page.getByLabel('Alamat email')).toBeVisible();await noOverflow(page);await shot(page,'auth',width);}});
-test('global and project shells plus reachable sheet',async({page},testInfo)=>{await createVerifiedSession(page,testInfo);const widths=testInfo.project.name==='mobile'?[375,768]:[1280,1440];for(const width of widths){await set(page,width);await page.goto('/app');await expect(page.getByTestId('global-shell')).toBeVisible();await noOverflow(page);await shot(page,'global-shell',width);}const project=await createOwnedProject(page);for(const width of widths){await set(page,width);await page.goto(`/app/proyek/${project.projectId}`);await expect(page.getByTestId('project-shell')).toContainText(project.title);await expect(page.getByRole('link',{name:'Beranda',exact:true})).toHaveAttribute('aria-current','page');if(width<1280){await page.getByRole('link',{name:'Rencana',exact:true}).click();await expect(page).toHaveURL(new RegExp(`/app/proyek/${project.projectId}/outline$`));await expect(page.getByRole('link',{name:'Rencana',exact:true})).toHaveAttribute('aria-current','page');const trigger=page.getByRole('button',{name:'Lainnya'});await trigger.focus();await trigger.click();const dialog=page.getByRole('dialog',{name:'Lainnya'});await expect(dialog).toBeVisible();await expect(page.getByRole('button',{name:'Tutup'})).toBeFocused();await expect(dialog.getByText('Naskah')).toBeVisible();await expect(dialog.getByText('Naskah')).not.toHaveAttribute('href');await page.keyboard.press('Escape');await expect(dialog).toBeHidden();await expect(trigger).toBeFocused();}else{for(const group of ['PERSIAPAN','PERENCANAAN','PENULISAN','PEMERIKSAAN','PUBLIKASI','LAINNYA'])await expect(page.getByText(group,{exact:true})).toBeVisible();await page.getByRole('link',{name:'Chat Narra',exact:true}).click();await expect(page).toHaveURL(new RegExp(`/app/proyek/${project.projectId}/chat$`));await expect(page.getByRole('link',{name:'Chat Narra',exact:true})).toHaveAttribute('aria-current','page');}await noOverflow(page);await shot(page,'project-shell',width);}});
+test('landing and auth responsive evidence',async({page},testInfo)=>{const widths=testInfo.project.name==='mobile'?[375,768]:[1280,1440];for(const width of widths){await set(page,width);await page.goto('/');await expect(page.getByRole('heading',{name:'Tulis serial panjang tanpa kehilangan arah.'})).toBeVisible();if(width<1024){const trigger=page.getByRole('button',{name:'Menu',exact:true});await expect(trigger).toBeVisible();await trigger.focus();await trigger.click();const dialog=page.getByRole('dialog',{name:'Navigasi utama mobile'});await expect(dialog).toBeVisible();await expect(dialog.getByRole('link',{name:'Masuk',exact:true})).toBeVisible();await page.keyboard.press('Escape');await expect(dialog).toBeHidden();await expect(trigger).toBeFocused();}else{await expect(page.getByRole('link',{name:'Masuk',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Menu',exact:true})).toBeHidden();}await noOverflow(page);await shot(page,'landing',width);await page.goto('/masuk');await expect(page.getByRole('heading',{name:'Masuk'})).toBeVisible();await expect(page.getByLabel('Alamat email')).toBeVisible();await noOverflow(page);await shot(page,'auth',width);}});
+test('global and project shells plus distinct mobile sheet and tablet drawer',async({page},testInfo)=>{
+  await createVerifiedSession(page,testInfo);const widths=testInfo.project.name==='mobile'?[375,768]:[1280,1440];
+  for(const width of widths){await set(page,width);await page.goto('/app');await expect(page.getByTestId('global-shell')).toBeVisible();await noOverflow(page);await shot(page,'global-shell',width);}
+  const project=await createOwnedProject(page);
+  for(const width of widths){
+    await set(page,width);await page.goto(`/app/proyek/${project.projectId}`);await expect(page.getByTestId('project-shell')).toContainText(project.title);
+    if(width===375){
+      await expect(page.getByRole('link',{name:'Beranda',exact:true})).toHaveAttribute('aria-current','page');await page.getByRole('link',{name:'Rencana',exact:true}).click();await expect(page).toHaveURL(new RegExp(`/app/proyek/${project.projectId}/outline$`));await expect(page.getByRole('link',{name:'Rencana',exact:true})).toHaveAttribute('aria-current','page');
+      const trigger=page.getByRole('button',{name:'Lainnya'});await trigger.focus();await trigger.click();const dialog=page.getByRole('dialog',{name:'Lainnya'});await expect(dialog).toBeVisible();await expect(page.getByRole('button',{name:'Tutup'})).toBeFocused();await expect(dialog.getByText('Naskah')).toBeVisible();await expect(dialog.getByText('Naskah')).not.toHaveAttribute('href');await expect(dialog.getByText('Kemampuan ini belum tersedia.').first()).toBeVisible();await page.keyboard.press('Escape');await expect(dialog).toBeHidden();await expect(trigger).toBeFocused();
+    }else if(width===768){
+      const trigger=page.getByRole('button',{name:'Menu proyek'});await expect(trigger).toBeVisible();await trigger.focus();await trigger.click();const drawer=page.getByRole('dialog',{name:'Navigasi proyek'});await expect(drawer).toBeVisible();await expect(page.getByRole('button',{name:'Tutup navigasi proyek'})).toBeFocused();await expect(drawer.getByRole('link',{name:'Beranda',exact:true})).toHaveAttribute('aria-current','page');await page.keyboard.press('Shift+Tab');expect(await page.evaluate(()=>document.activeElement?.closest('dialog')?.id)).toBe('project-navigation-drawer');await page.keyboard.press('Tab');expect(await page.evaluate(()=>document.activeElement?.closest('dialog')?.id)).toBe('project-navigation-drawer');await drawer.getByRole('link',{name:'Rencana Cerita',exact:true}).click();await expect(page).toHaveURL(new RegExp(`/app/proyek/${project.projectId}/outline$`));await expect(drawer.getByRole('link',{name:'Rencana Cerita',exact:true})).toHaveAttribute('aria-current','page');await expect(drawer.getByText('Kemampuan ini belum tersedia.').first()).toBeVisible();await page.keyboard.press('Escape');await expect(drawer).toBeHidden();await expect(trigger).toBeFocused();await expect(page.getByRole('button',{name:'Lainnya'})).toBeVisible();
+    }else{
+      for(const group of ['PERSIAPAN','PERENCANAAN','PENULISAN','PEMERIKSAAN','PUBLIKASI','LAINNYA'])await expect(page.getByText(group,{exact:true})).toBeVisible();await page.getByRole('link',{name:'Chat Narra',exact:true}).click();await expect(page).toHaveURL(new RegExp(`/app/proyek/${project.projectId}/chat$`));await expect(page.getByRole('link',{name:'Chat Narra',exact:true})).toHaveAttribute('aria-current','page');
+    }
+    await noOverflow(page);await shot(page,'project-shell',width);
+  }
+});
 test('sheet remains usable with reduced motion',async({page},testInfo)=>{await page.emulateMedia({reducedMotion:'reduce'});await createVerifiedSession(page,testInfo);await set(page,375);await page.getByRole('button',{name:'Lainnya'}).click();await expect(page.getByRole('dialog',{name:'Lainnya'})).toBeVisible();await page.keyboard.press('Escape');await expect(page.getByRole('dialog',{name:'Lainnya'})).toBeHidden();});
 ```
 
@@ -907,6 +989,30 @@ Run: `git status --short && git log --oneline c5912631f2e3244894705dc30f36f8de4d
 
 Expected: clean tree. Log includes plan commit made before execution plus nine implementation boundaries from Tasks 1–9. Spec commit `c591263` is range base, not counted as implementation. Do not push before review accepts evidence/root dispositions.
 
+- [ ] **Step 8: Prove primary checkout dirty baseline remained byte-identical**
+
+Jalankan read-only commands dari worktree; jangan `cd` ke primary, jangan menjalankan lint/build/test di primary, dan jangan menulis file primary:
+
+```bash
+PRIMARY='D:/Coding/Narraza Fix/Narraza v3'
+EXPECTED_STATUS=$(cat <<'EOF'
+ M packages/core/package.json
+ M packages/core/tsconfig.json
+ M pnpm-lock.yaml
+?? docs/PROGRESS-CHECKLIST.local-backup.md
+EOF
+)
+ACTUAL_STATUS=$(git -C "$PRIMARY" status --short)
+printf '%s\n' "$ACTUAL_STATUS"
+test "$ACTUAL_STATUS" = "$EXPECTED_STATUS"
+test "$(git -C "$PRIMARY" hash-object packages/core/package.json)" = b1da2d362e03c479072429127dd87a9e4a05e878
+test "$(git -C "$PRIMARY" hash-object packages/core/tsconfig.json)" = 4b4b1bbe1ea8708d592a9e1027f4bdd2e0dfb2fd
+test "$(git -C "$PRIMARY" hash-object pnpm-lock.yaml)" = f799ac600f5f1a1131abeb378e785e182021cf60
+test "$(git -C "$PRIMARY" hash-object docs/PROGRESS-CHECKLIST.local-backup.md)" = a97dd58ccacd519f7da941709f6412bff47d9275
+```
+
+Expected: printed status exactly matches four recorded dirty paths and every `test` exits 0. Any mismatch means stop and report primary baseline changed; do not repair, reset, checkout, clean, stash, or otherwise alter primary.
+
 ## PR1 Definition of Done
 
 - [ ] Runtime tokens defined exactly; TypeScript inventory names-only; font build passes.
@@ -915,20 +1021,21 @@ Expected: clean tree. Log includes plan commit made before execution plus nine i
 - [ ] Native hook avoids close recursion and restores focus; reachable MobileMoreSheet passes focus/Escape/reduced-motion browser checks.
 - [ ] ConfirmationDialog has source/API accessibility contract and is not wired to logout.
 - [ ] Logout remains direct server form/button interaction.
-- [ ] Complete 32-entry capability declaration registry is keyed by `CapabilityKey`; protected actions require separate server-derived effective state, fail closed without it, and deferred metadata creates no routes/hrefs.
+- [ ] Complete 32-entry capability declaration registry is keyed by `CapabilityKey`; protected actions require separate server-derived effective state, fail closed without it, `allowed:false + AVAILABLE` throws, and deferred metadata creates no routes/hrefs.
+- [ ] Capability notices render `Pratinjau fitur`/`Segera tersedia`, never implementation enum values `PRESENTATION`/`DISABLED`.
 - [ ] Exact state axes and recoverability compile; no combined client state machine.
 - [ ] ViewModels are small compile-time contracts; source contracts reject restricted field names in public types.
-- [ ] Landing exact hero/CTA/workflow/legal behavior remains and approved parity sections render without import/privacy overclaim.
-- [ ] Auth actions/selectors/`useActionState`/pending/redirect semantics remain; real auth smoke passes.
+- [ ] Landing desktop header renders four anchors (`Cara kerja`, `Fitur`, `Untuk siapa`, `Kredit`); below 1024 mobile `Menu` dialog exposes `Masuk`, closes with `Escape`, becomes hidden, and restores focus; canonical sections render exact 3 problem cards → 6 workflow steps → 6 feature cards → 4 persona cards → 3 credit tiers plus disclosure → final CTA → footer, `Seimbang` is emphasized with `Disarankan`, additive trust/FAQ stays between credit and final CTA, and no internal milestone copy appears.
+- [ ] Auth actions/selectors/`useActionState`/pending/redirect semantics remain; existing characterization passes before edits, separate resend guard fails before and passes after `useFormStatus`; real auth smoke passes.
 - [ ] Exactly one app-layout `getCurrentUser()`, `redirect('/masuk')`, direct `logoutAction` remain.
 - [ ] Global/project shells differ; project identity uses owner-scoped existing query and `notFound()`.
-- [ ] Desktop exact six groups and mobile exact five tabs render; unavailable items have no href/no-op handler.
+- [ ] Desktop exact six groups, tablet 768 distinct project drawer, dan mobile exact five tabs render; unavailable items have no href/no-op handler and show visible reason captions.
 - [ ] Existing M2 pages are wrapped, not visually refactored; IDOR passes.
 - [ ] Project `/tulis` remains absent for PR3; chapter `/bab/[chapterId]/tulis` remains absent for PR4.
 - [ ] Source/unit/contract/architecture/E2E checks pass without weakened tests or root contract suite changes.
 - [ ] Exact 375/768/1280/1440 visual evidence exists for landing/auth/global/project shell.
 - [ ] Evidence docs complete; final `DESIGN-PARITY-REPORT.md` remains PR4.
-- [ ] Root/scoped check outcomes reported honestly from isolated worktree; primary checkout untouched.
+- [ ] Root/scoped check outcomes reported honestly from isolated worktree; primary checkout exact four dirty paths and recorded `git hash-object` values remain unchanged.
 - [ ] No package, route fabrication, fake success/progress/credit/autosave, fixture fallback, analytics, server/domain/DB/worker/AI change.
 
 ## Plan Self-Review Appendix
@@ -937,16 +1044,16 @@ Expected: clean tree. Log includes plan commit made before execution plus nine i
 |---|---:|---|---|
 | Token categories and dependency direction tested | 1, 2, 8 | token tests, primitive source test, `pnpm arch` | None |
 | Server Component default; client boundaries narrow | 2, 3, 7, 8 | source contracts; dialog, mobile open-state control, and pathname link leaf only | None |
-| Static declarations cannot enable protected actions; effective state is server-derived | 4 | declaration/effective separation tests; 32 typed keys | None |
-| Typed capability keys drive navigation, reasons, notices, and tests | 4, 7, 8 | exhaustive key test and source contracts | None |
-| Landing parity preserves exact source assertions | 5 | `m0-w05.test.ts`, Playwright four widths | None |
-| Auth visual parity preserves semantics/selectors and resend duplicate guard | 6, 8 | `useFormStatus` characterization test, real auth smoke | None |
+| Static declarations cannot enable protected actions; effective state is server-derived | 4 | declaration/effective separation tests, invalid `allowed:false + AVAILABLE` test; 32 typed keys | None |
+| Typed capability keys drive navigation, visible reasons, user-facing notices, and tests | 4, 7, 8 | exhaustive registry test plus rendered-navigation-only source contracts | None |
+| Landing parity preserves exact source assertions | 5 | four desktop anchors, accessible mobile menu, ordered section source test, Playwright four widths | None |
+| Auth visual parity preserves semantics/selectors and resend duplicate guard | 6, 8 | existing characterization green, separate resend guard red then green with `useFormStatus`, real auth smoke | None |
 | Exactly one app auth guard and redirect | 7, 8 | source assertion | None |
 | Direct real logout preserved | 7, 8 | source assertion and existing auth smoke | None |
 | Global/project shells semantically distinct | 7, 8 | test IDs, nested owner read, E2E | None |
-| Desktop six groups/mobile five tabs; `Tutup Bab` stays contextual and absent | 7, 8 | broad migrated `m0-w05` assertions and browser checks | None |
-| Active navigation is pathname-authoritative with `aria-current` | 7, 8 | narrow `RouteAwareNavLink` source contract and navigation E2E | None |
-| Dialog/sheet accessibility | 3, 7, 8 | source/API contract; reachable sheet browser behavior | None; confirmation behavior intentionally waits for real consumer |
+| Desktop six groups/tablet drawer/mobile five tabs; `Tutup Bab` stays contextual and absent | 7, 8 | broad rendered-source-only `m0-w05` assertions and browser checks | None |
+| Active navigation is pathname-authoritative with `aria-current` | 7, 8 | narrow `RouteAwareNavLink` source contract and 768 drawer navigation E2E | None |
+| Dialog/sheet/drawer accessibility | 3, 7, 8 | source/API contract; reachable sheet and 768 drawer focus/Escape/restoration browser behavior | None; confirmation behavior intentionally waits for real consumer |
 | Exact orthogonal state types | 4 | exact equality test | None |
 | Small serializable ViewModel contracts | 4, 8 | readonly scalar models and restricted-name source contract | None |
 | M2 and IDOR unchanged | 7, 8 | wrapper-only edits, existing IDOR E2E | None |
@@ -954,7 +1061,7 @@ Expected: clean tree. Log includes plan commit made before execution plus nine i
 | Source/unit/contract/architecture/E2E checks | 8, 9 | focused and full gates | None |
 | Visual evidence exact paths | 8, 9 | `CAPTURE_PR1_EVIDENCE=1` writer | None |
 | Project `/tulis` deferred PR3 and chapter write deferred PR4 | 4, 8, 9 | absence source contract and approved-base diff | None |
-| Root lint baseline not hidden or fixed | 9 | isolated-worktree output and README disposition | None |
+| Root lint baseline not hidden or fixed | 9 | isolated-worktree output, README disposition, exact primary status and four hash comparisons | None |
 | Final parity report deferred PR4 | 9 | forbidden-scope audit | None |
 
 Self-review execution before implementation handoff:
