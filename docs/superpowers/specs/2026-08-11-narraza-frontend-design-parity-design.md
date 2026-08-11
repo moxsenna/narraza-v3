@@ -108,8 +108,8 @@ DC mengontrol appearance, composition, hierarchy, density, component arrangement
 
 - Semua perubahan dilakukan hanya dalam `D:\Coding\Narraza Fix\Narraza v3\.worktrees\feat-frontend-foundation`.
 - Primary checkout `D:\Coding\Narraza Fix\Narraza v3` tidak disentuh, tidak dibersihkan, tidak di-reset, dan tidak dijadikan tempat generate artefak.
-- Branch tetap `feat/frontend-foundation`; tidak commit/push sebagai bagian pembuatan spesifikasi ini.
-- Implementasi kelak mengikuti scope tiap PR. Tidak boleh menyelundupkan perbaikan domain atau lint baseline yang tidak dibutuhkan PR.
+- Spec lock commit boleh berada pada branch PR1 `feat/frontend-foundation` dan dipush untuk review.
+- Implementasi berikutnya tetap mengikuti scope dan commit sequence PR1. Tidak boleh menyelundupkan perbaikan domain atau lint baseline yang tidak dibutuhkan PR.
 
 ### 4.2 Hard boundaries
 
@@ -236,7 +236,7 @@ Base: `/app/proyek/[projectId]`.
 | `/naskah` | Naskah proyek | overview bab dan accepted prose | PRESENTATION sampai read model siap |
 | `/publish` | Paket Publish proyek | overview status publish per bab | PRESENTATION sampai artifact read model siap |
 
-`/tulis` adalah route resume, bukan editor bab tanpa identitas. Resolver menggunakan `ProjectProgressView.nextAction`/read model resmi untuk redirect atau reason-state menuju chapter. Jika target belum tersedia, tampilkan state `PREREQUISITE_MISSING`; jangan pilih chapter pertama.
+`/tulis` adalah route resume, bukan editor bab tanpa identitas. Entry resolver memakai real active/resumable chapter signal bila production contract tersedia. Jika tidak ada target tunggal, user memilih chapter legal. Jika tidak ada chapter legal, tampilkan blocked state terstruktur. Jangan pilih chapter pertama.
 
 ### 7.3 Chapter routes
 
@@ -260,28 +260,46 @@ Tidak ada beat route. Beat/adegan dipilih dalam konteks chapter melalui read mod
 
 ### 7.4 Resolver konteks
 
-Urutan wajib:
+Ada dua semantics resolver yang berbeda.
 
-1. `ProjectContextResolver` mengautentikasi user aktif dan mengambil project tenant-scoped berdasarkan URL `projectId`.
-2. `ChapterContextResolver` berjalan hanya setelah project lolos; mengambil chapter berdasarkan URL `chapterId` dan project yang sama.
-3. Route composition menerima resolved ViewModel kecil, bukan raw repository records.
+**Explicit resource resolution** untuk URL kanonis:
 
-Reason contract:
+1. autentikasi user aktif;
+2. resolve `projectId` tenant-scoped dari URL;
+3. untuk chapter route, resolve `chapterId` hanya setelah project lolos dan dalam project yang sama;
+4. foreign, random, dan missing ID tetap branded `NOT_FOUND` secara eksternal;
+5. route composition menerima ViewModel kecil, bukan raw repository records.
+
+**Entry context resolution** untuk global/project entry action:
+
+1. explicit ID jika entry URL sudah membawanya;
+2. real active/resumable signal jika production contract tersedia;
+3. jika beberapa resource legal tersedia tanpa satu target resmi, hasil `choose` meminta user memilih;
+4. jika tidak ada resource legal, hasil `blocked` memakai structured reason dan next legal route.
 
 ```ts
 type ProjectContextResult =
-  | { ok: true; project: ProjectContextViewModel }
-  | { ok: false; reasonCode: 'NOT_AUTHENTICATED' | 'PROJECT_NOT_FOUND' };
+  | { kind: 'resolved'; projectId: string; href: string }
+  | { kind: 'choose'; projects: ProjectChoiceView[] }
+  | {
+      kind: 'blocked';
+      reasonCode: 'no_project' | 'no_eligible_project';
+      createProjectHref: string;
+    };
+
+type ChapterBlockReason =
+  | 'no_chapter'
+  | 'foundation_not_locked'
+  | 'no_writable_chapter'
+  | 'chapter_unavailable';
 
 type ChapterContextResult =
-  | { ok: true; project: ProjectContextViewModel; chapter: ChapterContextViewModel }
-  | {
-      ok: false;
-      reasonCode: 'NOT_AUTHENTICATED' | 'PROJECT_NOT_FOUND' | 'CHAPTER_NOT_FOUND' | 'CHAPTER_NOT_IN_PROJECT';
-    };
+  | { kind: 'resolved'; projectId: string; chapterId: string; href: string }
+  | { kind: 'choose'; chapters: ChapterChoiceView[] }
+  | { kind: 'blocked'; reasonCode: ChapterBlockReason; outlineHref: string };
 ```
 
-Public behavior foreign/missing tetap branded `NOT_FOUND`; `NOT_AUTHORIZED` tidak membocorkan keberadaan resource. Structured reason berguna untuk mapper/test/log aman, bukan untuk membedakan foreign resource di browser.
+Explicit resource not-found tetap kontrak terpisah dari entry `blocked`; `NOT_AUTHORIZED` tidak membocorkan keberadaan resource. Structured reason berguna untuk mapper/test/log aman, bukan untuk membedakan foreign resource di browser.
 
 Dilarang:
 
@@ -363,8 +381,8 @@ Frontend tidak membuat state machine kedua. State berasal dari axis independen d
 | Axis | Nilai yang diizinkan | Authority |
 |---|---|---|
 | `capability` | REAL, PRESENTATION, DISABLED | metadata frontend + server prerequisite |
-| `view` | initial, empty, loading, ready, error, not-found | route/read lifecycle |
-| `mutation` | idle, submitting, success, validation-error, conflict, failed | Server Action result |
+| `view` | loading, ready, empty, error, stale | route/read lifecycle |
+| `mutation` | idle, saving, saved, blocked, error | Server Action result |
 | `quote` | unavailable, quoted, expired | server quote response; confirmation adalah action, bukan status quote |
 | `job` | none, queued, running, succeeded, failed, dead, cancelled | `GenerationJob`/public phase |
 | `artifact` | none, candidate, accepted | domain read model |
@@ -383,7 +401,7 @@ Pemisahan wajib:
 - artifact = hasil yang dapat dipakai;
 - “Kreditmu tidak dipotong” hanya tampil jika hasil server membuktikan zero-charge, bukan asumsi saat error client.
 
-UI mengomposisikan axis. Contoh: `capability=REAL`, `view=ready`, `job=running`, `draft=clean`, `validation=none`. Jangan membuat enum gabungan seperti `WRITE_PAGE_GENERATING_WITH_CREDIT_AND_NO_DRAFT`.
+UI mengomposisikan axis. Contoh: `capability=REAL`, `view=ready`, `job=running`, `draft=clean`, `validation=not-run`. Jangan membuat enum gabungan seperti `WRITE_PAGE_GENERATING_WITH_CREDIT_AND_NO_DRAFT`.
 
 ## 11. Design system architecture
 
@@ -494,9 +512,11 @@ Aturan gate:
 
 **Dashboard `/app`**
 
-- Data proyek dari `listMyProjects()`. Proyek intake/setup wajib tampil.
-- Empty state CTA `/app/proyek/baru`; loading skeleton; query error retry; search no-result berbeda dari true empty.
-- Next action dan stage hanya dari `ProjectProgressView`, bukan derivasi card client.
+- Data proyek hanya dari `listMyProjects()`. Proyek intake/setup wajib tampil.
+- Capability REAL terbatas pada project list, create CTA, dan field yang memang tersedia dari read model dashboard.
+- Empty state CTA `/app/proyek/baru`; loading skeleton dan query error treatment tidak boleh mengarang data.
+- Search, activity, readiness, target chapter, recent timestamp, next-writing CTA, dan stage experience tidak masuk production acceptance PR2. Search-miss dari DC hanya reference/future presentation state.
+- Jangan membuat fabricated progress. `ProjectProgressView` dipakai pada Project Home, bukan untuk menghidupkan capability Dashboard.
 - Pertahankan href `/app/proyek/baru`, heading level 1, dan project href nyata.
 
 **Buat proyek `/app/proyek/baru`**
@@ -509,7 +529,7 @@ Aturan gate:
 
 **Beranda Proyek `/app/proyek/[projectId]`**
 
-- `ProjectContextResolver` menggantikan pengulangan route tanpa mengubah behavior `getMyProject`/`notFound`.
+- Pertahankan route authorization dan behavior `getMyProject`/`notFound` existing pada PR2; resolver architecture baru masuk PR3.
 - Tampilkan title, next action, blockers, counts dari `getProjectProgress`; internal `nextAction.code`, `canon vN`, dan raw intake path dipetakan ke copy pengguna.
 - Link M2 tetap menuju `chat`, `fondasi`, `outline`, `karakter`, `fakta`, `rahasia` dengan `projectId` yang sama.
 
@@ -535,14 +555,14 @@ Aturan gate:
 
 - Reads tetap `getProjectOutline`; create roadmap/arc/chapter tetap action M2.
 - Pertahankan names `projectId`, `title`, `parentId`, `ordinal`, buttons `Tambah roadmap`, `Tambah arc`, `Tambah bab` selama migration selector compatibility.
-- Projection loss dilarang: mapper/normalizer harus mempertahankan payload/fields domain yang tidak ditampilkan ketika edit parsial. Route tidak boleh membangun replacement object dari hanya field visual lalu menghapus data foundation/outline tersembunyi.
-- Guard `outline-downstream` tetap authority. Bab dengan accepted prose tidak dapat diedit biasa; tampilkan alasan plain Indonesian dan arah proposal masa depan disabled bila belum tersedia.
+- Current Outline tetap create-only. Jangan menambah edit path, partial replacement, atau normalizer baru demi parity. Jika mutation REAL masa depan round-trip aggregate existing, projection-loss protection baru wajib diterapkan pada mutation tersebut.
+- Guard `outline-downstream` tetap authority. Edit/delete/reorder/beat/generation/write tetap DISABLED; tampilkan alasan plain Indonesian tanpa membuat proposal flow palsu.
 - Empty hierarchy memberi aksi dependency benar: roadmap dulu, lalu bagian, lalu bab.
 
 **Karakter `/karakter`**
 
 - Read tenant nyata tetap REAL. Jangan akses `getUnitOfWork` langsung dari route bila resolver/query adapter dapat menyediakannya; refactor boundary tidak boleh mengubah hasil.
-- List menampilkan nama, peran pengguna, relasi/panggilan/gaya bicara dari ViewModel yang aman. Raw ID tidak tampil.
+- Wajib tampilkan `displayName` dan `role`. Relasi, panggilan, atau gaya bicara hanya opsional bila defensive parsing membuktikan read model/payload aman benar-benar menyediakan field tersebut; bukan acceptance PR2. Raw ID tidak tampil.
 - Create/edit/delete/proposal/knowledge controls DISABLED. Jangan menambah modal dengan fake success.
 
 **Fakta `/fakta`**
@@ -555,13 +575,13 @@ Aturan gate:
 
 - Read tenant nyata tetap REAL. Truth author-private hanya kepada owner; writer-safe panel tidak menerima truth.
 - Raw `factId`, `revealId`, dan sequence tidak tampil. Visual timeline menerjemahkan breadcrumb, zona tertahan, target bab melalui ViewModel.
-- Pemula melihat ringkasan “detail dijaga”; Mahir dapat melihat author-private inspector setelah server gating. Tidak ada client-only mode gate untuk data sensitif.
+- Truth Inspector tetap DISABLED pada M2. Jika capability masa depan tersedia, author-private inspector hanya boleh aktif setelah server gating; tidak pernah melalui client-only mode gate.
 
 **Proteksi lintas M2**
 
 - Semua route memanggil auth lalu tenant scope; foreign/random branded not-found.
 - Mutation hidden field tampering tetap ditolak dan tidak mengubah owner data.
-- Foundation and outline normalization wajib punya fixture projection-loss test: unknown/untouched payload survives read-edit-write.
+- Projection-loss test wajib untuk setiap mutation REAL yang round-trip existing aggregate payload. Pada scope sekarang ini wajib untuk Foundation. Outline tetap create-only; jangan menambah edit/replacement normalizer hanya demi test.
 - Existing selectors boleh diberi alias/transisi, bukan dihapus sebelum E2E diperbarui dan lulus pada PR yang sama.
 
 ### 13.3 5C — Future shells
@@ -574,8 +594,9 @@ Aturan gate:
 
 **Project `/tulis`**
 
-- Resume route memakai progress/read model resmi. Redirect hanya jika server memberi target project-owned chapter.
-- Tanpa target: prerequisite state dan link ke langkah nyata. Tidak memilih chapter pertama.
+- Entry context resolver memakai target active/resumable server-authoritative bila tersedia.
+- Jika tidak ada target tunggal tetapi ada chapter legal, tampilkan pilihan chapter. Jika tidak ada chapter legal, tampilkan blocked reason dan link ke langkah nyata.
+- Tidak memilih chapter pertama, fixture chapter, atau `localStorage` chapter.
 
 **Chapter `/tulis`**
 
@@ -612,7 +633,9 @@ Aturan gate:
 
 - Kredit presentation memisahkan tersedia, ditahan, rekonsiliasi; tidak memakai angka scenario pada production route.
 - Header dan halaman kelak memakai `CreditSummaryView` yang sama.
-- Pengaturan hanya mengaktifkan mutation yang punya Server Action nyata. Mode Mahir gate data server-side. Hapus akun/proyek membutuhkan kontrak domain dan dialog destructive sebelum aktif.
+- Pengaturan bersifat MIXED. Email/profile yang memang tersedia boleh REAL read-only; logout current session tetap REAL.
+- Mode Pemula/Mahir, tier, logout semua device, delete account, export, writing preferences, dan mutation setting lain tetap PRESENTATION/DISABLED sampai Server Action dan contract nyata tersedia.
+- Mode Mahir kelak gate data server-side. Hapus akun/proyek membutuhkan kontrak domain dan dialog destructive sebelum aktif.
 
 ## 14. Empty, loading, error, permission, dan edge states
 
@@ -641,7 +664,7 @@ Aturan gate:
 - Hidden input bukan authorization. Server Action mengulang auth, ownership, prerequisite, revision/CAS.
 - Preview tidak memakai data tenant, bahkan setelah ownership lolos; ownership gate hanya memastikan akses konteks bila gallery route scoped.
 - Tidak ada `NEXT_PUBLIC` untuk secrets, fixture enablement, AI key, internal mode, atau data class.
-- Analytics tidak memuat naskah, judul user, prompt, email, IDs mentah, truth, finding text, atau financial exact amount jika tidak dibutuhkan. Gunakan route template, capability key, reason code, dan bucket aman.
+- Analytics berada di luar PR1–PR4. Pekerjaan parity tidak menambah event, vendor, adapter, atau payload analytics.
 - FAQ privasi menjelaskan akses cerita, no-training sesuai model policy, export, permanent deletion, dan data yang dikirim ke provider. Jangan mengklaim provider guarantee sebelum D14 gate selesai.
 - CSP, cookie, session, rate limit, token flow, and password policy tetap di luar kontrol komponen visual.
 
@@ -679,23 +702,9 @@ Aturan gate:
 
 Semua breakpoint diuji pada zoom browser dan content expansion. `375/768/1280/1440` adalah acceptance viewports; CSS breakpoint boleh content-driven selama hasil memenuhi kontrak.
 
-## 17. Analytics events
+## 17. Analytics di luar scope
 
-Event minimum, tidak mengaktifkan vendor baru tanpa keputusan privasi:
-
-| Event | Kapan | Properties aman |
-|---|---|---|
-| `frontend_route_viewed` | route berhasil dirender | `routeTemplate`, `shellKind`, `capabilityModes`, `viewportBucket` |
-| `frontend_primary_action_viewed` | primary action terlihat | `capabilityKey`, `enabled`, `reasonCode` |
-| `frontend_primary_action_invoked` | action REAL dikirim | `capabilityKey`, `routeTemplate` |
-| `frontend_disabled_action_explained` | user membuka/menavigasi reason | `capabilityKey`, `reasonCode` |
-| `frontend_empty_state_viewed` | empty/prerequisite state | `routeTemplate`, `emptyKind`, `reasonCode` |
-| `frontend_route_error_viewed` | public error state | `routeTemplate`, `publicMessageCode`, `recoverable` |
-| `frontend_context_resolution_failed` | resolver gagal | `contextKind`, public-safe `reasonCode`; tanpa ID |
-| `frontend_preview_scenario_viewed` | dev-only gallery render | `scenarioKey`, `componentKey`, `viewportBucket`; tidak dikirim production |
-| `frontend_navigation_used` | global/sidebar/bottom nav | `source`, `destinationRouteTemplate` |
-
-Success outcome domain tidak dicatat oleh timeout/click. Event success hanya dari response/result nyata. Dedupe mutation event memakai request/session correlation yang tidak mengekspos entity ID.
+Kontrak event, vendor, adapter, correlation, dan analytics tests bukan bagian PR1–PR4. Future work harus melalui keputusan produk/privacy terpisah dan tidak boleh disisipkan dalam implementation plan frontend parity.
 
 ## 18. Testing dan CI
 
@@ -729,12 +738,12 @@ Test tidak boleh dilemahkan: tidak ada `.skip`, `test.only`, pengurangan asserti
 - [ ] Semua route pada IA matrix, termasuk intent disabled `/app/proyek/impor`, punya metadata capability typed dan test exhaustive.
 - [ ] `/app/proyek/impor` hanya intent DISABLED; tidak ada functional import flow, Panduan Uji Coba, atau beat route.
 - [ ] Chapter routes memakai `projectId + chapterId` persis pada lima suffix yang ditetapkan.
-- [ ] `/tulis` memilih resume target hanya dari reducer/read model server; tidak ada first-array/localStorage/fixture fallback.
+- [ ] `/tulis` memakai entry resolver `resolved | choose | blocked`; target hanya dari explicit ID atau signal server, dan tidak ada first-array/localStorage/fixture fallback.
 - [ ] Global shell dan project shell berbeda secara semantik.
 - [ ] Desktop memiliki enam grup; mobile memiliki lima tab sesuai label terkunci.
 - [ ] Existing M2 selector dan auth/IDOR guard tetap lulus.
 - [ ] Foreign dan random project/chapter menghasilkan branded not-found identik tanpa data leak.
-- [ ] Foundation/outline partial projection tidak menghapus field/payload yang tidak diedit.
+- [ ] Foundation round-trip tidak menghapus field/payload yang tidak direpresentasikan; Outline tetap create-only tanpa edit/replacement path baru.
 - [ ] REAL action menghasilkan success hanya dari Server Action/use case nyata.
 - [ ] PRESENTATION/DISABLED action tidak melakukan mutation, job, reservation, ledger, atau artifact write.
 - [ ] Quote, reservation, job, ledger, artifact, draft, validation, capability, view, mutation, dan presentation tidak digabung menjadi state machine client kedua.
@@ -776,7 +785,7 @@ PR boleh sequential atau stacked. Jika stacked, setiap PR hanya berisi delta sco
 
 **Depends on:** PR1 review-clean.
 
-**Scope:** dashboard, buat proyek, project home, chat, foundation, outline, karakter, fakta, rahasia; preserve behavior/selectors; introduce `ProjectContextResolver`; projection-loss protection. Ini presentation refactor untuk capability M2 yang sudah ada, bukan capability expansion.
+**Scope:** dashboard, buat proyek, project home, chat, foundation, outline, karakter, fakta, rahasia; preserve existing reads, actions, route authorization, behavior, dan selectors; Foundation projection-loss protection. Ini presentation refactor untuk capability M2 yang sudah ada, bukan capability expansion. Resolver architecture baru bukan scope PR2.
 
 **Commit intent:**
 
@@ -794,39 +803,41 @@ PR boleh sequential atau stacked. Jika stacked, setiap PR hanya berisi delta sco
 
 **Depends on:** PR2 review-clean.
 
-**Scope:** route metadata/route files untuk disabled intent `/app/proyek/impor`, project `/konsep`, `/tulis`, `/naskah`, `/publish`, dan lima chapter routes; `ChapterContextResolver`; presentation components; all unavailable action disabled; no backend feature fabrication. Import route tidak memiliki upload, analisis, persistence, atau success path.
+**Scope:** server-only preview gate, authorized preview context, typed tenant-free scenarios, capability metadata integration, explicit-resource dan entry-context project/chapter resolvers, disabled intent `/app/proyek/impor`, project `/konsep`, credit shell, settings MIXED shell, serta generation/validation presentation components yang dibutuhkan route authoring PR4. Semua unavailable action disabled; tidak ada backend feature fabrication. Import route tidak memiliki upload, analisis, persistence, atau success path. Preview tetap tooling sekunder; canonical product routes menjadi bukti utama.
 
 **Commit intent:**
 
-1. `feat(web): add canonical project and chapter route shells`
-2. `feat(web): resolve project and chapter context fail closed`
-3. `test(web): enforce disabled future capability semantics`
+1. `feat(web): add fail-closed preview infrastructure`
+2. `feat(web): resolve project and chapter entry context`
+3. `feat(web): add concept credit and settings shells`
+4. `feat(web): add future presentation components`
+5. `test(web): enforce disabled future capability semantics`
 
 **Acceptance:**
 
-- [ ] Lima chapter routes memakai URL kanonis.
+- [ ] Preview gate/scenario infrastructure tersedia server-only, fail closed, tenant-free, dan tidak menggantikan canonical product route evidence.
+- [ ] Explicit-resource dan entry-context resolvers menjaga owner scope serta `resolved | choose | blocked` semantics.
 - [ ] Tidak ada beat route, Panduan Uji Coba route, atau operasi aktif pada `/app/proyek/impor`.
-- [ ] Resume tidak memilih first array.
-- [ ] Future actions tidak menghasilkan fake success atau side effect.
+- [ ] Konsep, credit, settings MIXED, generation, dan validation components tidak menghasilkan fake success atau side effect.
 
-### PR4 — Authoring, mobile completion, preview, dan evidence
+### PR4 — Authoring, mobile completion, dan evidence
 
 **Depends on:** PR3 review-clean.
 
-**Scope:** authoring-focused presentation polish untuk tulis/cek/selesaikan/naskah/publish, deliberate mobile compositions dari `narraza-mobile.dc.html`, dev-only preview gallery, server-only gate, typed tenant-free scenarios, mapper reuse, all state visual coverage, responsive/a11y tests, evidence matrix/screenshots. Tidak menambah production capability.
+**Scope:** canonical Writing Workspace, Cek Cerita, Selesaikan Bab, Naskah, dan Publish routes; deliberate mobile authoring compositions dari `narraza-mobile.dc.html`; mengonsumsi preview gate, scenarios, resolvers, dan presentation components dari PR3; all state visual coverage; responsive/a11y tests; final evidence matrix/screenshots. Tidak membangun preview infrastructure baru dan tidak menambah production capability.
 
 **Commit intent:**
 
-1. `feat(web): complete authoring and mobile presentation parity`
-2. `feat(web): add fail-closed development preview gallery`
+1. `feat(web): add canonical authoring route shells`
+2. `feat(web): complete mobile authoring presentation parity`
 3. `test(web): cover responsive parity and accessibility`
 4. `docs(web): record frontend parity evidence`
 
 **Acceptance:**
 
-- [ ] Gallery tidak dapat diakses/diaktifkan production.
-- [ ] Scenario tidak membawa tenant data atau action enablement.
-- [ ] 375/768/1280/1440 evidence tersedia.
+- [ ] Lima chapter routes memakai URL kanonis dan mengonsumsi resolver/scenario infrastructure PR3.
+- [ ] Writing/Cek/Selesaikan/Naskah/Publish tidak melakukan mutation future palsu.
+- [ ] 375/768/1280/1440 evidence tersedia, termasuk deliberate mobile authoring composition.
 - [ ] Semua route/state memiliki klasifikasi referensi dan capability evidence.
 
 ## 20. Risiko dan asumsi
@@ -835,7 +846,7 @@ PR boleh sequential atau stacked. Jika stacked, setiap PR hanya berisi delta sco
 |---|---|---|
 | Full coverage disalahartikan full function | Fake behavior dan scope M4–M6 bocor | Capability per aksi, disabled future mutation, acceptance side-effect tests |
 | DC dianggap source domain | Route/state/persistence salah | Authority order dan route matrix terkunci |
-| Refactor M2 menghilangkan payload | Foundation/outline data loss | Small ViewModel + projection-loss integration fixtures |
+| Refactor M2 menghilangkan payload Foundation | Data canonical hilang saat round-trip form | Small ViewModel + Foundation projection-loss integration fixtures; Outline tetap create-only |
 | Resolver membocorkan tenant existence | IDOR | owner-scoped query, public branded not-found identik |
 | Preview bocor ke production | Data/trust/security issue | `server-only`, fail closed, no `NEXT_PUBLIC`, tenant-free scenarios, Security Smoke |
 | Banyak combined states membuat client SM kedua | Drift dari backend | Orthogonal axes + mapper, no combined enum |
@@ -848,7 +859,7 @@ Asumsi tidak menghalangi implementasi:
 
 - Existing application/domain contracts tetap authoritative dan tidak diubah oleh pekerjaan visual.
 - Galeri preview `/app/__preview/frontend-parity` dipakai hanya reviewer/developer terautentikasi di development dan fail closed di production.
-- Analytics memakai abstraction yang ada atau no-op typed adapter sampai vendor/privacy decision ada; event contract tetap diuji tanpa menambah tracker.
+- Analytics tetap di luar PR1–PR4 sampai ada keputusan produk/privacy terpisah.
 
 ## 21. Task dependency order
 
@@ -857,28 +868,32 @@ Asumsi tidak menghalangi implementasi:
 - [ ] Bentuk primitives, composites, accessibility contracts, dan layer import rules.
 - [ ] Bentuk capability metadata, reason catalog, orthogonal state types, dan exhaustive tests.
 - [ ] Bentuk small ViewModel contracts dan safe mappers.
-- [ ] Bentuk `ProjectContextResolver`; migrasikan project route reads tanpa mengubah public behavior.
 - [ ] Bentuk global/project shell, six-group desktop, five-tab mobile.
 - [ ] Terapkan public/auth parity pada PR1 sambil mempertahankan selectors.
-- [ ] Terapkan dashboard/new-project dan seluruh M2 parity pada PR2.
-- [ ] Terapkan M2 route parity dan projection-loss tests.
-- [ ] Bentuk `ChapterContextResolver` setelah project resolver stabil.
-- [ ] Tambah project resume/overview shells dan lima chapter route shells.
+- [ ] Terapkan dashboard/new-project dan seluruh M2 parity pada PR2 tanpa resolver refactor atau capability expansion.
+- [ ] Terapkan Foundation projection-loss tests; Outline tetap create-only.
+- [ ] Pada PR3, bentuk explicit-resource dan entry-context project/chapter resolvers dengan `resolved | choose | blocked` semantics.
+- [ ] Pada PR3, bentuk preview gate server-only, authorized preview context, static typed scenario registry, dan dev-only gallery.
+- [ ] Pada PR3, tambah concept, credit, settings MIXED, generation, dan validation presentation shells/components.
+- [ ] Pada PR4, tambah canonical Writing/Cek/Selesaikan/Naskah/Publish routes memakai infrastructure PR3.
 - [ ] Tambah disabled reason states dan no-side-effect tests untuk future actions.
-- [ ] Bentuk preview gate server-only dan static typed scenario registry.
-- [ ] Tambah dev-only gallery memakai komponen produksi tanpa mengubah capability.
 - [ ] Jalankan responsive/a11y/visual review pada 375/768/1280/1440.
 - [ ] Jalankan delapan CI suites yang relevan; catat root lint baseline secara jujur.
 - [ ] Lengkapi evidence matrix route × state × capability × reference classification × test.
 
 ## 22. Evidence wajib
 
-Evidence implementasi kelak disimpan pada lokasi dokumentasi review yang sudah diizinkan scope PR, bukan file ad hoc di source. Minimum:
+Evidence implementasi memakai exact paths berikut:
+
+- `docs/frontend/VISUAL-REFERENCE-INVENTORY.md` untuk mapping REFERENCE FOUND/ADAPTED/INTENTIONAL DEVIATION/NEW SYSTEM-ONLY COMPONENT;
+- `docs/frontend/ROUTE-CAPABILITY-MATRIX.md` untuk route × primary action × REAL/PRESENTATION/DISABLED × reason;
+- `docs/frontend/DESIGN-PARITY-REPORT.md` untuk hasil akhir parity dan deviation;
+- `docs/review/frontend/**` untuk screenshot, test output, audit, dan bukti per PR/head SHA.
+
+Minimum evidence:
 
 - route inventory hasil aktual;
 - capability metadata dump/test snapshot yang human-readable;
-- matrix route × primary action × REAL/PRESENTATION/DISABLED × reason;
-- mapping REFERENCE FOUND/ADAPTED/INTENTIONAL DEVIATION/NEW SYSTEM-ONLY COMPONENT;
 - screenshot 375, 768, 1280, 1440 untuk public, global shell, project shell, M2 representative, dan future shell representative;
 - keyboard/focus/dialog/sheet audit;
 - auth smoke, IDOR, projection-loss, no-side-effect, preview fail-closed test output;
