@@ -35,6 +35,7 @@ interface ActiveStage {
   controller: AbortController;
   stale: boolean;
   phase: 'processing' | 'publishing' | 'finalizing';
+  processorSettled: boolean;
   processorDone: Promise<void>;
   done: Promise<void>;
   heartbeatTimer?: Timer;
@@ -103,7 +104,13 @@ export function createJobLoop(deps: JobLoopDependencies) {
       stage.heartbeatInFlight = heartbeat(stage);
       void stage.heartbeatInFlight
         .then((live) => {
-          if (live && active === stage && !stage.stale && stage.phase === 'processing') {
+          if (
+            live &&
+            active === stage &&
+            !stage.stale &&
+            stage.phase === 'processing' &&
+            !stage.processorSettled
+          ) {
             scheduleHeartbeat(stage);
           }
         })
@@ -156,10 +163,11 @@ export function createJobLoop(deps: JobLoopDependencies) {
         stage.controller = controller;
         stage.stale = false;
         stage.phase = 'processing';
+        stage.processorSettled = false;
         stage.processorDone = deps.processor(result.job, controller.signal);
         stage.done = (async () => {
           await stage.processorDone;
-          stage.phase = 'publishing';
+          stage.processorSettled = true;
           if (stage.heartbeatTimer) deps.cancelTimer(stage.heartbeatTimer);
           if (stage.heartbeatInFlight) await stage.heartbeatInFlight;
           const processingDeadline =
@@ -170,6 +178,7 @@ export function createJobLoop(deps: JobLoopDependencies) {
             !stage.stale &&
             (processingDeadline === undefined || Date.now() < processingDeadline)
           ) {
+            stage.phase = 'publishing';
             const published = await deps.service.withFencedPublish(stage.identity, async () => {});
             stage.phase = 'finalizing';
             if (published.kind !== 'published') stage.stale = true;
@@ -181,7 +190,7 @@ export function createJobLoop(deps: JobLoopDependencies) {
           await stage.done;
         } finally {
           if (stage.heartbeatTimer) deps.cancelTimer(stage.heartbeatTimer);
-          if (active === stage) active = undefined;
+          if (active === stage && !(stopping && stage.phase === 'processing')) active = undefined;
         }
       } catch (error) {
         deps.logger.error({ event: 'job_poll_error', error });
@@ -237,7 +246,11 @@ export function createJobLoop(deps: JobLoopDependencies) {
           stage.controller.abort();
           let live = false;
           try {
-            live = (await waitWithinShutdown(heartbeat(stage))) ?? false;
+            const heartbeatInFlight = stage.heartbeatInFlight;
+            const settled = heartbeatInFlight ? await waitWithinShutdown(heartbeatInFlight) : true;
+            if (settled !== undefined) {
+              live = (await waitWithinShutdown(heartbeat(stage))) ?? false;
+            }
           } catch (error) {
             deps.logger.error({ event: 'job_shutdown_heartbeat_error', error });
           }
@@ -248,6 +261,7 @@ export function createJobLoop(deps: JobLoopDependencies) {
           }
         }
         if (stage.heartbeatTimer) deps.cancelTimer(stage.heartbeatTimer);
+        if (active === stage) active = undefined;
       }
 
       if (polling) await waitWithinShutdown(polling).catch(() => undefined);

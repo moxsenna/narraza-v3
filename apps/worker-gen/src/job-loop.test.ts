@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createJobLoop, type JobLoopDependencies } from './job-loop.js';
 
-const identity = { projectId: 'p', jobId: 'j', leaseToken: 'token', leaseFence: 1 };
+const identity = { projectId: 'p', jobId: 'j', leaseToken: 'token', fenceVersion: 1 };
 const claimed = { kind: 'claimed' as const, job: { id: 'j' }, identity };
 
 function harness(overrides: Partial<JobLoopDependencies> = {}) {
@@ -454,6 +454,130 @@ describe('job loop', () => {
       expect(service.heartbeat).toHaveBeenCalledOnce();
       expect(service.withFencedPublish).not.toHaveBeenCalled();
       expect(deps.disconnect).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('serializes pending scheduled heartbeat before fresh shutdown recovery heartbeat', async () => {
+    vi.useFakeTimers();
+    try {
+      const heartbeatResolvers: Array<
+        (value: { kind: 'extended'; job: { cancellationRequestedAt: null } }) => void
+      > = [];
+      const order: string[] = [];
+      const processor = vi.fn(
+        (_job, signal: AbortSignal) =>
+          new Promise<void>((resolve) => signal.addEventListener('abort', resolve, { once: true })),
+      );
+      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+      const { service, deps, loop } = harness({
+        processor,
+        sleep,
+        disconnect: vi.fn(async () => {
+          order.push('disconnect');
+        }),
+      });
+      service.claim.mockResolvedValue(claimed);
+      service.heartbeat.mockImplementation(
+        (owner) =>
+          new Promise((resolve) => {
+            expect(owner).toEqual({ ...identity, leaseDurationMs: 60_000 });
+            order.push(`heartbeat:${heartbeatResolvers.length + 1}:start`);
+            heartbeatResolvers.push(resolve);
+          }),
+      );
+      service.requeue.mockImplementation(async (owner) => {
+        expect(owner).toEqual({ ...identity, delayMs: 0 });
+        order.push('requeue');
+        return { kind: 'requeued', job: {} };
+      });
+
+      const processing = loop.pollOnce();
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(service.heartbeat).toHaveBeenCalledOnce();
+
+      const shutdown = loop.shutdown();
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(service.heartbeat).toHaveBeenCalledOnce();
+      expect(service.withFencedPublish).not.toHaveBeenCalled();
+      expect(service.requeue).not.toHaveBeenCalled();
+      expect(deps.disconnect).not.toHaveBeenCalled();
+
+      heartbeatResolvers[0]!({ kind: 'extended', job: { cancellationRequestedAt: null } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(service.heartbeat).toHaveBeenCalledTimes(2);
+      expect(service.requeue).not.toHaveBeenCalled();
+
+      heartbeatResolvers[1]!({ kind: 'extended', job: { cancellationRequestedAt: null } });
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.all([processing, shutdown]);
+
+      expect(service.withFencedPublish).not.toHaveBeenCalled();
+      expect(service.requeue).toHaveBeenCalledWith({ ...identity, delayMs: 0 });
+      expect(order).toEqual(['heartbeat:1:start', 'heartbeat:2:start', 'requeue', 'disconnect']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('recovers exact owner when processor resolves at reserved shutdown processing deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveProcessor!: () => void;
+      const processorPending = new Promise<void>((resolve) => (resolveProcessor = resolve));
+      const order: string[] = [];
+      let publishing = false;
+      let requeueing = false;
+      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+      const { service, loop } = harness({
+        processor: vi.fn().mockReturnValue(processorPending),
+        sleep,
+        disconnect: vi.fn(async () => {
+          expect(service.heartbeat).toHaveBeenCalledOnce();
+          expect(service.requeue).toHaveBeenCalledOnce();
+          order.push('disconnect');
+        }),
+      });
+      service.claim.mockResolvedValue(claimed);
+      service.heartbeat.mockImplementation(async (owner) => {
+        expect(owner).toEqual({ ...identity, leaseDurationMs: 60_000 });
+        order.push('heartbeat');
+        return { kind: 'extended', job: { cancellationRequestedAt: null } };
+      });
+      service.requeue.mockImplementation(async (owner) => {
+        expect(owner).toEqual({ ...identity, delayMs: 0 });
+        expect(publishing).toBe(false);
+        requeueing = true;
+        order.push('requeue');
+        await Promise.resolve();
+        requeueing = false;
+        return { kind: 'requeued', job: {} };
+      });
+      service.withFencedPublish.mockImplementation(async () => {
+        expect(requeueing).toBe(false);
+        publishing = true;
+        order.push('publish');
+        publishing = false;
+        return { kind: 'published', job: {} };
+      });
+
+      const processing = loop.pollOnce();
+      await vi.advanceTimersByTimeAsync(0);
+      const shutdown = loop.shutdown();
+      vi.advanceTimersByTime(10_000);
+      resolveProcessor();
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.all([processing, shutdown]);
+
+      expect(service.withFencedPublish).not.toHaveBeenCalled();
+      expect(service.heartbeat).toHaveBeenCalledWith({
+        ...identity,
+        leaseDurationMs: 60_000,
+      });
+      expect(service.requeue).toHaveBeenCalledWith({ ...identity, delayMs: 0 });
+      expect(order).toEqual(['heartbeat', 'requeue', 'disconnect']);
     } finally {
       vi.useRealTimers();
     }
