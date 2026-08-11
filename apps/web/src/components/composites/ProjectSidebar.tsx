@@ -85,10 +85,12 @@ export function ProjectNavigation({
   projectId,
   labelledBy,
   idPrefix,
+  onNavigate,
 }: {
   projectId: string;
   labelledBy?: string;
   idPrefix: string;
+  onNavigate?: () => void;
 }) {
   return (
     <nav
@@ -114,6 +116,7 @@ export function ProjectNavigation({
                         href={item.href}
                         className="flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-secondary hover:bg-brand-soft"
                         activeClassName="bg-brand-soft text-primary"
+                        {...(onNavigate ? { onClick: onNavigate } : {})}
                       >
                         {item.label}
                       </RouteAwareNavLink>

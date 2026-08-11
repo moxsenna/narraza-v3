@@ -73,6 +73,7 @@ export function MobileMoreSheet({
                     className="flex min-h-11 items-center rounded-md px-3 font-semibold text-secondary"
                     activeClassName="bg-brand-soft text-primary"
                     href={item.href}
+                    onClick={() => onOpenChange(false)}
                   >
                     {item.label}
                   </RouteAwareNavLink>

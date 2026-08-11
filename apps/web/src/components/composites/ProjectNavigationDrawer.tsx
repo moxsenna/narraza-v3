@@ -25,12 +25,18 @@ export function ProjectNavigationDrawer({ projectId }: { projectId: string }) {
         id="project-navigation-drawer"
         ref={dialogRef}
         aria-labelledby="project-navigation-drawer-title"
+        aria-describedby="project-navigation-drawer-description"
         className="m-0 h-dvh w-[min(360px,calc(100%-64px))] max-w-none bg-surface p-0 text-primary shadow-lg backdrop:bg-brand-ink/40"
       >
-        <div className="flex min-h-11 items-center justify-between border-b border-default p-3">
-          <h2 id="project-navigation-drawer-title" className="font-bold">
-            Navigasi proyek
-          </h2>
+        <div className="flex min-h-11 items-start justify-between gap-4 border-b border-default p-3">
+          <div>
+            <h2 id="project-navigation-drawer-title" className="font-bold">
+              Navigasi proyek
+            </h2>
+            <p id="project-navigation-drawer-description" className="mt-1 text-sm text-secondary">
+              Pilih bagian proyek yang ingin dibuka.
+            </p>
+          </div>
           <IconButton
             data-dialog-initial-focus
             aria-label="Tutup navigasi proyek"
@@ -44,6 +50,7 @@ export function ProjectNavigationDrawer({ projectId }: { projectId: string }) {
             projectId={projectId}
             labelledBy="project-navigation-drawer-title"
             idPrefix="drawer-nav"
+            onNavigate={() => setOpen(false)}
           />
         </div>
       </dialog>
