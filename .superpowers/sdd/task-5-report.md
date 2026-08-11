@@ -96,9 +96,38 @@ RED:
 
 Result: FAIL, 1 failed. Real mobile browser with `javaScriptEnabled: false` could not find `Navigasi utama mobile tanpa JavaScript`.
 
-GREEN:
+GREEN (superseded):
 
-Same command after implementation: PASS, 1/1.
+Same command after implementation reported PASS, 1/1, but this evidence is superseded because default `http://localhost:3000` plus local `reuseExistingServer: true` could reuse a server from another worktree.
+
+### Verification Isolation
+
+Reviewed state:
+
+- Worktree: `D:/Coding/Narraza Fix/Narraza v3/.worktrees/feat-frontend-foundation`
+- Branch: `feat/frontend-foundation`
+- HEAD: `1f7c38dae498f984d97b51f348c0296163d4f361`
+- URL: `http://127.0.0.1:3105`
+- Pre-run port check: `PORT 3105 FREE: no LISTEN socket`
+
+Exact isolated command, run with worktree as cwd:
+
+`CI=1 APP_URL=http://127.0.0.1:3105 DEBUG=pw:webserver FORCE_COLOR=0 pnpm exec playwright test tests/e2e/landing-no-js.spec.ts --project=mobile`
+
+Result: PASS, 1/1, exit code 0 (`1 passed (5.5s)`).
+
+Isolation evidence:
+
+- `CI=1` makes existing `playwright.config.ts` set `reuseExistingServer: false`.
+- Config derives `baseURL` and `webServer.url` from `APP_URL`, then passes URL port through `env.PORT`.
+- Debug startup first received `ECONNREFUSED 127.0.0.1:3105`, then logged `Starting WebServer process pnpm --filter @narraza/web dev...`; no existing server was reused.
+- Next logged `Local: http://localhost:3105` and Turbopack project dir `D:\\Coding\\Narraza Fix\\Narraza v3\\.worktrees\\feat-frontend-foundation\\apps\\web`.
+- Runner logged reviewed HEAD and branch before startup, then `WebServer available`, `1 passed (5.5s)`, `Terminating the WebServer`, and `Terminated the WebServer`.
+- Post-run port check: `PORT 3105 FREE AFTER RUN: server terminated`.
+
+Fresh RED was not recreated. Original RED remains valid product-failure evidence; reverting approved product code was unnecessary and unsafe. Isolated GREEN above replaces ambiguous original GREEN as release evidence.
+
+No tracked config/test/product change needed. Existing command already honors `APP_URL`/`PORT`; environment and exact worktree cwd provide isolation without changing project matrix or CI names.
 
 ### Test Choice
 
