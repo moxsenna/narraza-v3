@@ -206,36 +206,12 @@ export const APP_MESSAGES_ID = {
     },
   },
   shell: {
+    desktopGroups: ['PERSIAPAN', 'PERENCANAAN', 'PENULISAN', 'PEMERIKSAAN', 'PUBLIKASI', 'LAINNYA'],
+    mobileTabs: ['Beranda', 'Rencana', 'Tulis', 'Cek', 'Lainnya'],
     creditSoon: 'Kredit — segera hadir',
     avatarLabel: 'Akun',
     logout: 'Keluar',
     navigationLabel: 'Navigasi aplikasi',
-    groups: [
-      {
-        label: 'PERSIAPAN',
-        items: ['Beranda Proyek', 'Chat Narra', 'Fondasi Cerita', 'Karakter'],
-      },
-      {
-        label: 'PERENCANAAN',
-        items: ['Rencana Bab', 'Jadwal Rahasia', 'Fakta'],
-      },
-      {
-        label: 'PENULISAN',
-        items: ['Naskah Bab', 'Ruang Tulis'],
-      },
-      {
-        label: 'PEMERIKSAAN',
-        items: ['Cek Cerita', 'Tutup Bab'],
-      },
-      {
-        label: 'PUBLIKASI',
-        items: ['Paket Publish'],
-      },
-      {
-        label: 'LAINNYA',
-        items: ['Kredit & Penggunaan', 'Pengaturan'],
-      },
-    ],
   },
   dashboard: {
     eyebrow: 'MULAI CERITA',

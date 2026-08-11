@@ -156,37 +156,45 @@ describe('M0 W0.5 public shell', () => {
     expect(menu).toContain('previouslyFocused.current?.focus()');
   });
 
-  test('authenticated layout guards once and renders exact disabled navigation', () => {
+  test('authenticated layout guards once and renders exact canonical navigation', () => {
     const layout = source('app/app/layout.tsx');
-    const catalog = source('messages/app-id.ts');
-    const combined = `${layout}\n${catalog}`;
+    const nav = [
+      source('components/composites/ProjectSidebar.tsx'),
+      source('components/composites/ProjectNavigationDrawer.tsx'),
+      source('components/composites/MobileBottomNav.tsx'),
+      source('components/composites/MobileMoreSheet.tsx'),
+    ].join('\n');
 
     expect(layout.match(/getCurrentUser\(\)/g)).toHaveLength(1);
     expect(layout).toContain("redirect('/masuk')");
-    expect(layout).toContain('action={logoutAction}');
-    expect(layout).toContain('aria-disabled="true"');
-    expect(layout).not.toMatch(/<a[^>]+aria-disabled="true"/);
-    expect(combined).toContain('Kredit — segera hadir');
+    expect(`${layout}\n${source('components/composites/AppHeader.tsx')}`).toContain(
+      'action={logoutAction}',
+    );
+    expect(nav).toContain('aria-disabled="true"');
+    expect(nav).not.toMatch(/<a[^>]+aria-disabled="true"/);
+    expect(nav).toContain('CAPABILITY_REASON_MESSAGES[capability.reasonCode]');
+    expect(nav).toMatch(/aria-disabled="true"[\s\S]{0,500}\{reason\}/);
+    expect(`${layout}\n${source('messages/app-id.ts')}`).toContain('Kredit — segera hadir');
 
     const groups = ['PERSIAPAN', 'PERENCANAAN', 'PENULISAN', 'PEMERIKSAAN', 'PUBLIKASI', 'LAINNYA'];
     const items = [
-      'Beranda Proyek',
+      'Beranda',
       'Chat Narra',
-      'Fondasi Cerita',
+      'Fondasi',
       'Karakter',
-      'Rencana Bab',
+      'Rencana Cerita',
       'Jadwal Rahasia',
       'Fakta',
-      'Naskah Bab',
-      'Ruang Tulis',
+      'Naskah',
+      'Tulis',
       'Cek Cerita',
-      'Tutup Bab',
       'Paket Publish',
       'Kredit & Penggunaan',
       'Pengaturan',
     ];
 
-    for (const label of [...groups, ...items]) expect(combined).toContain(label);
+    for (const label of [...groups, ...items]) expect(nav).toContain(label);
+    expect(nav).not.toContain('Tutup Bab');
   });
 
   test('dashboard is functional in M2 (list + create entry, no createProject in page)', () => {
