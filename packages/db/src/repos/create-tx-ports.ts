@@ -16,8 +16,10 @@ import { createProposalRepo } from './proposal-repo.js';
 import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
 import type { TxClient } from './tx-client.js';
+import { createWorkflowInvocationRepo } from './workflow-invocation-repo.js';
 
 export function createTxPorts(tx: TxClient): TxPorts {
+  const workflowInvocation = createWorkflowInvocationRepo(tx);
   return {
     project: createProjectRepo(tx),
     foundation: createFoundationRepo(tx),
@@ -34,6 +36,9 @@ export function createTxPorts(tx: TxClient): TxPorts {
     snapshot: createSnapshotPort(tx),
     ledger: createLedgerPort(tx),
     job: createJobRepo(tx),
+    workflowInvocation,
+    generationAttempt: workflowInvocation,
+    aiUsage: undefined as never,
     dbNow: () => dbNow(tx),
     allocateId: () => crypto.randomUUID(),
   };

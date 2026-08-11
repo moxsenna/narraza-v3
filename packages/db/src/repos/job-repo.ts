@@ -10,6 +10,7 @@ import type {
   JobClaimResult,
   JobCancelQueuedResult,
   JobLeaseIdentity,
+  JobLiveOwnerLockResult,
   JobLookupInput,
   JobQueuedTerminalInput,
   JobReclaimInput,
@@ -531,6 +532,27 @@ export function createJobRepo(tx: TxClient): JobPort {
       )) as RawRow[];
       const row = rows[0];
       return row ? { kind: 'locked', job: toRecord(row) } : { kind: 'lost' };
+    },
+
+    async lockLiveOwnerForAttempt(
+      identity: JobLeaseIdentity,
+    ): Promise<JobLiveOwnerLockResult> {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST}
+           FROM generation_jobs
+          WHERE project_id = $1 AND id = $2
+            AND lease_token = $3 AND fence_version = $4
+            AND status = 'running'
+            AND lease_expires_at > clock_timestamp()
+            AND cancel_requested_at IS NULL
+          FOR UPDATE`,
+        identity.projectId,
+        identity.jobId,
+        identity.leaseToken,
+        identity.fenceVersion,
+      )) as RawRow[];
+      const row = rows[0];
+      return row ? { kind: 'locked', job: toRecord(row) } : { kind: 'not_authorized' };
     },
   };
 }
