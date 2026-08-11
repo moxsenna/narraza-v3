@@ -3,7 +3,7 @@ import {
   CAPABILITY_REASON_MESSAGES,
   type CapabilityKey,
 } from '../../lib/frontend/capabilities';
-import { RouteAwareNavLink } from './RouteAwareNavLink';
+import { RouteAwareNavLink, type RouteNavigationActivationHandler } from './RouteAwareNavLink';
 
 export type ProjectNavigationItem = Readonly<{
   label: string;
@@ -90,7 +90,7 @@ export function ProjectNavigation({
   projectId: string;
   labelledBy?: string;
   idPrefix: string;
-  onNavigate?: () => void;
+  onNavigate?: RouteNavigationActivationHandler;
 }) {
   return (
     <nav
@@ -116,7 +116,7 @@ export function ProjectNavigation({
                         href={item.href}
                         className="flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-secondary hover:bg-brand-soft"
                         activeClassName="bg-brand-soft text-primary"
-                        {...(onNavigate ? { onClick: onNavigate } : {})}
+                        {...(onNavigate ? { onNavigateActivation: onNavigate } : {})}
                       >
                         {item.label}
                       </RouteAwareNavLink>

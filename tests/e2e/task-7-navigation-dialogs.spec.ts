@@ -85,6 +85,17 @@ test('enabled drawer and sheet navigation closes dialogs for pointer and keyboar
   await expect(disabledDrawer.dialog).toBeVisible();
   await page.getByRole('button', { name: 'Tutup navigasi proyek' }).click();
 
+  const modifiedDrawer = await openProjectDrawer(page);
+  const drawerPagePromise = page.context().waitForEvent('page');
+  await modifiedDrawer.dialog
+    .getByRole('link', { name: 'Jadwal Rahasia' })
+    .click({ modifiers: ['Control'] });
+  const drawerPage = await drawerPagePromise;
+  await expect(drawerPage).toHaveURL(`${projectBase}/rahasia`);
+  await expect(modifiedDrawer.dialog).toBeVisible();
+  await drawerPage.close();
+  await page.getByRole('button', { name: 'Tutup navigasi proyek' }).click();
+
   const keyboardDrawer = await openProjectDrawer(page);
   const foundationLink = keyboardDrawer.dialog.getByRole('link', { name: 'Fondasi' });
   await foundationLink.focus();
@@ -100,6 +111,25 @@ test('enabled drawer and sheet navigation closes dialogs for pointer and keyboar
   await expect(page).toHaveURL(`${projectBase}/karakter`);
   await expect(pointerSheet.dialog).not.toBeVisible();
   await expect(pointerSheet.trigger).toBeFocused();
+
+  const disabledSheet = await openMoreSheet(page);
+  await expect(
+    disabledSheet.dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Naskah' }),
+  ).toHaveCount(1);
+  await expect(disabledSheet.dialog.getByRole('link', { name: 'Naskah' })).toHaveCount(0);
+  await expect(disabledSheet.dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  const modifiedSheet = await openMoreSheet(page);
+  const sheetPagePromise = page.context().waitForEvent('page');
+  await modifiedSheet.dialog
+    .getByRole('link', { name: 'Jadwal Rahasia' })
+    .click({ modifiers: ['Control'] });
+  const sheetPage = await sheetPagePromise;
+  await expect(sheetPage).toHaveURL(`${projectBase}/rahasia`);
+  await expect(modifiedSheet.dialog).toBeVisible();
+  await sheetPage.close();
+  await page.keyboard.press('Escape');
 
   const keyboardSheet = await openMoreSheet(page);
   const factsLink = keyboardSheet.dialog.getByRole('link', { name: 'Fakta' });
