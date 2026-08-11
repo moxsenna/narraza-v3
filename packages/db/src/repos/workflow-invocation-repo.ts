@@ -176,26 +176,6 @@ export function createWorkflowInvocationRepo(
       attempt: GenerationAttemptRecord,
       allowSelection: boolean,
     ): Promise<WinnerClassificationResult> {
-      if (!allowSelection) {
-        const replay = (await tx.$queryRawUnsafe(
-          `SELECT winner_attempt_id FROM workflow_invocations
-            WHERE project_id=$1 AND job_id=$2 AND id=$3`,
-          input.projectId,
-          input.jobId,
-          input.invocationId,
-        )) as Array<{ winner_attempt_id: string | null }>;
-        if (!replay[0]) return { kind: 'not_authorized' };
-        return {
-          kind: 'classified',
-          winner:
-            replay[0].winner_attempt_id === null
-              ? 'not_selected'
-              : replay[0].winner_attempt_id === input.attemptId
-                ? 'selected_replay'
-                : 'already_won_by_other',
-        };
-      }
-
       const projects = (await tx.$queryRawUnsafe(
         `SELECT deleted_at FROM projects WHERE id=$1 FOR UPDATE`,
         input.projectId,
@@ -224,6 +204,25 @@ export function createWorkflowInvocationRepo(
       )
         return { kind: 'classified', winner: 'ineligible_owner' };
       if (attempt.status === 'failed') return { kind: 'classified', winner: 'attempt_failed' };
+      if (!allowSelection) {
+        const replay = (await tx.$queryRawUnsafe(
+          `SELECT winner_attempt_id FROM workflow_invocations
+            WHERE project_id=$1 AND job_id=$2 AND id=$3`,
+          input.projectId,
+          input.jobId,
+          input.invocationId,
+        )) as Array<{ winner_attempt_id: string | null }>;
+        if (!replay[0]) return { kind: 'not_authorized' };
+        return {
+          kind: 'classified',
+          winner:
+            replay[0].winner_attempt_id === null
+              ? 'not_selected'
+              : replay[0].winner_attempt_id === input.attemptId
+                ? 'selected_replay'
+                : 'already_won_by_other',
+        };
+      }
       if (allowSelection) {
         const selected = (await tx.$queryRawUnsafe(
           `UPDATE workflow_invocations wi SET winner_attempt_id=$4,status='succeeded',updated_at=now() FROM generation_attempts ga WHERE wi.project_id=$1 AND wi.job_id=$2 AND wi.id=$3 AND wi.status='running' AND wi.winner_attempt_id IS NULL AND ga.project_id=wi.project_id AND ga.job_id=wi.job_id AND ga.invocation_id=wi.id AND ga.id=$4 AND ga.status='succeeded' RETURNING wi.winner_attempt_id`,

@@ -81,6 +81,38 @@ suite.test(
     );
     expect(snapshot.rows[0]).toMatchObject({ fence_version: 0, succeeded: 2, usage: 2 });
     expect([attemptA, attemptB]).toContain(snapshot.rows[0].winner_attempt_id);
+    const loserId = snapshot.rows[0].winner_attempt_id === attemptA ? attemptB : attemptA;
+    const winnerId = snapshot.rows[0].winner_attempt_id as string;
+    expect(await finalize(winnerId, winnerId === attemptA ? 10n : 20n)).toMatchObject({
+      kind: 'replayed',
+      winner: 'selected_replay',
+    });
+    const staleReplay = await finalize(loserId, loserId === attemptA ? 10n : 20n);
+    expect(staleReplay).toMatchObject({ kind: 'replayed', winner: 'already_won_by_other' });
+    const staleInput = {
+      ...identity,
+      leaseToken: leaseTokens.stale,
+      invocationId,
+      attemptId: loserId,
+      status: 'succeeded' as const,
+      providerRequestId: `request-${loserId}`,
+      resultHash:
+        loserId === attemptA
+          ? 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          : 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      schemaVersion: 1,
+      payload: { result: loserId },
+      usage: {
+        priceSnapshotId: 'price-1',
+        inputTokens: 1,
+        outputTokens: 2,
+        providerCostMicroIdr: loserId === attemptA ? 10n : 20n,
+      },
+    };
+    expect(await service.finalizeAttempt(staleInput)).toMatchObject({
+      kind: 'replayed',
+      winner: 'ineligible_owner',
+    });
     await prisma.$disconnect();
   },
 );
@@ -325,7 +357,7 @@ suite.test(
     });
     expect(await finalize(attemptA, leaseTokens.stale)).toMatchObject({
       kind: 'replayed',
-      winner: 'not_selected',
+      winner: 'cancelled',
     });
     expect(await finalize(attemptB, leaseTokens.alice)).toMatchObject({
       kind: 'finalized',
@@ -461,6 +493,119 @@ suite.test(
       [invocationId],
     );
     expect(snapshot.rows[0]).toEqual({ winner_attempt_id: null, usage: 1 });
+    await prisma.$disconnect();
+  },
+);
+
+suite.test(
+  'replay matrix: terminal divergence stops before missing matching or forged usage mutation',
+  async ({ client, databaseUrl }) => {
+    await seedUsersAndProjects(client);
+    await client.query(
+      `INSERT INTO model_price_snapshots (id,provider_id,requested_model_id,resolved_model_id,input_rate_micro_idr,output_rate_micro_idr,currency,effective_at,schema_version,payload,created_at) VALUES ('price-1','provider','model','model',1,1,'IDR',now(),1,'{}',now())`,
+    );
+    await insertQueuedJobRow(client, { id: jobId, projectId: ids.projectA });
+    await setRunning(client, jobId, leaseTokens.alice, 60_000);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const service = createWorkflowInvocationService(createUnitOfWork(prisma));
+    const identity = {
+      projectId: ids.projectA,
+      jobId,
+      leaseToken: leaseTokens.alice,
+      fenceVersion: 0,
+    };
+    const attempts = [attemptA, attemptB, '74000000-0000-4000-8000-000000000003'];
+    for (const attemptId of attempts) {
+      await service.beginAttempt({
+        ...identity,
+        invocationId,
+        attemptId,
+        stageKey: 'writer',
+        schemaVersion: 1,
+        payload: {},
+      });
+      await client.query(
+        `UPDATE generation_attempts SET status='succeeded',finished_at=now(),payload='{"stored":true}'::jsonb WHERE id=$1`,
+        [attemptId],
+      );
+    }
+    await client.query(
+      `INSERT INTO ai_usage_events (id,project_id,job_id,attempt_id,price_snapshot_id,input_tokens,output_tokens,provider_cost_micro_idr,charged_party,dedupe_key,created_at) VALUES ('usage-match',$1,$2,$3,'price-1',1,2,3,'system',$4,now()),('usage-forged',$5,$2,$6,'price-1',1,2,3,'system',$7,now())`,
+      [
+        ids.projectA,
+        jobId,
+        attemptB,
+        `usage:${attemptB}`,
+        ids.projectB,
+        attempts[2],
+        `usage:${attempts[2]}`,
+      ],
+    );
+    for (const attemptId of attempts) {
+      expect(
+        await service.finalizeAttempt({
+          ...identity,
+          invocationId,
+          attemptId,
+          status: 'succeeded',
+          providerRequestId: null,
+          resultHash: null,
+          schemaVersion: 1,
+          payload: { incoming: true },
+          usage: {
+            priceSnapshotId: 'price-1',
+            inputTokens: 1,
+            outputTokens: 2,
+            providerCostMicroIdr: 3n,
+          },
+        }),
+      ).toEqual({ kind: 'conflict' });
+    }
+    const snapshot = await client.query(
+      `SELECT winner_attempt_id,(SELECT count(*) FROM ai_usage_events)::int AS usage,(SELECT count(*) FROM credit_reservations)::int AS reservations,(SELECT count(*) FROM credit_ledger)::int AS ledger FROM workflow_invocations WHERE id=$1`,
+      [invocationId],
+    );
+    expect(snapshot.rows[0]).toEqual({
+      winner_attempt_id: null,
+      usage: 2,
+      reservations: 0,
+      ledger: 0,
+    });
+    const missing = await service.finalizeAttempt({
+      ...identity,
+      attemptId: '74000000-0000-4000-8000-000000000099',
+      invocationId,
+      status: 'succeeded',
+      providerRequestId: null,
+      resultHash: null,
+      schemaVersion: 1,
+      payload: {},
+      usage: {
+        priceSnapshotId: 'price-1',
+        inputTokens: 1,
+        outputTokens: 1,
+        providerCostMicroIdr: 1n,
+      },
+    });
+    const crossProject = await service.finalizeAttempt({
+      ...identity,
+      projectId: ids.projectB,
+      attemptId: attemptA,
+      invocationId,
+      status: 'succeeded',
+      providerRequestId: null,
+      resultHash: null,
+      schemaVersion: 1,
+      payload: {},
+      usage: {
+        priceSnapshotId: 'price-1',
+        inputTokens: 1,
+        outputTokens: 1,
+        providerCostMicroIdr: 1n,
+      },
+    });
+    expect(missing).toEqual({ kind: 'not_authorized' });
+    expect(crossProject).toEqual({ kind: 'not_authorized' });
     await prisma.$disconnect();
   },
 );
