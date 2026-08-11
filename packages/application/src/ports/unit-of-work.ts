@@ -1,3 +1,4 @@
+import type { AiUsagePort } from './ai-usage-port.js';
 import type { AuditPort } from './audit-port.js';
 import type { ChangeSetRepo } from './change-set-repo.js';
 import type { CharacterRepo } from './character-repo.js';
@@ -13,6 +14,7 @@ import type { ProjectRepo } from './project-repo.js';
 import type { ProposalRepo } from './proposal-repo.js';
 import type { RevealRepo } from './reveal-repo.js';
 import type { SnapshotPort } from './snapshot-port.js';
+import type { GenerationAttemptPort, WorkflowInvocationPort } from './workflow-invocation-port.js';
 
 /** D9: default read committed + row lock/CAS; serializable opt-in per use case. */
 export type IsolationLevel = 'read_committed' | 'serializable';
@@ -45,6 +47,9 @@ export interface TxPorts {
   readonly snapshot: SnapshotPort;
   readonly ledger: LedgerPort;
   readonly job: JobPort;
+  readonly workflowInvocation: WorkflowInvocationPort;
+  readonly generationAttempt: GenerationAttemptPort;
+  readonly aiUsage: AiUsagePort;
   readonly dbNow: () => Promise<Date>;
   readonly allocateId: () => string;
 }

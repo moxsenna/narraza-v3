@@ -123,10 +123,10 @@ started early.
   - [x] Cancel (queued=release; running=`cancelRequestedAt`); manual retry = new job `retryOfJobId`
   - [x] `apps/worker-gen` gated claim loop (`JOB_PROCESSOR_ENABLED=false` lifecycle-only W3.1 host), env-validated poll/backoff/drain, graceful SIGTERM shutdown, PM2 `30000ms` drain / `35000ms` kill timeout
   - [x] Tests: `job-terminal`, `exec-retry`, `cancel-queued`, `retry-new-job`, `lease-fence-publish` — local unit/worker/contract and focused Testcontainers PostgreSQL 16 green; migration empty/upgrade/drift green
-- [ ] **W3.2 WorkflowInvocation & three-phase attempt** _(Fable)_
-  - [ ] Invocation per stage key; attempts; CAS winner; late attempt records usage, not winner
-  - [ ] Three-phase harness (Tx create attempt → external mock → Tx finalize+settle → CPU validate → Tx C fenced publish)
-  - [ ] Tests: `invocation-winner`, `late-attempt`, `tombstone-mid-attempt`
+- [~] **W3.2 WorkflowInvocation & three-phase attempt** _(Fable)_
+  - [x] Invocation per stage key; attempts; CAS winner; late attempt records usage, not winner
+  - [x] Three-phase harness (Tx create attempt → external mock → Tx finalize+settle → CPU validate → Tx C fenced publish)
+  - [x] Tests: `invocation-winner`, `late-attempt`, `tombstone-mid-attempt`
 - [ ] **W3.3 Credit engine (S2.6 + D4 + D6)** _(Fable)_
   - [ ] Ledger append-only + dedupe; reservations + closing; `safeRelease ≥ 0`; exposure exceeded → ops incident
   - [ ] `issueCreditQuote` bound to workflowPlanHash+dependencyHash+maxMicroIdr+expiry(10m); consume once

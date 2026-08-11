@@ -50,6 +50,7 @@ function job(overrides: Partial<GenerationJobRecord> = {}): GenerationJobRecord 
 }
 
 interface HarnessOptions {
+  readonly projectDeletedAt?: Date | null;
   readonly lockedJob?: GenerationJobRecord | null;
   readonly releaseResult?:
     | { readonly kind: 'released' }
@@ -93,6 +94,7 @@ function makeHarness(options: HarnessOptions = {}) {
     transitionRunningToTerminal: vi.fn(),
     reclaimNextExpired: vi.fn(),
     lockForFencedPublish: vi.fn(),
+    lockLiveOwnerForAttempt: vi.fn(),
   } satisfies JobPort;
 
   const ledgerPort = {
@@ -103,6 +105,12 @@ function makeHarness(options: HarnessOptions = {}) {
   } satisfies LedgerPort;
 
   const ports = {
+    project: {
+      lockForUpdate: vi.fn(async () => {
+        calls.push('project.lockForUpdate');
+        return { deletedAt: options.projectDeletedAt ?? null };
+      }),
+    },
     job: jobPort,
     ledger: ledgerPort,
     allocateId: () => {
@@ -757,6 +765,7 @@ describe('fenced publish', () => {
     expect(runtimeKeys).toEqual(['appendSentinel']);
     expect(h.calls).toEqual([
       'begin',
+      'project.lockForUpdate',
       'job.lockForFencedPublish',
       'callback',
       'allocateId',
@@ -789,6 +798,23 @@ describe('fenced publish', () => {
     expectTypeOf<FencedPublishContext>().not.toHaveProperty('outbox');
   });
 
+  it('tombstone-after-winner locks project before job and denies callback plus success', async () => {
+    const h = makeHarness({ projectDeletedAt: fixedDate });
+    h.jobPort.lockForFencedPublish.mockImplementationOnce(async () => {
+      h.calls.push('job.lockForFencedPublish');
+      return { kind: 'locked', job: job({ status: 'running' }) };
+    });
+    const callback = vi.fn();
+
+    const result = await createJobService(h.unitOfWork).withFencedPublish(identity, callback);
+
+    expect(result).toEqual({ kind: 'project_tombstoned' });
+    expect(callback).not.toHaveBeenCalled();
+    expect(h.jobPort.lockForFencedPublish).not.toHaveBeenCalled();
+    expect(h.jobPort.transitionRunningToTerminal).not.toHaveBeenCalled();
+    expect(h.calls).toEqual(['begin', 'project.lockForUpdate', 'commit']);
+  });
+
   it('guard loss skips callback and all publication work', async () => {
     const h = makeHarness();
     h.jobPort.lockForFencedPublish.mockImplementationOnce(async () => {
@@ -804,7 +830,12 @@ describe('fenced publish', () => {
     expect(h.ports.dbNow).not.toHaveBeenCalled();
     expect(h.ports.outbox.append).not.toHaveBeenCalled();
     expect(h.jobPort.transitionRunningToTerminal).not.toHaveBeenCalled();
-    expect(h.calls).toEqual(['begin', 'job.lockForFencedPublish', 'commit']);
+    expect(h.calls).toEqual([
+      'begin',
+      'project.lockForUpdate',
+      'job.lockForFencedPublish',
+      'commit',
+    ]);
   });
 
   it('callback throw propagates and rolls back without success transition', async () => {
@@ -825,6 +856,7 @@ describe('fenced publish', () => {
 
     expect(h.calls).toEqual([
       'begin',
+      'project.lockForUpdate',
       'job.lockForFencedPublish',
       'callback',
       'allocateId',

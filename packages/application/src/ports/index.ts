@@ -4,6 +4,10 @@ export type {
   TerminalJobStatus,
   GenerationJobRecord,
   JobLeaseIdentity,
+  WorkflowInvocationStatus,
+  GenerationAttemptStatus,
+  WorkflowInvocationRecord,
+  GenerationAttemptRecord,
   ProjectRecord,
   FoundationRecord,
   CharacterRecord,
@@ -84,6 +88,21 @@ export type {
   JobReclaimInput,
   JobReclaimResult,
   JobFencedLockResult,
+  JobLiveOwnerLockResult,
   JobPort,
 } from './job-port.js';
+export type { UsageMetrics, AppendUsageResult, AiUsagePort } from './ai-usage-port.js';
+export type {
+  BeginAttemptInput,
+  BeginAttemptResult,
+  FinalizableAttemptStatus,
+  FinalizeAttemptInput,
+  WinnerOutcome,
+  FinalizeAttemptResult,
+  BeginAttemptPortResult,
+  FinalizeAttemptPortResult,
+  WinnerClassificationResult,
+  WorkflowInvocationPort,
+  GenerationAttemptPort,
+} from './workflow-invocation-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';
