@@ -436,10 +436,11 @@ suite.test(
       connectionString: databaseUrl,
       application_name: 'tombstone-holder',
     });
-    const held = await writer.connect();
+    let held: Awaited<ReturnType<Pool['connect']>> | undefined;
     let committed = false;
     let prisma: ReturnType<typeof createPrismaForUrl> | undefined;
     try {
+      held = await writer.connect();
       await held.query('BEGIN');
       await held.query(`SET LOCAL lock_timeout='5s'`);
       await held.query(`SELECT id FROM projects WHERE id=$1 FOR UPDATE`, [ids.projectA]);
@@ -461,8 +462,8 @@ suite.test(
       expect(callbackCalls).toBe(0);
       expect(await fetchJobRow(client, jobId)).toMatchObject({ status: 'running' });
     } finally {
-      if (!committed) await held.query('ROLLBACK').catch(() => undefined);
-      held.release();
+      if (held && !committed) await held.query('ROLLBACK').catch(() => undefined);
+      held?.release();
       await prisma?.$disconnect();
       await writer.end();
     }
