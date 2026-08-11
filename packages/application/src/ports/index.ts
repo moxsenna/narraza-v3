@@ -1,5 +1,9 @@
 export type {
   JsonObject,
+  GenerationJobStatus,
+  TerminalJobStatus,
+  GenerationJobRecord,
+  JobLeaseIdentity,
   ProjectRecord,
   FoundationRecord,
   CharacterRecord,
@@ -55,6 +59,31 @@ export type {
 export type { AuditAppendInput, AuditPort } from './audit-port.js';
 export type { OutboxAppendInput, OutboxPort } from './outbox-port.js';
 export type { SnapshotAppendInput, SnapshotPort } from './snapshot-port.js';
-export type { LedgerPort } from './ledger-port.js';
-export type { JobPort } from './job-port.js';
+export type {
+  ReleaseQueuedCancellationInput,
+  ReleaseQueuedCancellationResult,
+  LedgerPort,
+} from './ledger-port.js';
+export type {
+  JobInsertInput,
+  JobInsertResult,
+  JobLookupInput,
+  JobClaimInput,
+  JobClaimResult,
+  JobHeartbeatInput,
+  JobHeartbeatResult,
+  JobRequeueInput,
+  JobRequeueResult,
+  QueuedTerminalStatus,
+  RunningTerminalStatus,
+  JobQueuedTerminalInput,
+  JobRunningTerminalInput,
+  JobTerminalTransitionResult,
+  JobCancelQueuedResult,
+  JobRunningCancellationResult,
+  JobReclaimInput,
+  JobReclaimResult,
+  JobFencedLockResult,
+  JobPort,
+} from './job-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';

@@ -1,5 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
-import { deployWithPrisma, runWithCleanup, stageMigrationHistory } from './test-migrations.mjs';
+import {
+  FINAL_MIGRATIONS,
+  PRE_VOCABULARY_MIGRATIONS,
+  deployWithPrisma,
+  runWithCleanup,
+  stageMigrationHistory,
+} from './test-migrations.mjs';
+
+const HISTORICAL_MIGRATIONS = [
+  '20260721181246_init_m0_auth',
+  '20260722090000_planning_expand',
+  '20260722091000_knowledge_prose_expand',
+  '20260722092000_proposal_ai_jobs_expand',
+  '20260722093000_credit_validation_publish_ops_expand',
+];
+const RELEASE_VOCABULARY_MIGRATION = '20260728230906_credit_ledger_release_vocabulary';
+
+it('keeps exact ordered pre-vocabulary and final migration histories', () => {
+  expect(PRE_VOCABULARY_MIGRATIONS).toEqual(HISTORICAL_MIGRATIONS);
+  expect(FINAL_MIGRATIONS).toEqual([...HISTORICAL_MIGRATIONS, RELEASE_VOCABULARY_MIGRATION]);
+});
 
 describe('deployWithPrisma', () => {
   it('invokes production migrate deploy with DATABASE_URL and explicit config', async () => {

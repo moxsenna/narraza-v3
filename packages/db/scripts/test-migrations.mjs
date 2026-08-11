@@ -19,7 +19,9 @@ const packageDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url
 const repoRoot = path.resolve(packageDirectory, '../..');
 const prismaRoot = path.join(repoRoot, 'prisma');
 const M0_MIGRATION = '20260721181246_init_m0_auth';
-const ALL_MIGRATIONS = [M0_MIGRATION, ...W11_MIGRATIONS.map(({ id }) => id)];
+const RELEASE_VOCABULARY_MIGRATION = '20260728230906_credit_ledger_release_vocabulary';
+export const PRE_VOCABULARY_MIGRATIONS = [M0_MIGRATION, ...W11_MIGRATIONS.map(({ id }) => id)];
+export const FINAL_MIGRATIONS = [...PRE_VOCABULARY_MIGRATIONS, RELEASE_VOCABULARY_MIGRATION];
 const MODES = new Set(['empty', 'upgrade', 'all']);
 
 async function sqlFile(...segments) {
@@ -167,10 +169,10 @@ async function runEmpty() {
   await withPostgres16('empty', async (client, databaseUrl, temporaryDirectory) => {
     const staged = await stageMigrationHistory({
       temporaryDirectory,
-      migrationIds: ALL_MIGRATIONS,
+      migrationIds: FINAL_MIGRATIONS,
     });
     await deployWithPrisma({ databaseUrl, configPath: staged.configPath });
-    await verifyMigrationHistory(client, ALL_MIGRATIONS);
+    await verifyMigrationHistory(client, FINAL_MIGRATIONS);
     await verifySchemaInventory(client);
   });
 }
@@ -191,7 +193,40 @@ async function runUpgrade() {
 
     await staged.addMigrations(W11_MIGRATIONS.map(({ id }) => id));
     await deployWithPrisma({ databaseUrl, configPath: staged.configPath });
-    await verifyMigrationHistory(client, ALL_MIGRATIONS);
+    await verifyMigrationHistory(client, PRE_VOCABULARY_MIGRATIONS);
+
+    await client.query(
+      `INSERT INTO credit_ledger
+         (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at)
+       VALUES ('upgrade-reservation-release',NULL,NULL,NULL,NULL,'reservation_release','credit',12345,'upgrade-reservation-release','2026-07-22T09:31:00.000Z')`,
+    );
+    const ledgerBefore = await client.query(
+      `SELECT * FROM credit_ledger WHERE id = 'upgrade-reservation-release'`,
+    );
+
+    await staged.addMigrations([RELEASE_VOCABULARY_MIGRATION]);
+    await deployWithPrisma({ databaseUrl, configPath: staged.configPath });
+    await verifyMigrationHistory(client, FINAL_MIGRATIONS);
+
+    const ledgerAfter = await client.query(
+      `SELECT * FROM credit_ledger WHERE id = 'upgrade-reservation-release'`,
+    );
+    if (ledgerBefore.rowCount !== 1 || ledgerAfter.rowCount !== 1) {
+      throw new Error(
+        'Expected exactly one seeded ledger row before and after vocabulary migration',
+      );
+    }
+    const expectedLedgerAfter = { ...ledgerBefore.rows[0], entry_type: 'release' };
+    if (JSON.stringify(ledgerAfter.rows[0]) !== JSON.stringify(expectedLedgerAfter)) {
+      throw new Error('Vocabulary migration changed ledger fields other than entry_type');
+    }
+    const oldRows = await client.query(
+      `SELECT COUNT(*)::integer AS count FROM credit_ledger WHERE entry_type = 'reservation_release'`,
+    );
+    if (oldRows.rows[0].count !== 0) {
+      throw new Error(`Expected no reservation_release rows, found ${oldRows.rows[0].count}`);
+    }
+
     await verifyM0Upgrade(client, before);
     await verifySchemaInventory(client);
   });

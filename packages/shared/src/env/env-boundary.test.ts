@@ -56,9 +56,13 @@ describe('loadWorkerEnv production guards', () => {
     expect(() => loadWorkerEnv({ ...base, AI_ENABLE_MOCK: 'true' })).toThrow(/forbidden/);
   });
 
-  it('requires at least one provider key in production', () => {
+  it('requires at least one provider key when production processor is enabled', () => {
     expect(() =>
-      loadWorkerEnv({ NODE_ENV: 'production', DATABASE_URL_WORKER: 'postgres://x' }),
+      loadWorkerEnv({
+        NODE_ENV: 'production',
+        DATABASE_URL_WORKER: 'postgres://x',
+        JOB_PROCESSOR_ENABLED: 'true',
+      }),
     ).toThrow(/provider key/);
   });
 
@@ -70,6 +74,139 @@ describe('loadWorkerEnv production guards', () => {
     });
     expect(env.AI_ENABLE_MOCK).toBe(true);
     expect(env.JOB_LEASE_SECONDS).toBe(60); // D12 default
+  });
+});
+
+describe('worker lifecycle env', () => {
+  const base = { NODE_ENV: 'production', DATABASE_URL_WORKER: 'postgres://x' };
+
+  it('defaults processor disabled and allows disabled production without providers', () => {
+    expect(loadWorkerEnv(base).JOB_PROCESSOR_ENABLED).toBe(false);
+    expect(loadWorkerEnv({ ...base, JOB_PROCESSOR_ENABLED: 'false' }).JOB_PROCESSOR_ENABLED).toBe(
+      false,
+    );
+  });
+
+  it('requires a provider only when production processor is enabled', () => {
+    expect(() => loadWorkerEnv({ ...base, JOB_PROCESSOR_ENABLED: 'true' })).toThrow(/provider key/);
+    expect(
+      loadWorkerEnv({ ...base, JOB_PROCESSOR_ENABLED: 'true', OPENROUTER_API_KEY: 'k' }),
+    ).toBeDefined();
+    expect(
+      loadWorkerEnv({ ...base, JOB_PROCESSOR_ENABLED: 'true', GEMINI_API_KEY: 'k' }),
+    ).toBeDefined();
+  });
+
+  it('keeps mock policy independent from processor gate', () => {
+    expect(() => loadWorkerEnv({ ...base, AI_ENABLE_MOCK: 'true' })).toThrow(/forbidden/);
+    expect(
+      loadWorkerEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_WORKER: 'postgres://x',
+        AI_ENABLE_MOCK: 'true',
+      }).AI_ENABLE_MOCK,
+    ).toBe(true);
+  });
+
+  it.each([
+    [undefined, false],
+    ['false', false],
+    ['0', false],
+    ['true', true],
+    ['1', true],
+  ])('strictly parses JOB_PROCESSOR_ENABLED=%s', (value, expected) => {
+    expect(
+      loadWorkerEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_WORKER: 'postgres://x',
+        ...(value === undefined ? {} : { JOB_PROCESSOR_ENABLED: value }),
+      }).JOB_PROCESSOR_ENABLED,
+    ).toBe(expected);
+  });
+
+  it.each(['yes', '', '2', 'TRUE', 'False'])('rejects JOB_PROCESSOR_ENABLED=%j', (value) => {
+    expect(() =>
+      loadWorkerEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_WORKER: 'postgres://x',
+        JOB_PROCESSOR_ENABLED: value,
+      }),
+    ).toThrow(/Invalid worker env/);
+  });
+
+  it('uses exact lifecycle defaults', () => {
+    const env = loadWorkerEnv({ NODE_ENV: 'test', DATABASE_URL_WORKER: 'postgres://x' });
+    expect(env).toMatchObject({
+      JOB_LEASE_SECONDS: 60,
+      JOB_HEARTBEAT_SECONDS: 20,
+      JOB_RECLAIM_SWEEP_SECONDS: 30,
+      JOB_POLL_MS: 1000,
+      JOB_ERROR_BACKOFF_MS: 5000,
+      JOB_SHUTDOWN_DRAIN_MS: 30000,
+    });
+  });
+
+  const numericFields = [
+    'JOB_LEASE_SECONDS',
+    'JOB_HEARTBEAT_SECONDS',
+    'JOB_RECLAIM_SWEEP_SECONDS',
+    'JOB_POLL_MS',
+    'JOB_ERROR_BACKOFF_MS',
+    'JOB_SHUTDOWN_DRAIN_MS',
+  ] as const;
+  it.each(numericFields)('%s accepts positive integers and rejects invalid values', (field) => {
+    const validCompanions = {
+      JOB_LEASE_SECONDS: '60',
+      JOB_HEARTBEAT_SECONDS: '1',
+      JOB_POLL_MS: '1',
+      JOB_ERROR_BACKOFF_MS: '5000',
+      JOB_SHUTDOWN_DRAIN_MS: '30000',
+      [field]: field === 'JOB_SHUTDOWN_DRAIN_MS' ? '7000' : '7',
+    };
+    expect(() =>
+      loadWorkerEnv({ NODE_ENV: 'test', DATABASE_URL_WORKER: 'postgres://x', ...validCompanions }),
+    ).not.toThrow();
+    for (const value of ['0', '-1', '1.5', 'no', '']) {
+      expect(() =>
+        loadWorkerEnv({ NODE_ENV: 'test', DATABASE_URL_WORKER: 'postgres://x', [field]: value }),
+      ).toThrow(/Invalid worker env/);
+    }
+  });
+
+  it('enforces lifecycle timing invariants and permits non-strict equality', () => {
+    expect(() =>
+      loadWorkerEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_WORKER: 'postgres://x',
+        JOB_LEASE_SECONDS: '20',
+        JOB_HEARTBEAT_SECONDS: '20',
+      }),
+    ).toThrow(/heartbeat/i);
+    expect(() =>
+      loadWorkerEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_WORKER: 'postgres://x',
+        JOB_POLL_MS: '1001',
+        JOB_ERROR_BACKOFF_MS: '1000',
+      }),
+    ).toThrow(/backoff/i);
+    expect(() =>
+      loadWorkerEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_WORKER: 'postgres://x',
+        JOB_HEARTBEAT_SECONDS: '20',
+        JOB_SHUTDOWN_DRAIN_MS: '19999',
+      }),
+    ).toThrow(/drain/i);
+    expect(() =>
+      loadWorkerEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_WORKER: 'postgres://x',
+        JOB_POLL_MS: '1000',
+        JOB_ERROR_BACKOFF_MS: '1000',
+        JOB_SHUTDOWN_DRAIN_MS: '20000',
+      }),
+    ).not.toThrow();
   });
 });
 
