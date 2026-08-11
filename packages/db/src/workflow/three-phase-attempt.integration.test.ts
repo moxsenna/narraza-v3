@@ -2,8 +2,11 @@ import {
   createJobService,
   createThreePhaseAttemptHarness,
   createWorkflowInvocationService,
+  type JobService,
+  type TxPorts,
   type UnitOfWork,
 } from '@narraza/application';
+import type { Pool } from 'pg';
 import { expect } from 'vitest';
 import { createUnitOfWork } from '../unit-of-work.js';
 import {
@@ -19,6 +22,8 @@ const suite = createSchemaTestSuite();
 const jobId = '75000000-0000-4000-8000-000000000001';
 const invocationId = '76000000-0000-4000-8000-000000000001';
 const attemptId = '77000000-0000-4000-8000-000000000001';
+const resultHash = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const sentinelKey = `workflow-attempt-validated:${invocationId}:${attemptId}`;
 const wait = () => {
   let release!: () => void;
   const promise = new Promise<void>((resolve) => {
@@ -26,6 +31,51 @@ const wait = () => {
   });
   return { promise, release };
 };
+
+const harnessInput = {
+  projectId: ids.projectA,
+  jobId,
+  leaseToken: leaseTokens.alice,
+  fenceVersion: 0,
+  invocationId,
+  attemptId,
+  stageKey: 'writer',
+  schemaVersion: 1,
+  payload: { input: true },
+} as const;
+
+const billableOutcome = {
+  kind: 'billable',
+  status: 'succeeded',
+  providerRequestId: 'request',
+  resultHash,
+  schemaVersion: 1,
+  payload: { result: true },
+  usage: {
+    priceSnapshotId: 'phase-price',
+    inputTokens: 1,
+    outputTokens: 2,
+    providerCostMicroIdr: 3n,
+  },
+} as const;
+
+async function seedAttemptTest(client: Pool) {
+  await seedUsersAndProjects(client);
+  await client.query(
+    `INSERT INTO model_price_snapshots (id,provider_id,requested_model_id,resolved_model_id,input_rate_micro_idr,output_rate_micro_idr,currency,effective_at,schema_version,payload,created_at) VALUES ('phase-price','provider','model','model',1,1,'IDR',now(),1,'{}',now())`,
+  );
+  await insertQueuedJobRow(client, { id: jobId, projectId: ids.projectA });
+  await setRunning(client, jobId, leaseTokens.alice, 60_000);
+}
+
+async function durableSnapshot(client: Pool) {
+  return (
+    await client.query(
+      `SELECT j.status,i.winner_attempt_id,(SELECT count(*)::int FROM ai_usage_events WHERE attempt_id=$1) usage,(SELECT count(*)::int FROM outbox_events WHERE dedupe_key=$2) sentinel FROM generation_jobs j JOIN workflow_invocations i ON i.job_id=j.id WHERE j.id=$3`,
+      [attemptId, sentinelKey, jobId],
+    )
+  ).rows[0];
+}
 
 suite.test(
   'three phases expose only committed state across independent connections',
@@ -118,6 +168,82 @@ suite.test(
       [jobId, `workflow-attempt-validated:${invocationId}:${attemptId}`],
     );
     expect(final.rows[0]).toEqual({ status: 'succeeded', sentinel: 1 });
+    await prisma.$disconnect();
+  },
+);
+
+suite.test(
+  'terminal CAS rejection rolls back appended sentinel but preserves committed winner and usage',
+  async ({ client, databaseUrl }) => {
+    await seedAttemptTest(client);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const real = createUnitOfWork(prisma);
+    const rejecting: UnitOfWork = {
+      execute: (callback, options) =>
+        real.execute(
+          (ports) =>
+            callback({
+              ...ports,
+              job: {
+                ...ports.job,
+                transitionRunningToTerminal: async () => ({
+                  kind: 'cancellation_blocks_success' as const,
+                }),
+              },
+            } as TxPorts),
+          options,
+        ),
+    };
+    const harness = createThreePhaseAttemptHarness({
+      workflow: createWorkflowInvocationService(real),
+      jobs: createJobService(rejecting),
+      executor: async () => billableOutcome,
+      validator: async () => ({ kind: 'valid' }),
+    });
+
+    expect(await harness.run(harnessInput)).toEqual({
+      kind: 'publish_denied',
+      outcome: 'cancellation_blocks_success',
+    });
+    expect(await durableSnapshot(client)).toMatchObject({
+      status: 'running',
+      winner_attempt_id: attemptId,
+      usage: 1,
+      sentinel: 0,
+    });
+    await prisma.$disconnect();
+  },
+);
+
+suite.test(
+  'callback throw after append rolls back sentinel and job success but preserves winner and usage',
+  async ({ client, databaseUrl }) => {
+    await seedAttemptTest(client);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const real = createUnitOfWork(prisma);
+    const realJobs = createJobService(real);
+    const throwingJobs: JobService = {
+      ...realJobs,
+      withFencedPublish: (identity, callback) =>
+        realJobs.withFencedPublish(identity, async (context) => {
+          await callback(context);
+          throw new Error('forced callback failure');
+        }),
+    };
+    const harness = createThreePhaseAttemptHarness({
+      workflow: createWorkflowInvocationService(real),
+      jobs: throwingJobs,
+      executor: async () => billableOutcome,
+      validator: async () => ({ kind: 'valid' }),
+    });
+
+    await expect(harness.run(harnessInput)).rejects.toThrow('forced callback failure');
+    expect(await durableSnapshot(client)).toMatchObject({
+      status: 'running',
+      winner_attempt_id: attemptId,
+      usage: 1,
+      sentinel: 0,
+    });
     await prisma.$disconnect();
   },
 );
