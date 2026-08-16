@@ -40,28 +40,45 @@ WHERE "confirmation_request_id" IS NOT NULL;
 --------------------------------------------------------------------------------
 -- Rationale: Append-only ledger of user-facing billing allocations per usable output
 -- Enforces integrity at DB level via trigger; cannot UPDATE or DELETE rows
+-- Preserves full financial evidence with retention-safe FK constraints (no cascade)
 CREATE TABLE "credit_billing_allocations" (
   "id" TEXT PRIMARY KEY,
+  "project_id" TEXT NOT NULL,
+  "job_id" TEXT NOT NULL,
   "reservation_id" TEXT NOT NULL,
-  "usage_attempt_id" TEXT,
   "usable_output_kind" TEXT NOT NULL,
   "usable_output_ref" TEXT NOT NULL,
-  "amount_micro_idr" BIGINT NOT NULL CHECK ("amount_micro_idr" > 0),
+  "contributing_attempt_ids_hash" TEXT NOT NULL,
+  "provider_cost_micro_idr" BIGINT NOT NULL CHECK ("provider_cost_micro_idr" >= 0),
+  "user_settlement_micro_idr" BIGINT NOT NULL DEFAULT 0 CHECK ("user_settlement_micro_idr" >= 0),
+  "system_subsidy_micro_idr" BIGINT NOT NULL DEFAULT 0 CHECK ("system_subsidy_micro_idr" >= 0),
+  "billing_policy_version" INTEGER NOT NULL DEFAULT 1 CHECK ("billing_policy_version" > 0),
+  "billing_policy_payload" JSONB,
+  "dedupe_key" TEXT NOT NULL UNIQUE,
   "created_at" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- FK to reservation enforces cascade deletion when reservation closes
+-- FKs use RESTRICT/NO ACTION for retention-safe billing history preservation
+ALTER TABLE "credit_billing_allocations"
+ADD CONSTRAINT "credit_billing_allocations_project_id_fkey"
+FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE "credit_billing_allocations"
+ADD CONSTRAINT "credit_billing_allocations_job_id_fkey"
+FOREIGN KEY ("project_id", "job_id") REFERENCES "generation_jobs"("project_id", "id") ON UPDATE NO ACTION ON DELETE RESTRICT;
+
 ALTER TABLE "credit_billing_allocations"
 ADD CONSTRAINT "credit_billing_allocations_reservation_id_fkey"
-FOREIGN KEY ("reservation_id") REFERENCES "credit_reservations"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+FOREIGN KEY ("reservation_id") REFERENCES "credit_reservations"("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
 
--- Index for fast lookup by reservation + output kind/ref during settlement
-CREATE INDEX "credit_billing_allocations_reservation_output_idx"
-ON "credit_billing_allocations" ("reservation_id", "usable_output_kind", "usable_output_ref");
+-- Unique dedupe key for allocation insertion idempotency
+-- Compound index for fast lookup by project + reservation + output during settlement
+CREATE INDEX "credit_billing_allocations_project_output_idx"
+ON "credit_billing_allocations" ("project_id", "reservation_id", "usable_output_kind", "usable_output_ref");
 
--- Index for usage-attempt dedupe and incident queries
-CREATE INDEX "credit_billing_allocations_usage_attempt_idx"
-ON "credit_billing_allocations" ("usage_attempt_id");
+-- Index for attempt-based analysis if needed
+CREATE INDEX "credit_billing_allocations_contribution_hash_idx"
+ON "credit_billing_allocations" ("contributing_attempt_ids_hash");
 
 --------------------------------------------------------------------------------
 -- STEP 4: CreditLedger append-only trigger (reject mutations)
@@ -70,7 +87,7 @@ ON "credit_billing_allocations" ("usage_attempt_id");
 CREATE OR REPLACE FUNCTION "fn_credit_ledger_enforce_immutability" ()
 RETURNS TRIGGER AS $$
 BEGIN
-  RAISE EXCEPTION 'credit_ledger entries are immutable: %', pg_event_type;
+  RAISE EXCEPTION 'credit_ledger entries are immutable: %', pg_event_type USING ERRCODE = 'P2034';
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
@@ -88,7 +105,7 @@ FOR EACH ROW EXECUTE FUNCTION "fn_credit_ledger_enforce_immutability" ();
 CREATE OR REPLACE FUNCTION "fn_credit_billing_allocation_enforce_immutability" ()
 RETURNS TRIGGER AS $$
 BEGIN
-  RAISE EXCEPTION 'credit_billing_allocations entries are immutable: %', pg_event_type;
+  RAISE EXCEPTION 'credit_billing_allocations entries are immutable: %', pg_event_type USING ERRCODE = 'P2034';
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;

@@ -20,8 +20,9 @@ const repoRoot = path.resolve(packageDirectory, '../..');
 const prismaRoot = path.join(repoRoot, 'prisma');
 const M0_MIGRATION = '20260721181246_init_m0_auth';
 const RELEASE_VOCABULARY_MIGRATION = '20260728230906_credit_ledger_release_vocabulary';
+const CREDIT_ENGINE_V1 = '20260816094500_credit_engine_v1';
 export const PRE_VOCABULARY_MIGRATIONS = [M0_MIGRATION, ...W11_MIGRATIONS.map(({ id }) => id)];
-export const FINAL_MIGRATIONS = [...PRE_VOCABULARY_MIGRATIONS, RELEASE_VOCABULARY_MIGRATION];
+export const FINAL_MIGRATIONS = [...PRE_VOCABULARY_MIGRATIONS, RELEASE_VOCABULARY_MIGRATION, CREDIT_ENGINE_V1];
 const MODES = new Set(['empty', 'upgrade', 'all']);
 
 async function sqlFile(...segments) {
@@ -206,7 +207,7 @@ async function runUpgrade() {
 
     await staged.addMigrations([RELEASE_VOCABULARY_MIGRATION]);
     await deployWithPrisma({ databaseUrl, configPath: staged.configPath });
-    await verifyMigrationHistory(client, FINAL_MIGRATIONS);
+    await verifyMigrationHistory(client, [...PRE_VOCABULARY_MIGRATIONS, RELEASE_VOCABULARY_MIGRATION]);
 
     const ledgerAfter = await client.query(
       `SELECT * FROM credit_ledger WHERE id = 'upgrade-reservation-release'`,
@@ -225,6 +226,19 @@ async function runUpgrade() {
     );
     if (oldRows.rows[0].count !== 0) {
       throw new Error(`Expected no reservation_release rows, found ${oldRows.rows[0].count}`);
+    }
+
+    // Add representative W3.3 data before upgrade
+    await staged.addMigrations([CREDIT_ENGINE_V1]);
+    await deployWithPrisma({ databaseUrl, configPath: staged.configPath });
+    await verifyMigrationHistory(client, FINAL_MIGRATIONS);
+
+    // Verify pre-existing rows are preserved after W3.3 migration
+    const ledgerStillThere = await client.query(
+      `SELECT * FROM credit_ledger WHERE id = 'upgrade-reservation-release'`,
+    );
+    if (ledgerStillThere.rowCount !== 1) {
+      throw new Error('W3.3 migration did not preserve existing ledger rows');
     }
 
     await verifyM0Upgrade(client, before);
