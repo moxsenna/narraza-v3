@@ -1,0 +1,2 @@
+-- Empty migration fixture - no schema changes applied
+-- Used in migration:test:empty scenario to verify forward-install from bare state
