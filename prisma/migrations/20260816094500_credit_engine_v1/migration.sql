@@ -48,23 +48,19 @@ CREATE TABLE "credit_billing_allocations" (
   "contributing_attempt_ids_hash" TEXT NOT NULL,
   "provider_cost_micro_idr" BIGINT NOT NULL CHECK ("provider_cost_micro_idr" >= 0),
   "user_settlement_micro_idr" BIGINT NOT NULL CHECK ("user_settlement_micro_idr" >= 0),
-  "system_subsidy_micro_idr" BIGINT NOT NULL DEFAULT 0
-    CHECK ("system_subsidy_micro_idr" = GREATEST("provider_cost_micro_idr" - "user_settlement_micro_idr", 0)),
+  "system_subsidy_micro_idr" BIGINT NOT NULL DEFAULT 0,
   "billing_policy_version" INTEGER NOT NULL DEFAULT 1 CHECK ("billing_policy_version" > 0),
-  "billing_policy_payload" JSONB NOT NULL CHECK (jsonb_typeof("billing_policy_payload") = 'object'),
+  "billing_policy_payload" JSONB NOT NULL,
   "dedupe_key" TEXT NOT NULL UNIQUE,
   "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT now()
 );
 
--- FKs use RESTRICT for retention-safe billing history preservation
-ALTER TABLE "credit_billing_allocations"
-ADD CONSTRAINT "credit_billing_allocations_project_id_fkey"
-FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON UPDATE CASCADE ON DELETE RESTRICT;
-
-ALTER TABLE "credit_billing_allocations"
-ADD CONSTRAINT "credit_billing_allocations_job_id_fkey"
-FOREIGN KEY ("project_id", "job_id") REFERENCES "generation_jobs"("project_id", "id") ON UPDATE CASCADE ON DELETE RESTRICT;
-
+-- Retention strategy (W3.2 pattern): project_id and job_id are retained scalar
+-- evidence WITHOUT FKs, so the permitted project purge (DELETE FROM projects,
+-- cascading story content) succeeds while allocation rows survive with their
+-- scalar attribution intact. Only reservation_id carries an FK (RESTRICT):
+-- reservations themselves survive project purge, and the FK prevents deletion
+-- of reservation evidence while an allocation references it.
 ALTER TABLE "credit_billing_allocations"
 ADD CONSTRAINT "credit_billing_allocations_reservation_id_fkey"
 FOREIGN KEY ("reservation_id") REFERENCES "credit_reservations"("id") ON UPDATE CASCADE ON DELETE RESTRICT;
@@ -90,11 +86,10 @@ ADD CONSTRAINT "credit_billing_allocations_billing_policy_payload_object_check"
 CHECK (jsonb_typeof("billing_policy_payload") = 'object');
 
 --------------------------------------------------------------------------------
--- STEP 2b: Composite request idempotency unique on credit_quotes
+-- STEP 2b: (removed) credit_quotes composite unique
 --------------------------------------------------------------------------------
--- One quote per (user, request_id) pair; NULLs are distinct
-ALTER TABLE "credit_quotes"
-ADD CONSTRAINT "credit_quotes_user_id_request_id_key" UNIQUE ("user_id", "request_id");
+-- credit_quotes keeps its preexisting partial unique credit_quotes_request_id_key
+-- from 20260722093000; no additional W3.3 unique is required.
 
 --------------------------------------------------------------------------------
 -- STEP 4: CreditLedger append-only trigger (reject mutations)

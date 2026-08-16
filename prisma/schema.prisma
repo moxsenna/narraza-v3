@@ -173,7 +173,6 @@ model Project {
   generationContextBundles  GenerationContextBundle[]
   aiWorkflowPlans           AiWorkflowPlan[]
   generationJobs            GenerationJob[]
-  creditBillingAllocations  CreditBillingAllocation[]
   generationAttempts        GenerationAttempt[]
   workflowInvocations       WorkflowInvocation[]
   validationReports         ValidationReport[]
@@ -875,7 +874,6 @@ model GenerationJob {
   intakeMessages      IntakeMessage[]
   conceptSets         ConceptSet[]
   boundReservations   CreditReservation[]    @relation("ReservationBoundJob")
-  billingAllocations  CreditBillingAllocation[]
   reservation         CreditReservation?     @relation("JobReservationPointer", fields: [projectId, id, reservationId], references: [projectId, jobId, id], onDelete: NoAction, onUpdate: NoAction, map: "generation_jobs_reservation_binding_fkey")
   artifactProposals   ArtifactProposal[]
 
@@ -1000,7 +998,6 @@ model CreditQuote {
   workflowPlan AiWorkflowPlan? @relation(fields: [workflowPlanProjectId, workflowPlanId, workflowPlanHash], references: [projectId, id, planHash], onDelete: NoAction, onUpdate: NoAction, map: "credit_quotes_plan_binding_fkey")
   reservations CreditReservation[] @relation("QuoteReservations")
 
-  @@unique([userId, requestId])
   @@index([userId, expiresAt])
   @@map("credit_quotes")
 }
@@ -1021,9 +1018,10 @@ model CreditBillingAllocation {
   dedupeKey                  String   @unique @map("dedupe_key")
   createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  project     Project            @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  job         GenerationJob      @relation(fields: [projectId, jobId], references: [projectId, id], onDelete: Restrict, map: "credit_billing_allocations_job_id_fkey")
-  reservation CreditReservation  @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  // project_id / job_id are retained scalar evidence (W3.2 retention pattern):
+  // no FK to projects/generation_jobs so the permitted project purge
+  // (DELETE FROM projects) succeeds while this financial evidence survives.
+  reservation CreditReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
 
   @@index([projectId, reservationId, usableOutputKind, usableOutputRef])
   @@index([contributingAttemptIdsHash])

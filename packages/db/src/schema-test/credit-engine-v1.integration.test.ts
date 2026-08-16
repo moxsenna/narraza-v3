@@ -86,7 +86,7 @@ schema.test('quote_id FK exists and rejects invalid reference', async ({ client 
 });
 
 schema.test(
-  'confirmation_request_id partial unique index enforces uniqueness',
+  'confirmation_request_id global nullable UNIQUE enforces uniqueness',
   async ({ client }) => {
     await seedPlanGraph(client);
     await seedQuoteAndReservation(client);
@@ -283,27 +283,81 @@ schema.test('billing allocation DELETE is rejected by immutability trigger', asy
 });
 
 schema.test(
-  'billing evidence survives blocked project purge via RESTRICT FKs',
+  'permitted project purge succeeds and billing evidence survives',
   async ({ client }) => {
     await seedBillingFixture(client, 'alloc-purge-job');
     await client.query(
       `INSERT INTO credit_billing_allocations (${allocationColumns()})
-     VALUES ('alloc-purge',$1,'alloc-purge-job','audit-reservation','konsep','proj-konsep-a','hash-try-1',1000,800,200,1,'{"version":"v1"}'::jsonb,'dedupe-project-concept-proj-konsep-purge',now())`,
+       VALUES ('alloc-purge',$1,'alloc-purge-job','audit-reservation','konsep','proj-konsep-a','hash-try-1',1000,800,200,1,'{"version":"v1"}'::jsonb,'dedupe-project-concept-proj-konsep-purge',now())`,
       [ids.projectA],
     );
-    // RESTRICT FK policy: project purge is refused while financial evidence exists
-    await expectSqlState(
-      client.query(`DELETE FROM projects WHERE id = $1`, [ids.projectA]),
-      '23503',
+    await client.query(
+      `INSERT INTO credit_ledger
+         (id,user_id,project_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at)
+       VALUES ('purge-ledger',$1,$2,'grant','credit',100,'purge-ledger-dedupe',now())`,
+      [ids.userA, ids.projectA],
     );
-    // The evidence itself is untouched after the refused purge
+    await client.query(
+      `INSERT INTO audit_events (id,user_id,action,entity_type,entity_id,metadata,created_at)
+       VALUES ('purge-audit',$1,'project.delete','project',$2,'{}',now())`,
+      [ids.userA, ids.projectA],
+    );
+    await client.query(
+      `INSERT INTO outbox_events
+         (id,aggregate_type,aggregate_id,event_type,dedupe_key,occurred_at,schema_version,payload,created_at)
+       VALUES ('purge-event','project',$1,'deleted','purge-event',now(),1,'{}',now())`,
+      [ids.projectA],
+    );
+
+    // The repository's permitted purge path: hard project delete cascading
+    // story content away (same contract as the W3.2 schema-retention suite).
+    await client.query(`DELETE FROM projects WHERE id = $1`, [ids.projectA]);
+
+    // Story content targeted by the purge is gone.
+    for (const [table, key] of [
+      ['projects', ids.projectA],
+      ['generation_jobs', 'alloc-purge-job'],
+      ['roadmaps', ids.roadmapA],
+    ] as const) {
+      const result = await client.query<{ exists: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM ${table} WHERE id = $1) AS exists`,
+        [key],
+      );
+      expect(result.rows[0]?.exists, `${table} row should be purged`).toBe(false);
+    }
+
+    // Retained ledger / audit / outbox evidence survives the purge.
+    for (const [table, id] of [
+      ['credit_ledger', 'purge-ledger'],
+      ['audit_events', 'purge-audit'],
+      ['outbox_events', 'purge-event'],
+    ] as const) {
+      const result = await client.query<{ exists: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM ${table} WHERE id = $1) AS exists`,
+        [id],
+      );
+      expect(result.rows[0]?.exists, `${table} evidence should survive purge`).toBe(true);
+    }
+
+    // W3.3 billing allocation evidence survives with scalar attribution intact;
+    // its reservation survives too, with the purged job binding cleared.
     const evidence = await client.query(
-      `SELECT id, provider_cost_micro_idr::text AS cost, system_subsidy_micro_idr::text AS subsidy
-       FROM credit_billing_allocations WHERE id = 'alloc-purge'`,
+      `SELECT project_id, job_id, provider_cost_micro_idr::text AS cost,
+              system_subsidy_micro_idr::text AS subsidy
+         FROM credit_billing_allocations WHERE id = 'alloc-purge'`,
     );
     expect(evidence.rowCount).toBe(1);
+    expect(evidence.rows[0]?.project_id).toBe(ids.projectA);
+    expect(evidence.rows[0]?.job_id).toBe('alloc-purge-job');
     expect(evidence.rows[0]?.cost).toBe('1000');
     expect(evidence.rows[0]?.subsidy).toBe('200');
+
+    const reservation = await client.query(
+      `SELECT status, job_id FROM credit_reservations WHERE id = 'audit-reservation'`,
+    );
+    expect(reservation.rowCount).toBe(1);
+    expect(reservation.rows[0]?.status).toBe('open');
+    expect(reservation.rows[0]?.job_id).toBeNull();
   },
 );
 
@@ -322,8 +376,6 @@ schema.test('constraint names are deterministic and present', async ({ client })
 
   const expectedConstraints = [
     'credit_reservations_quote_id_fkey',
-    'credit_billing_allocations_project_id_fkey',
-    'credit_billing_allocations_job_id_fkey',
     'credit_billing_allocations_reservation_id_fkey',
     'credit_billing_allocations_system_subsidy_conservation_check',
     'credit_billing_allocations_billing_policy_payload_object_check',
