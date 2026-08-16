@@ -19,21 +19,18 @@ ADD CONSTRAINT "credit_reservations_quote_id_key" UNIQUE ("quote_id");
 
 ALTER TABLE "credit_reservations"
 ADD CONSTRAINT "credit_reservations_quote_id_fkey"
-FOREIGN KEY ("quote_id") REFERENCES "credit_quotes"("id") ON UPDATE NO ACTION ON DELETE SET NULL;
-
-CREATE INDEX "credit_reservations_quote_id_idx" ON "credit_reservations" ("quote_id");
+FOREIGN KEY ("quote_id") REFERENCES "credit_quotes"("id") ON UPDATE CASCADE ON DELETE SET NULL;
 
 --------------------------------------------------------------------------------
 -- STEP 2: Add confirmation_request_id to credit_reservations
 --------------------------------------------------------------------------------
 -- Rationale: Idempotency key for quote → reservation transition; enables retries
--- Partial global unique index ensures one reservation per confirmation_request_id
+-- Global nullable UNIQUE: one reservation per confirmation_request_id (NULLs are distinct)
 ALTER TABLE "credit_reservations"
 ADD COLUMN "confirmation_request_id" TEXT;
 
-CREATE UNIQUE INDEX "credit_reservations_confirmation_request_id_partial"
-ON "credit_reservations" ("confirmation_request_id")
-WHERE "confirmation_request_id" IS NOT NULL;
+CREATE UNIQUE INDEX "credit_reservations_confirmation_request_id_key"
+ON "credit_reservations" ("confirmation_request_id");
 
 --------------------------------------------------------------------------------
 -- STEP 3: Create credit_billing_allocations table (immutable billing record)
@@ -50,35 +47,54 @@ CREATE TABLE "credit_billing_allocations" (
   "usable_output_ref" TEXT NOT NULL,
   "contributing_attempt_ids_hash" TEXT NOT NULL,
   "provider_cost_micro_idr" BIGINT NOT NULL CHECK ("provider_cost_micro_idr" >= 0),
-  "user_settlement_micro_idr" BIGINT NOT NULL DEFAULT 0 CHECK ("user_settlement_micro_idr" >= 0),
-  "system_subsidy_micro_idr" BIGINT NOT NULL DEFAULT 0 CHECK ("system_subsidy_micro_idr" >= 0),
+  "user_settlement_micro_idr" BIGINT NOT NULL CHECK ("user_settlement_micro_idr" >= 0),
+  "system_subsidy_micro_idr" BIGINT NOT NULL DEFAULT 0
+    CHECK ("system_subsidy_micro_idr" = GREATEST("provider_cost_micro_idr" - "user_settlement_micro_idr", 0)),
   "billing_policy_version" INTEGER NOT NULL DEFAULT 1 CHECK ("billing_policy_version" > 0),
-  "billing_policy_payload" JSONB,
+  "billing_policy_payload" JSONB NOT NULL CHECK (jsonb_typeof("billing_policy_payload") = 'object'),
   "dedupe_key" TEXT NOT NULL UNIQUE,
-  "created_at" TIMESTAMPTZ NOT NULL DEFAULT now()
+  "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT now()
 );
 
--- FKs use RESTRICT/NO ACTION for retention-safe billing history preservation
+-- FKs use RESTRICT for retention-safe billing history preservation
 ALTER TABLE "credit_billing_allocations"
 ADD CONSTRAINT "credit_billing_allocations_project_id_fkey"
 FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON UPDATE CASCADE ON DELETE RESTRICT;
 
 ALTER TABLE "credit_billing_allocations"
 ADD CONSTRAINT "credit_billing_allocations_job_id_fkey"
-FOREIGN KEY ("project_id", "job_id") REFERENCES "generation_jobs"("project_id", "id") ON UPDATE NO ACTION ON DELETE RESTRICT;
+FOREIGN KEY ("project_id", "job_id") REFERENCES "generation_jobs"("project_id", "id") ON UPDATE CASCADE ON DELETE RESTRICT;
 
 ALTER TABLE "credit_billing_allocations"
 ADD CONSTRAINT "credit_billing_allocations_reservation_id_fkey"
-FOREIGN KEY ("reservation_id") REFERENCES "credit_reservations"("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
+FOREIGN KEY ("reservation_id") REFERENCES "credit_reservations"("id") ON UPDATE CASCADE ON DELETE RESTRICT;
 
 -- Unique dedupe key for allocation insertion idempotency
 -- Compound index for fast lookup by project + reservation + output during settlement
-CREATE INDEX "credit_billing_allocations_project_output_idx"
+CREATE INDEX "credit_billing_allocations_project_id_reservation_id_usable_idx"
 ON "credit_billing_allocations" ("project_id", "reservation_id", "usable_output_kind", "usable_output_ref");
 
 -- Index for attempt-based analysis if needed
-CREATE INDEX "credit_billing_allocations_contribution_hash_idx"
+CREATE INDEX "credit_billing_allocations_contributing_attempt_ids_hash_idx"
 ON "credit_billing_allocations" ("contributing_attempt_ids_hash");
+
+-- Financial evidence constraints (systemSubsidy = max(providerCost - userSettlement, 0))
+ALTER TABLE "credit_billing_allocations"
+ADD CONSTRAINT "credit_billing_allocations_system_subsidy_conservation_check"
+CHECK ("system_subsidy_micro_idr" >= 0 AND 
+       "system_subsidy_micro_idr" = GREATEST("provider_cost_micro_idr" - "user_settlement_micro_idr", 0));
+
+-- JSONB object check for policy payload
+ALTER TABLE "credit_billing_allocations"
+ADD CONSTRAINT "credit_billing_allocations_billing_policy_payload_object_check"
+CHECK (jsonb_typeof("billing_policy_payload") = 'object');
+
+--------------------------------------------------------------------------------
+-- STEP 2b: Composite request idempotency unique on credit_quotes
+--------------------------------------------------------------------------------
+-- One quote per (user, request_id) pair; NULLs are distinct
+ALTER TABLE "credit_quotes"
+ADD CONSTRAINT "credit_quotes_user_id_request_id_key" UNIQUE ("user_id", "request_id");
 
 --------------------------------------------------------------------------------
 -- STEP 4: CreditLedger append-only trigger (reject mutations)
@@ -87,8 +103,7 @@ ON "credit_billing_allocations" ("contributing_attempt_ids_hash");
 CREATE OR REPLACE FUNCTION "fn_credit_ledger_enforce_immutability" ()
 RETURNS TRIGGER AS $$
 BEGIN
-  RAISE EXCEPTION 'credit_ledger entries are immutable: %', pg_event_type USING ERRCODE = 'P2034';
-  RETURN NULL;
+  RAISE EXCEPTION 'credit_ledger entries are immutable' USING ERRCODE = 'P2034';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -105,8 +120,7 @@ FOR EACH ROW EXECUTE FUNCTION "fn_credit_ledger_enforce_immutability" ();
 CREATE OR REPLACE FUNCTION "fn_credit_billing_allocation_enforce_immutability" ()
 RETURNS TRIGGER AS $$
 BEGIN
-  RAISE EXCEPTION 'credit_billing_allocations entries are immutable: %', pg_event_type USING ERRCODE = 'P2034';
-  RETURN NULL;
+  RAISE EXCEPTION 'credit_billing_allocations entries are immutable' USING ERRCODE = 'P2034';
 END;
 $$ LANGUAGE plpgsql;
 

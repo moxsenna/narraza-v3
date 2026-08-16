@@ -15,10 +15,15 @@ const HISTORICAL_MIGRATIONS = [
   '20260722093000_credit_validation_publish_ops_expand',
 ];
 const RELEASE_VOCABULARY_MIGRATION = '20260728230906_credit_ledger_release_vocabulary';
+const CREDIT_ENGINE_V1 = '20260816094500_credit_engine_v1';
 
 it('keeps exact ordered pre-vocabulary and final migration histories', () => {
   expect(PRE_VOCABULARY_MIGRATIONS).toEqual(HISTORICAL_MIGRATIONS);
-  expect(FINAL_MIGRATIONS).toEqual([...HISTORICAL_MIGRATIONS, RELEASE_VOCABULARY_MIGRATION]);
+  expect(FINAL_MIGRATIONS).toEqual([
+    ...HISTORICAL_MIGRATIONS,
+    RELEASE_VOCABULARY_MIGRATION,
+    CREDIT_ENGINE_V1,
+  ]);
 });
 
 describe('deployWithPrisma', () => {
