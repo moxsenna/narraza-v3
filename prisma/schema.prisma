@@ -173,6 +173,7 @@ model Project {
   generationContextBundles  GenerationContextBundle[]
   aiWorkflowPlans           AiWorkflowPlan[]
   generationJobs            GenerationJob[]
+  creditBillingAllocations  CreditBillingAllocation[]
   generationAttempts        GenerationAttempt[]
   workflowInvocations       WorkflowInvocation[]
   validationReports         ValidationReport[]
@@ -873,8 +874,9 @@ model GenerationJob {
   generatedCandidates GeneratedCandidate[]
   intakeMessages      IntakeMessage[]
   conceptSets         ConceptSet[]
-  boundReservations   CreditReservation[]      @relation("ReservationBoundJob")
-  reservation         CreditReservation?       @relation("JobReservationPointer", fields: [projectId, id, reservationId], references: [projectId, jobId, id], onDelete: NoAction, onUpdate: NoAction, map: "generation_jobs_reservation_binding_fkey")
+  boundReservations   CreditReservation[]    @relation("ReservationBoundJob")
+  billingAllocations  CreditBillingAllocation[]
+  reservation         CreditReservation?     @relation("JobReservationPointer", fields: [projectId, id, reservationId], references: [projectId, jobId, id], onDelete: NoAction, onUpdate: NoAction, map: "generation_jobs_reservation_binding_fkey")
   artifactProposals   ArtifactProposal[]
 
   @@unique([projectId, id])
@@ -994,7 +996,6 @@ model CreditQuote {
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user         User            @relation(fields: [userId], references: [id], onDelete: Restrict)
-  reservation  CreditReservation? @relation(fields: [quoteId], references: [id])
   workflowPlan AiWorkflowPlan? @relation(fields: [workflowPlanProjectId, workflowPlanId, workflowPlanHash], references: [projectId, id, planHash], onDelete: NoAction, onUpdate: NoAction, map: "credit_quotes_plan_binding_fkey")
 
   @@unique([userId, requestId])
@@ -1014,7 +1015,7 @@ model CreditBillingAllocation {
   userSettlementMicroIdr     BigInt   @map("user_settlement_micro_idr")
   systemSubsidyMicroIdr      BigInt   @map("system_subsidy_micro_idr")
   billingPolicyVersion       Int      @map("billing_policy_version") @default(1)
-  billingPolicyPayload       Json?    @map("billing_policy_payload") @db.Jsonb
+  billingPolicyPayload       Json?    @map("billing_policy_payload")
   dedupeKey                  String   @unique @map("dedupe_key")
   createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
