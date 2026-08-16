@@ -40,12 +40,17 @@ function toQuoteRecord(row: RawQuoteRow): CreditQuoteRecord {
   };
 }
 
-function isExactReplay(row: RawQuoteRow, input: QuoteInsertInput): boolean {
+function isExactReplay(
+  row: RawQuoteRow,
+  input: QuoteInsertInput,
+  resolvedExistingBundleId: string | null,
+): boolean {
   return (
     row.user_id === input.userId &&
     row.project_id === input.projectId &&
     row.workflow_plan_id === input.workflowPlanId &&
     row.workflow_plan_hash === input.workflowPlanHash &&
+    resolvedExistingBundleId === input.bundleId &&
     row.dependency_hash === input.dependencyHash &&
     BigInt(row.max_amount_micro_idr) === input.maxAmountMicroIdr &&
     row.request_id === input.requestId
@@ -53,9 +58,22 @@ function isExactReplay(row: RawQuoteRow, input: QuoteInsertInput): boolean {
 }
 
 export function createQuoteRepo(tx: TxClient): QuotePort {
+  async function resolveBundleIdForPlan(
+    projectId: string,
+    workflowPlanId: string | null,
+  ): Promise<string | null> {
+    if (workflowPlanId === null) return null;
+    const planRows = (await tx.$queryRawUnsafe(
+      `SELECT bundle_id FROM ai_workflow_plans WHERE project_id = $1 AND id = $2`,
+      projectId,
+      workflowPlanId,
+    )) as { bundle_id: string }[];
+    return planRows[0]?.bundle_id ?? null;
+  }
+
   return {
     async insert(input: QuoteInsertInput): Promise<QuoteInsertResult> {
-      // 1. If requestId is supplied, check for existing quote under that requestId first
+      // 1. If requestId is supplied, check for existing quote under that requestId first (handles replays before freshness check)
       if (input.requestId !== null) {
         const existing = (await tx.$queryRawUnsafe(
           `SELECT ${COLUMN_LIST}
@@ -66,14 +84,46 @@ export function createQuoteRepo(tx: TxClient): QuotePort {
 
         const existingRow = existing[0];
         if (existingRow) {
-          if (isExactReplay(existingRow, input)) {
+          const existingBundleId = await resolveBundleIdForPlan(
+            existingRow.project_id,
+            existingRow.workflow_plan_id,
+          );
+          if (isExactReplay(existingRow, input, existingBundleId)) {
             return { kind: 'replayed', quote: toQuoteRecord(existingRow) };
           }
           return { kind: 'conflict' };
         }
       }
 
-      // 2. Attempt insert with PostgreSQL operational time (default expiry = now() + 10 minutes)
+      // 2. Audit and validate bundle binding when workflowPlanId is provided for fresh insert
+      if (input.workflowPlanId !== null) {
+        if (input.bundleId === null) {
+          return { kind: 'invalid_bundle_binding' };
+        }
+        const planRows = (await tx.$queryRawUnsafe(
+          `SELECT bundle_id
+             FROM ai_workflow_plans
+            WHERE project_id = $1 AND id = $2 AND plan_hash = $3`,
+          input.projectId,
+          input.workflowPlanId,
+          input.workflowPlanHash,
+        )) as { bundle_id: string }[];
+
+        const planRow = planRows[0];
+        if (!planRow) {
+          return { kind: 'plan_not_found' };
+        }
+        if (planRow.bundle_id !== input.bundleId) {
+          return { kind: 'invalid_bundle_binding' };
+        }
+      } else {
+        // Fail closed if workflowPlanId === null && bundleId !== null
+        if (input.bundleId !== null) {
+          return { kind: 'invalid_bundle_binding' };
+        }
+      }
+
+      // 3. Attempt insert with PostgreSQL operational time (default expiry = now() + 10 minutes)
       const inserted = (await tx.$queryRawUnsafe(
         `INSERT INTO credit_quotes
            (id,user_id,project_id,workflow_plan_id,workflow_plan_hash,dependency_hash,
@@ -96,7 +146,7 @@ export function createQuoteRepo(tx: TxClient): QuotePort {
         return { kind: 'inserted', quote: toQuoteRecord(row) };
       }
 
-      // 3. Insert missed due to concurrent conflict on request_id partial unique index
+      // 4. Insert missed due to concurrent conflict on request_id partial unique index
       if (input.requestId !== null) {
         const concurrent = (await tx.$queryRawUnsafe(
           `SELECT ${COLUMN_LIST}
@@ -107,7 +157,11 @@ export function createQuoteRepo(tx: TxClient): QuotePort {
 
         const concurrentRow = concurrent[0];
         if (concurrentRow) {
-          if (isExactReplay(concurrentRow, input)) {
+          const concurrentBundleId = await resolveBundleIdForPlan(
+            concurrentRow.project_id,
+            concurrentRow.workflow_plan_id,
+          );
+          if (isExactReplay(concurrentRow, input, concurrentBundleId)) {
             return { kind: 'replayed', quote: toQuoteRecord(concurrentRow) };
           }
         }

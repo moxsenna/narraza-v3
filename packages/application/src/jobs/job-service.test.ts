@@ -556,6 +556,110 @@ describe('manual retry', () => {
       Extract<ManualRetryResult, { readonly kind: 'reservation_binding_invalid' }>
     >().toEqualTypeOf<{ readonly kind: 'reservation_binding_invalid' }>();
   });
+
+  describe('funding model enqueue guard in manualRetry unit tests', () => {
+    it('rejects user_paid job with missing reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'concept_generation' }),
+      });
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: null });
+
+      expect(result).toEqual({
+        kind: 'funding_model_violation',
+        reason: 'missing_reservation_for_paid',
+        fundingModel: 'user_paid',
+      });
+      expect(h.jobPort.insert).not.toHaveBeenCalled();
+      expect(h.executeCount()).toBe(1);
+    });
+
+    it('allows user_paid job with non-empty reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'concept_generation' }),
+      });
+      h.jobPort.insert.mockImplementationOnce(async (input) => ({
+        kind: 'inserted',
+        job: job({ id: input.id, kind: input.kind, reservationId: input.reservationId }),
+      }));
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: 'res-paid-1' });
+
+      expect(result.kind).toBe('created');
+      expect(h.jobPort.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ reservationId: 'res-paid-1' }),
+      );
+    });
+
+    it('rejects system_funded job with missing reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'chat_intake' }),
+      });
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: null });
+
+      expect(result).toEqual({
+        kind: 'funding_model_violation',
+        reason: 'missing_reservation_for_system_funded',
+        fundingModel: 'system_funded',
+      });
+      expect(h.jobPort.insert).not.toHaveBeenCalled();
+    });
+
+    it('allows system_funded job with non-empty reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'chat_intake' }),
+      });
+      h.jobPort.insert.mockImplementationOnce(async (input) => ({
+        kind: 'inserted',
+        job: job({ id: input.id, kind: input.kind, reservationId: input.reservationId }),
+      }));
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: 'res-sys-1' });
+
+      expect(result.kind).toBe('created');
+      expect(h.jobPort.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ reservationId: 'res-sys-1' }),
+      );
+    });
+
+    it('allows pre_d4_legacy job without reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'prose' }),
+      });
+      h.jobPort.insert.mockImplementationOnce(async (input) => ({
+        kind: 'inserted',
+        job: job({ id: input.id, kind: input.kind, reservationId: input.reservationId }),
+      }));
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: null });
+
+      expect(result.kind).toBe('created');
+      expect(h.jobPort.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ reservationId: null }),
+      );
+    });
+
+    it('rejects unmapped/unknown job kind with funding_model_violation', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'unmapped_custom_action' }),
+      });
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: 'res-1' });
+
+      expect(result).toEqual({
+        kind: 'funding_model_violation',
+        reason: 'unknown_kind',
+      });
+      expect(h.jobPort.insert).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('owner wrappers and reclaim', () => {

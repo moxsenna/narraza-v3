@@ -155,6 +155,7 @@ describe('CreditQuoteService - issueQuote', () => {
   const validInput: IssueQuoteInput = {
     userId: 'user-1',
     projectId: 'project-1',
+    actionKind: 'concept_generation',
     workflowPlanId: 'plan-1',
     workflowPlanHash: VALID_HASH_A,
     bundleId: 'bundle-1',
@@ -181,6 +182,7 @@ describe('CreditQuoteService - issueQuote', () => {
       projectId: 'project-1',
       workflowPlanId: 'plan-1',
       workflowPlanHash: VALID_HASH_A,
+      bundleId: 'bundle-1',
       dependencyHash: VALID_HASH_B,
       maxAmountMicroIdr: 50_000n,
       requestId: 'req-1',
@@ -193,6 +195,83 @@ describe('CreditQuoteService - issueQuote', () => {
       'quote.insert',
       'commit',
     ]);
+  });
+
+  it('rejects system_funded action with typed not_applicable and zero DB writes', async () => {
+    const h = makeHarness();
+    const service = createCreditQuoteService(h.unitOfWork);
+
+    const result = await service.issueQuote({ ...validInput, actionKind: 'chat_intake' });
+
+    expect(result).toEqual({ kind: 'not_applicable', fundingModel: 'system_funded' });
+    expect(h.quotePort.insert).not.toHaveBeenCalled();
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('rejects pre_d4_legacy action with typed not_applicable and zero DB writes', async () => {
+    const h = makeHarness();
+    const service = createCreditQuoteService(h.unitOfWork);
+
+    const result = await service.issueQuote({ ...validInput, actionKind: 'prose' });
+
+    expect(result).toEqual({ kind: 'not_applicable', fundingModel: 'pre_d4_legacy' });
+    expect(h.quotePort.insert).not.toHaveBeenCalled();
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('rejects unmapped/unknown action kind with typed funding_model_violation and zero DB writes', async () => {
+    const h = makeHarness();
+    const service = createCreditQuoteService(h.unitOfWork);
+
+    const result = await service.issueQuote({ ...validInput, actionKind: 'unmapped_action' });
+
+    expect(result).toEqual({ kind: 'funding_model_violation', reason: 'unknown_kind' });
+    expect(h.quotePort.insert).not.toHaveBeenCalled();
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('rejects workflowPlanId !== null with bundleId === null before UoW execution', async () => {
+    const h = makeHarness();
+    const service = createCreditQuoteService(h.unitOfWork);
+
+    const result = await service.issueQuote({ ...validInput, bundleId: null });
+
+    expect(result).toEqual({ kind: 'invalid_bundle_binding' });
+    expect(h.quotePort.insert).not.toHaveBeenCalled();
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('rejects workflowPlanId === null with bundleId !== null before UoW execution', async () => {
+    const h = makeHarness();
+    const service = createCreditQuoteService(h.unitOfWork);
+
+    const result = await service.issueQuote({ ...validInput, workflowPlanId: null });
+
+    expect(result).toEqual({ kind: 'invalid_bundle_binding' });
+    expect(h.quotePort.insert).not.toHaveBeenCalled();
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('propagates invalid_bundle_binding from quote port when plan bundle does not match', async () => {
+    const h = makeHarness({
+      insertResult: { kind: 'invalid_bundle_binding' },
+    });
+    const service = createCreditQuoteService(h.unitOfWork);
+
+    const result = await service.issueQuote(validInput);
+
+    expect(result).toEqual({ kind: 'invalid_bundle_binding' });
+  });
+
+  it('propagates plan_not_found from quote port as not_found', async () => {
+    const h = makeHarness({
+      insertResult: { kind: 'plan_not_found' },
+    });
+    const service = createCreditQuoteService(h.unitOfWork);
+
+    const result = await service.issueQuote(validInput);
+
+    expect(result).toEqual({ kind: 'not_found' });
   });
 
   it('rejects maxAmountMicroIdr = 0 with typed invalid_quote_amount and zero DB writes', async () => {

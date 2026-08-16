@@ -44,6 +44,7 @@ schema.test(
       const result = await quoteService.issueQuote({
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',
@@ -92,6 +93,7 @@ schema.test(
       const input = {
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',
@@ -137,6 +139,7 @@ schema.test(
       const first = await quoteService.issueQuote({
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',
@@ -150,6 +153,7 @@ schema.test(
       const second = await quoteService.issueQuote({
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',
@@ -158,6 +162,20 @@ schema.test(
         issuanceRequestId: 'req-quote-divergent-test',
       });
       expect(second).toEqual({ kind: 'conflict' });
+
+      // Divergent call with different bundleId under same issuanceRequestId
+      const third = await quoteService.issueQuote({
+        userId: ids.userA,
+        projectId: ids.projectA,
+        actionKind: 'concept_generation',
+        workflowPlanId: 'quote-plan-1',
+        workflowPlanHash: VALID_HASH_A,
+        bundleId: 'quote-bun-other', // Changed bundle
+        dependencyHash: VALID_HASH_B,
+        maxAmountMicroIdr: 50_000n,
+        issuanceRequestId: 'req-quote-divergent-test',
+      });
+      expect(third).toEqual({ kind: 'conflict' });
     } finally {
       await prisma.$disconnect();
     }
@@ -177,6 +195,7 @@ schema.test(
       const result = await quoteService.issueQuote({
         userId: ids.userB,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',
@@ -213,6 +232,7 @@ schema.test(
       const resZero = await quoteService.issueQuote({
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',
@@ -226,6 +246,7 @@ schema.test(
       const resNeg = await quoteService.issueQuote({
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',
@@ -239,6 +260,7 @@ schema.test(
       const resBadHash = await quoteService.issueQuote({
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: 'NOT_HEX_64',
         bundleId: 'quote-bun-1',
@@ -247,6 +269,48 @@ schema.test(
         issuanceRequestId: 'req-quote-bad-hash',
       });
       expect(resBadHash).toEqual({ kind: 'invalid_hash', field: 'workflowPlanHash' });
+
+      // Plan / Bundle mismatch
+      const resMismatch = await quoteService.issueQuote({
+        userId: ids.userA,
+        projectId: ids.projectA,
+        actionKind: 'concept_generation',
+        workflowPlanId: 'quote-plan-1',
+        workflowPlanHash: VALID_HASH_A,
+        bundleId: 'quote-bun-wrong',
+        dependencyHash: VALID_HASH_B,
+        maxAmountMicroIdr: 50_000n,
+        issuanceRequestId: 'req-quote-mismatch',
+      });
+      expect(resMismatch).toEqual({ kind: 'invalid_bundle_binding' });
+
+      // Missing bundleId when workflowPlanId is provided
+      const resMissingBun = await quoteService.issueQuote({
+        userId: ids.userA,
+        projectId: ids.projectA,
+        actionKind: 'concept_generation',
+        workflowPlanId: 'quote-plan-1',
+        workflowPlanHash: VALID_HASH_A,
+        bundleId: null,
+        dependencyHash: VALID_HASH_B,
+        maxAmountMicroIdr: 50_000n,
+        issuanceRequestId: 'req-quote-missing-bun',
+      });
+      expect(resMissingBun).toEqual({ kind: 'invalid_bundle_binding' });
+
+      // Missing workflowPlanId when bundleId is provided
+      const resMissingPlan = await quoteService.issueQuote({
+        userId: ids.userA,
+        projectId: ids.projectA,
+        actionKind: 'concept_generation',
+        workflowPlanId: null,
+        workflowPlanHash: VALID_HASH_A,
+        bundleId: 'quote-bun-1',
+        dependencyHash: VALID_HASH_B,
+        maxAmountMicroIdr: 50_000n,
+        issuanceRequestId: 'req-quote-missing-plan',
+      });
+      expect(resMissingPlan).toEqual({ kind: 'invalid_bundle_binding' });
 
       const totalQuotes = (await client.query(`SELECT count(*)::int AS count FROM credit_quotes`))
         .rows[0].count;
@@ -258,7 +322,7 @@ schema.test(
 );
 
 schema.test(
-  '9 & 10. paid vs system-funded actions and quote generation boundaries',
+  '9 & 10. paid vs system-funded actions and quote admission boundaries',
   async ({ client, databaseUrl }) => {
     await seedWorkflowPlanFixture(client);
     const prisma = createPrismaForUrl(databaseUrl);
@@ -266,10 +330,53 @@ schema.test(
     const quoteService = createCreditQuoteService(uow);
 
     try {
-      // Paid action: exactly one user-paid quote
+      // System funded action (chat_intake) -> rejected with not_applicable
+      const sysQuote = await quoteService.issueQuote({
+        userId: ids.userA,
+        projectId: ids.projectA,
+        actionKind: 'chat_intake',
+        workflowPlanId: 'quote-plan-1',
+        workflowPlanHash: VALID_HASH_A,
+        bundleId: 'quote-bun-1',
+        dependencyHash: VALID_HASH_B,
+        maxAmountMicroIdr: 10_000n,
+        issuanceRequestId: 'req-sys-quote',
+      });
+      expect(sysQuote).toEqual({ kind: 'not_applicable', fundingModel: 'system_funded' });
+
+      // Pre-D4 legacy action (prose) -> rejected with not_applicable
+      const legacyQuote = await quoteService.issueQuote({
+        userId: ids.userA,
+        projectId: ids.projectA,
+        actionKind: 'prose',
+        workflowPlanId: 'quote-plan-1',
+        workflowPlanHash: VALID_HASH_A,
+        bundleId: 'quote-bun-1',
+        dependencyHash: VALID_HASH_B,
+        maxAmountMicroIdr: 10_000n,
+        issuanceRequestId: 'req-legacy-quote',
+      });
+      expect(legacyQuote).toEqual({ kind: 'not_applicable', fundingModel: 'pre_d4_legacy' });
+
+      // Unknown action -> rejected with funding_model_violation
+      const unknownQuote = await quoteService.issueQuote({
+        userId: ids.userA,
+        projectId: ids.projectA,
+        actionKind: 'unmapped_job_kind',
+        workflowPlanId: 'quote-plan-1',
+        workflowPlanHash: VALID_HASH_A,
+        bundleId: 'quote-bun-1',
+        dependencyHash: VALID_HASH_B,
+        maxAmountMicroIdr: 10_000n,
+        issuanceRequestId: 'req-unknown-quote',
+      });
+      expect(unknownQuote).toEqual({ kind: 'funding_model_violation', reason: 'unknown_kind' });
+
+      // User-paid action (concept_generation) -> issued
       const paidQuote = await quoteService.issueQuote({
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',
@@ -299,7 +406,7 @@ schema.test(
 );
 
 schema.test(
-  '11, 12, 13 & 14. funding model enqueue guard in manualRetry on PostgreSQL',
+  '11-17. funding model enqueue guard and reservation binding states on PostgreSQL',
   async ({ client, databaseUrl }) => {
     await seedUsersAndProjects(client);
 
@@ -319,12 +426,44 @@ schema.test(
       [ids.projectA],
     );
 
-    // 3. Seed an upstream open system reservation (>0 per credit_reservations_amounts_check)
+    // 3. Seed open user reservation
+    await client.query(
+      `INSERT INTO credit_reservations
+         (id,user_id,project_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
+       VALUES ('user-open-res',$1,$2,'open',5000,0,0,5000,now(),now())`,
+      [ids.userA, ids.projectA],
+    );
+
+    // 4. Seed open system reservation
     await client.query(
       `INSERT INTO credit_reservations
          (id,user_id,project_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
        VALUES ('sys-upstream-res',$1,$2,'open',1000,0,0,1000,now(),now())`,
       [ids.userA, ids.projectA],
+    );
+
+    // 5. Seed settled (closed) reservation
+    await client.query(
+      `INSERT INTO credit_reservations
+         (id,user_id,project_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,closing_at,created_at,updated_at)
+       VALUES ('closed-res',$1,$2,'settled',1000,1000,0,0,now(),now(),now())`,
+      [ids.userA, ids.projectA],
+    );
+
+    // 6. Seed already-bound reservation
+    await client.query(
+      `INSERT INTO credit_reservations
+         (id,user_id,project_id,job_project_id,job_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
+       VALUES ('bound-res',$1,$2,$2,'paid-failed-job','open',1000,0,0,1000,now(),now())`,
+      [ids.userA, ids.projectA],
+    );
+
+    // 7. Seed foreign project reservation
+    await client.query(
+      `INSERT INTO credit_reservations
+         (id,user_id,project_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
+       VALUES ('foreign-res',$1,$2,'open',1000,0,0,1000,now(),now())`,
+      [ids.userB, ids.projectB],
     );
 
     const prisma = createPrismaForUrl(databaseUrl);
@@ -357,7 +496,47 @@ schema.test(
         fundingModel: 'system_funded',
       });
 
-      // 13. system_funded retry with valid upstream open reservation -> allowed
+      // 13. retry with closed reservation -> reservation_binding_invalid
+      const closedResRetry = await service.manualRetry({
+        projectId: ids.projectA,
+        sourceJobId: 'paid-failed-job',
+        availableInMs: 0,
+        reservationId: 'closed-res',
+      });
+      expect(closedResRetry).toEqual({ kind: 'reservation_binding_invalid' });
+
+      // 14. retry with already-bound reservation -> reservation_binding_invalid
+      const boundResRetry = await service.manualRetry({
+        projectId: ids.projectA,
+        sourceJobId: 'paid-failed-job',
+        availableInMs: 0,
+        reservationId: 'bound-res',
+      });
+      expect(boundResRetry).toEqual({ kind: 'reservation_binding_invalid' });
+
+      // 15. retry with foreign project reservation -> reservation_binding_invalid
+      const foreignResRetry = await service.manualRetry({
+        projectId: ids.projectA,
+        sourceJobId: 'paid-failed-job',
+        availableInMs: 0,
+        reservationId: 'foreign-res',
+      });
+      expect(foreignResRetry).toEqual({ kind: 'reservation_binding_invalid' });
+
+      // 16. user_paid retry with valid open reservation -> succeeds and binds reservation
+      const paidAllowed = await service.manualRetry({
+        projectId: ids.projectA,
+        sourceJobId: 'paid-failed-job',
+        availableInMs: 0,
+        reservationId: 'user-open-res',
+      });
+      expect(paidAllowed.kind).toBe('created');
+      if (paidAllowed.kind === 'created') {
+        expect(paidAllowed.job.kind).toBe('concept_generation');
+        expect(paidAllowed.job.reservationId).toBe('user-open-res');
+      }
+
+      // 17. system_funded retry with valid upstream open reservation -> succeeds and binds reservation
       const sysAllowed = await service.manualRetry({
         projectId: ids.projectA,
         sourceJobId: 'sys-failed-job',
@@ -370,13 +549,21 @@ schema.test(
         expect(sysAllowed.job.reservationId).toBe('sys-upstream-res');
       }
 
-      // Verify retry row count in DB
+      // Verify zero quotes and zero ledger entries created by retries
+      const totalQuotes = (await client.query(`SELECT count(*)::int AS count FROM credit_quotes`))
+        .rows[0].count;
+      const totalLedger = (await client.query(`SELECT count(*)::int AS count FROM credit_ledger`))
+        .rows[0].count;
+      expect(totalQuotes).toBe(0);
+      expect(totalLedger).toBe(0);
+
+      // Verify exactly two retry jobs created in DB
       const retries = (
         await client.query(
           `SELECT count(*)::int AS count FROM generation_jobs WHERE retry_of_job_id IS NOT NULL`,
         )
       ).rows[0].count;
-      expect(retries).toBe(1);
+      expect(retries).toBe(2);
     } finally {
       await prisma.$disconnect();
     }
@@ -396,6 +583,7 @@ schema.test(
       const input = {
         userId: ids.userA,
         projectId: ids.projectA,
+        actionKind: 'concept_generation',
         workflowPlanId: 'quote-plan-1',
         workflowPlanHash: VALID_HASH_A,
         bundleId: 'quote-bun-1',

@@ -6,6 +6,7 @@ export interface QuoteInsertInput {
   readonly projectId: string;
   readonly workflowPlanId: string | null;
   readonly workflowPlanHash: string;
+  readonly bundleId: string | null;
   readonly dependencyHash: string;
   readonly maxAmountMicroIdr: bigint;
   readonly requestId: string | null;
@@ -14,6 +15,8 @@ export interface QuoteInsertInput {
 export type QuoteInsertResult =
   | { readonly kind: 'inserted'; readonly quote: CreditQuoteRecord }
   | { readonly kind: 'replayed'; readonly quote: CreditQuoteRecord }
+  | { readonly kind: 'invalid_bundle_binding' }
+  | { readonly kind: 'plan_not_found' }
   | { readonly kind: 'conflict' };
 
 export interface QuotePort {
