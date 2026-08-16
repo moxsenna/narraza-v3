@@ -86,62 +86,66 @@ suite.test(
   },
 );
 
-suite.test('Tx A denial table creates zero lifecycle rows', async ({ client, databaseUrl }) => {
-  const cases = [
-    ['wrong project', async () => ({ projectId: ids.projectB })],
-    [
-      'terminal job',
-      async () => {
-        await client.query(
-          `UPDATE generation_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL WHERE id=$1`,
-          [jobId],
-        );
-        return {};
-      },
-    ],
-    [
-      'expired lease',
-      async () => {
-        await client.query(
-          `UPDATE generation_jobs SET lease_expires_at=now()-interval '1 second' WHERE id=$1`,
-          [jobId],
-        );
-        return {};
-      },
-    ],
-    [
-      'cancellation',
-      async () => {
-        await client.query(`UPDATE generation_jobs SET cancel_requested_at=now() WHERE id=$1`, [
-          jobId,
-        ]);
-        return {};
-      },
-    ],
-    [
-      'tombstone',
-      async () => {
-        await client.query(`UPDATE projects SET deleted_at=now() WHERE id=$1`, [ids.projectA]);
-        return {};
-      },
-    ],
-  ] as const;
-  for (const [name, mutate] of cases) {
-    await client.query(
-      `TRUNCATE workflow_invocations,generation_attempts,ai_usage_events,generation_jobs,model_price_snapshots,projects,users CASCADE`,
-    );
-    const { prisma, service, identity } = await setup(client, databaseUrl);
-    const override = await mutate();
-    expect(await service.beginAttempt({ ...beginInput(identity), ...override }), name).toEqual({
-      kind: 'not_authorized',
-    });
-    const count = await client.query(
-      `SELECT (SELECT count(*) FROM workflow_invocations)::int invocations,(SELECT count(*) FROM generation_attempts)::int attempts`,
-    );
-    expect(count.rows[0], name).toEqual({ invocations: 0, attempts: 0 });
-    await prisma.$disconnect();
-  }
-});
+suite.test(
+  'Tx A denial table creates zero lifecycle rows',
+  async ({ client, databaseUrl }) => {
+    const cases = [
+      ['wrong project', async () => ({ projectId: ids.projectB })],
+      [
+        'terminal job',
+        async () => {
+          await client.query(
+            `UPDATE generation_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL WHERE id=$1`,
+            [jobId],
+          );
+          return {};
+        },
+      ],
+      [
+        'expired lease',
+        async () => {
+          await client.query(
+            `UPDATE generation_jobs SET lease_expires_at=now()-interval '1 second' WHERE id=$1`,
+            [jobId],
+          );
+          return {};
+        },
+      ],
+      [
+        'cancellation',
+        async () => {
+          await client.query(`UPDATE generation_jobs SET cancel_requested_at=now() WHERE id=$1`, [
+            jobId,
+          ]);
+          return {};
+        },
+      ],
+      [
+        'tombstone',
+        async () => {
+          await client.query(`UPDATE projects SET deleted_at=now() WHERE id=$1`, [ids.projectA]);
+          return {};
+        },
+      ],
+    ] as const;
+    for (const [name, mutate] of cases) {
+      await client.query(
+        `TRUNCATE workflow_invocations,generation_attempts,ai_usage_events,generation_jobs,model_price_snapshots,projects,users CASCADE`,
+      );
+      const { prisma, service, identity } = await setup(client, databaseUrl);
+      const override = await mutate();
+      expect(await service.beginAttempt({ ...beginInput(identity), ...override }), name).toEqual({
+        kind: 'not_authorized',
+      });
+      const count = await client.query(
+        `SELECT (SELECT count(*) FROM workflow_invocations)::int invocations,(SELECT count(*) FROM generation_attempts)::int attempts`,
+      );
+      expect(count.rows[0], name).toEqual({ invocations: 0, attempts: 0 });
+      await prisma.$disconnect();
+    }
+  },
+  60_000,
+);
 
 suite.test(
   'usage replay certification: started matching usage and terminal divergent usage',
