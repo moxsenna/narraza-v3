@@ -12,6 +12,7 @@ import type { OutlineRepo } from './outline-repo.js';
 import type { OutboxPort } from './outbox-port.js';
 import type { ProjectRepo } from './project-repo.js';
 import type { ProposalRepo } from './proposal-repo.js';
+import type { QuotePort } from './quote-port.js';
 import type { RevealRepo } from './reveal-repo.js';
 import type { SnapshotPort } from './snapshot-port.js';
 import type { GenerationAttemptPort, WorkflowInvocationPort } from './workflow-invocation-port.js';
@@ -50,6 +51,7 @@ export interface TxPorts {
   readonly workflowInvocation: WorkflowInvocationPort;
   readonly generationAttempt: GenerationAttemptPort;
   readonly aiUsage: AiUsagePort;
+  readonly quote: QuotePort;
   readonly dbNow: () => Promise<Date>;
   readonly allocateId: () => string;
 }

@@ -203,3 +203,18 @@ export interface ProposalRecord {
   readonly status: string;
   readonly changeSetId: string | null;
 }
+
+export interface CreditQuoteRecord {
+  readonly id: string;
+  readonly userId: string;
+  readonly projectId: string;
+  readonly workflowPlanProjectId: string | null;
+  readonly workflowPlanId: string | null;
+  readonly workflowPlanHash: string;
+  readonly dependencyHash: string;
+  readonly maxAmountMicroIdr: bigint;
+  readonly expiresAt: Date;
+  readonly consumedAt: Date | null;
+  readonly requestId: string | null;
+  readonly createdAt: Date;
+}

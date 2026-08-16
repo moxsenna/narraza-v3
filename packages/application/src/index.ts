@@ -33,6 +33,7 @@ export type {
   CanonicalChangeSetRecord,
   CanonicalChangeOperationRecord,
   ProposalRecord,
+  CreditQuoteRecord,
   ProjectInsertInput,
   ProjectRepo,
   FoundationInsertInput,
@@ -108,11 +109,21 @@ export type {
   WinnerClassificationResult,
   WorkflowInvocationPort,
   GenerationAttemptPort,
+  QuoteInsertInput,
+  QuoteInsertResult,
+  QuotePort,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
   UnitOfWork,
 } from './ports/index.js';
+
+export {
+  createCreditQuoteService,
+  type IssueQuoteInput,
+  type IssueQuoteResult,
+  type CreditQuoteService,
+} from './credits/quote-service.js';
 
 export {
   createJobService,

@@ -20,6 +20,7 @@ export type {
   CanonicalChangeSetRecord,
   CanonicalChangeOperationRecord,
   ProposalRecord,
+  CreditQuoteRecord,
 } from './types.js';
 
 export type { ProjectInsertInput, ProjectRepo } from './project-repo.js';
@@ -105,4 +106,5 @@ export type {
   WorkflowInvocationPort,
   GenerationAttemptPort,
 } from './workflow-invocation-port.js';
+export type { QuoteInsertInput, QuoteInsertResult, QuotePort } from './quote-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';

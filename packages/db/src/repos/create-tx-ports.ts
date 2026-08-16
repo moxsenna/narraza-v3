@@ -14,6 +14,7 @@ import { createOutlineRepo } from './outline-repo.js';
 import { createOutboxPort } from './outbox-port.js';
 import { createProjectRepo } from './project-repo.js';
 import { createProposalRepo } from './proposal-repo.js';
+import { createQuoteRepo } from './quote-repo.js';
 import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
 import type { TxClient } from './tx-client.js';
@@ -41,6 +42,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     workflowInvocation,
     generationAttempt: workflowInvocation,
     aiUsage: createAiUsagePort(tx, allocateId),
+    quote: createQuoteRepo(tx),
     dbNow: () => dbNow(tx),
     allocateId,
   };

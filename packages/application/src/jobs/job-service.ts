@@ -1,3 +1,5 @@
+import type { ActionFundingModel } from '../credits/action-funding-policy.js';
+import { validateFundingModelEnqueue } from '../credits/action-funding-policy.js';
 import type {
   JobClaimResult,
   JobHeartbeatResult,
@@ -42,7 +44,13 @@ export type ManualRetryResult =
   | { readonly kind: 'source_not_terminal'; readonly status: 'queued' | 'running' }
   | { readonly kind: 'source_not_retryable'; readonly status: 'succeeded' }
   | { readonly kind: 'conflict' }
-  | { readonly kind: 'reservation_binding_invalid' };
+  | { readonly kind: 'reservation_binding_invalid' }
+  | {
+      readonly kind: 'funding_model_violation';
+      readonly reason:
+        'missing_reservation_for_paid' | 'missing_reservation_for_system_funded' | 'unknown_kind';
+      readonly fundingModel?: ActionFundingModel;
+    };
 
 export interface ClaimInput {
   readonly leaseToken: string;
@@ -186,6 +194,24 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
         }
         if (source.status === 'succeeded') {
           return { kind: 'source_not_retryable' as const, status: source.status };
+        }
+
+        // Funding-model enqueue guard: executed strictly before ports.job.insert
+        const validation = validateFundingModelEnqueue({
+          kind: source.kind,
+          reservationId: input.reservationId,
+        });
+        if (!validation.valid) {
+          return validation.fundingModel !== undefined
+            ? {
+                kind: 'funding_model_violation' as const,
+                reason: validation.reason,
+                fundingModel: validation.fundingModel,
+              }
+            : {
+                kind: 'funding_model_violation' as const,
+                reason: validation.reason,
+              };
         }
 
         const inserted = await ports.job.insert({
