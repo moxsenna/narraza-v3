@@ -125,8 +125,8 @@ class HookHarness {
     setActiveHarness(null);
     const dialogRef = this.dialogRef;
     if (!dialogRef.current) {
-      (dialogRef as { current: HTMLDialogElement | null }).current =
-        this.dialog as unknown as HTMLDialogElement;
+      (dialogRef as { current: HTMLDialogElement | null }).current = this
+        .dialog as unknown as HTMLDialogElement;
     }
     this.commitEffects();
   }
@@ -146,8 +146,8 @@ class HookHarness {
       !deps ||
       !previous.deps ||
       deps.length !== previous.deps.length ||
-      deps.some((dependency, dependencyIndex) =>
-        !Object.is(dependency, previous.deps?.[dependencyIndex]),
+      deps.some(
+        (dependency, dependencyIndex) => !Object.is(dependency, previous.deps?.[dependencyIndex]),
       );
     if (changed) this.pendingEffects.push({ index, effect, deps });
   }
