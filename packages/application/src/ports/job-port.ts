@@ -1,3 +1,4 @@
+import type { ActionFundingModel } from '../credits/action-funding-policy.js';
 import type {
   GenerationJobRecord,
   JobLeaseIdentity,
@@ -9,6 +10,8 @@ export interface JobInsertInput {
   readonly id: string;
   readonly projectId: string;
   readonly kind: string;
+  /** Funding classification resolved from `kind`; the adapter matches it against `credit_reservations.funding_model`. */
+  readonly fundingModel: ActionFundingModel;
   readonly priority: number;
   /** Positive whole milliseconds; adapter resolves availability as DB `NOW()` plus this delay. */
   readonly availableInMs: number;
@@ -23,7 +26,8 @@ export interface JobInsertInput {
 export type JobInsertResult =
   | { readonly kind: 'inserted'; readonly job: GenerationJobRecord }
   | { readonly kind: 'conflict' }
-  | { readonly kind: 'binding_invalid' };
+  | { readonly kind: 'binding_invalid' }
+  | { readonly kind: 'funding_model_mismatch' };
 
 export interface JobLookupInput {
   readonly projectId: string;

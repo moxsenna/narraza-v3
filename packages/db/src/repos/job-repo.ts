@@ -117,15 +117,34 @@ export function createJobRepo(tx: TxClient): JobPort {
   return {
     async insert(input: JobInsertInput): Promise<JobInsertResult> {
       if (input.reservationId !== null) {
+        // Funding binding integrity (PM Amendment #16): the reservation's
+        // persisted funding_model must match the job's funding classification.
+        // 'pre_d4_legacy' binds only NULL (legacy) reservations; new D4 paths
+        // never create NULL rows. Mismatches fail closed before any write.
+        const expectedFundingModel =
+          input.fundingModel === 'pre_d4_legacy' ? null : input.fundingModel;
         const eligible = (await tx.$queryRawUnsafe(
-          `SELECT id FROM credit_reservations
+          `SELECT id, funding_model FROM credit_reservations
             WHERE id = $1 AND project_id = $2 AND status = 'open'
               AND job_id IS NULL AND job_project_id IS NULL
+              AND funding_model IS NOT DISTINCT FROM $3::text
             FOR UPDATE`,
           input.reservationId,
           input.projectId,
-        )) as Array<{ id: string }>;
-        if (!eligible[0]) return { kind: 'binding_invalid' };
+          expectedFundingModel,
+        )) as Array<{ id: string; funding_model: string | null }>;
+        if (!eligible[0]) {
+          // Distinguish a funding mismatch from other binding failures so the
+          // typed surface stays observable; both write nothing.
+          const anyOpen = (await tx.$queryRawUnsafe(
+            `SELECT funding_model FROM credit_reservations
+              WHERE id = $1 AND project_id = $2 AND status = 'open'
+                AND job_id IS NULL AND job_project_id IS NULL`,
+            input.reservationId,
+            input.projectId,
+          )) as Array<{ funding_model: string | null }>;
+          return anyOpen[0] ? { kind: 'funding_model_mismatch' } : { kind: 'binding_invalid' };
+        }
       }
 
       const rows = (await tx.$queryRawUnsafe(

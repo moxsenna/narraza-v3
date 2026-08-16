@@ -45,6 +45,7 @@ export type ManualRetryResult =
   | { readonly kind: 'source_not_retryable'; readonly status: 'succeeded' }
   | { readonly kind: 'conflict' }
   | { readonly kind: 'reservation_binding_invalid' }
+  | { readonly kind: 'funding_model_mismatch' }
   | {
       readonly kind: 'funding_model_violation';
       readonly reason:
@@ -218,6 +219,7 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
           id: ports.allocateId(),
           projectId: source.projectId,
           kind: source.kind,
+          fundingModel: validation.fundingModel,
           priority: source.priority,
           availableInMs: input.availableInMs,
           retryOfJobId: source.id,
@@ -234,6 +236,8 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
             return { kind: 'conflict' };
           case 'binding_invalid':
             return { kind: 'reservation_binding_invalid' };
+          case 'funding_model_mismatch':
+            return { kind: 'funding_model_mismatch' };
         }
       });
     },

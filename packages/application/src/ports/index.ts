@@ -107,4 +107,9 @@ export type {
   GenerationAttemptPort,
 } from './workflow-invocation-port.js';
 export type { QuoteInsertInput, QuoteInsertResult, QuotePort } from './quote-port.js';
+export type {
+  CreditBalanceSnapshot,
+  CreditSummaryView,
+  CreditBalancePort,
+} from './credit-balance-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';

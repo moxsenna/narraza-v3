@@ -957,6 +957,7 @@ model CreditReservation {
   jobProjectId               String?   @map("job_project_id")
   jobId                      String?   @map("job_id")
   status                     String
+  fundingModel               String?   @map("funding_model")
   reservedMicroIdr           BigInt    @map("reserved_micro_idr")
   settledMicroIdr            BigInt    @default(0) @map("settled_micro_idr")
   releasedMicroIdr           BigInt    @default(0) @map("released_micro_idr")

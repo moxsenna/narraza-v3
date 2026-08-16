@@ -134,4 +134,23 @@ ALTER TABLE "generation_jobs"
 ADD CONSTRAINT "generation_jobs_workflow_plan_requires_bundle_check"
 CHECK ("workflow_plan_id" IS NULL OR "bundle_id" IS NOT NULL);
 
+--------------------------------------------------------------------------------
+-- STEP 7: Reservation funding model marker (PM Amendment #16)
+--------------------------------------------------------------------------------
+-- Rationale: D4 accounting requires system-funded reservations to never reduce
+-- user available/held, but persisted rows previously could not distinguish
+-- user_paid from system_funded open reservations. The durable marker makes the
+-- funding classification an accounting contract instead of an inference.
+--   'user_paid'      W3.3 user-funded reservation; exposure counts toward user held/reconciling.
+--   'system_funded'  real system-budget reservation; NEVER touches user book/held/reconciling/available.
+--   NULL             pre-W3.3 legacy compatibility only; treated as user-credit for summary purposes.
+-- New D4 reservation creation paths must not create NULL funding_model.
+-- Upgrade behavior: all pre-existing reservations receive NULL (column default).
+ALTER TABLE "credit_reservations"
+ADD COLUMN "funding_model" TEXT;
+
+ALTER TABLE "credit_reservations"
+ADD CONSTRAINT "credit_reservations_funding_model_check"
+CHECK ("funding_model" IS NULL OR "funding_model" IN ('user_paid', 'system_funded'));
+
 COMMIT;

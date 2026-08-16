@@ -445,6 +445,7 @@ describe('manual retry', () => {
           id: 'allocated-1',
           projectId: source.projectId,
           kind: source.kind,
+          fundingModel: 'pre_d4_legacy',
           priority: source.priority,
           availableInMs: 43_200_000,
           retryOfJobId: source.id,
@@ -536,6 +537,7 @@ describe('manual retry', () => {
   it.each([
     ['conflict', 'conflict'],
     ['binding_invalid', 'reservation_binding_invalid'],
+    ['funding_model_mismatch', 'funding_model_mismatch'],
   ] as const)('maps insert %s to %s', async (insertKind, resultKind) => {
     const h = makeHarness({ lockedJob: job({ status: 'dead' }) });
     h.jobPort.insert.mockImplementationOnce(async () => {
@@ -548,13 +550,19 @@ describe('manual retry', () => {
     expect(result).toEqual({ kind: resultKind });
   });
 
-  it('declares binding-invalid port and service result variants', () => {
+  it('declares binding-invalid and funding-mismatch port and service result variants', () => {
     expectTypeOf<Extract<JobInsertResult, { readonly kind: 'binding_invalid' }>>().toEqualTypeOf<{
       readonly kind: 'binding_invalid';
     }>();
     expectTypeOf<
+      Extract<JobInsertResult, { readonly kind: 'funding_model_mismatch' }>
+    >().toEqualTypeOf<{ readonly kind: 'funding_model_mismatch' }>();
+    expectTypeOf<
       Extract<ManualRetryResult, { readonly kind: 'reservation_binding_invalid' }>
     >().toEqualTypeOf<{ readonly kind: 'reservation_binding_invalid' }>();
+    expectTypeOf<
+      Extract<ManualRetryResult, { readonly kind: 'funding_model_mismatch' }>
+    >().toEqualTypeOf<{ readonly kind: 'funding_model_mismatch' }>();
   });
 
   describe('funding model enqueue guard in manualRetry unit tests', () => {

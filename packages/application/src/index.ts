@@ -112,6 +112,9 @@ export type {
   QuoteInsertInput,
   QuoteInsertResult,
   QuotePort,
+  CreditBalanceSnapshot,
+  CreditSummaryView,
+  CreditBalancePort,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
@@ -124,6 +127,14 @@ export {
   type IssueQuoteResult,
   type CreditQuoteService,
 } from './credits/quote-service.js';
+
+export {
+  createCreditSummaryService,
+  type CreditSummaryInput,
+  type CreditSummaryService,
+} from './credits/credit-summary-service.js';
+
+export { computeCreditSummaryView } from './credits/credit-summary.js';
 
 export {
   createJobService,

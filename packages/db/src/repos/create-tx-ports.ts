@@ -5,6 +5,7 @@ import { createAuditPort } from './audit-port.js';
 import { createChangeSetRepo } from './change-set-repo.js';
 import { createCharacterRepo } from './character-repo.js';
 import { createConceptRepo } from './concept-repo.js';
+import { createCreditBalanceRepo } from './credit-balance-repo.js';
 import { createFactRepo } from './fact-repo.js';
 import { createFoundationRepo } from './foundation-repo.js';
 import { createIntakeRepo } from './intake-repo.js';
@@ -38,6 +39,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     outbox: createOutboxPort(tx),
     snapshot: createSnapshotPort(tx),
     ledger: createLedgerPort(tx),
+    creditBalance: createCreditBalanceRepo(tx),
     job: createJobRepo(tx),
     workflowInvocation,
     generationAttempt: workflowInvocation,

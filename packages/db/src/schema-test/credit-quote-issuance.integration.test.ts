@@ -426,43 +426,43 @@ schema.test(
       [ids.projectA],
     );
 
-    // 3. Seed open user reservation
+    // 3. Seed open user reservation (funding model durable per Amendment #16)
     await client.query(
       `INSERT INTO credit_reservations
-         (id,user_id,project_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
-       VALUES ('user-open-res',$1,$2,'open',5000,0,0,5000,now(),now())`,
+         (id,user_id,project_id,status,funding_model,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
+       VALUES ('user-open-res',$1,$2,'open','user_paid',5000,0,0,5000,now(),now())`,
       [ids.userA, ids.projectA],
     );
 
-    // 4. Seed open system reservation
+    // 4. Seed open system reservation (funding model durable per Amendment #16)
     await client.query(
       `INSERT INTO credit_reservations
-         (id,user_id,project_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
-       VALUES ('sys-upstream-res',$1,$2,'open',1000,0,0,1000,now(),now())`,
+         (id,user_id,project_id,status,funding_model,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
+       VALUES ('sys-upstream-res',$1,$2,'open','system_funded',1000,0,0,1000,now(),now())`,
       [ids.userA, ids.projectA],
     );
 
     // 5. Seed settled (closed) reservation
     await client.query(
       `INSERT INTO credit_reservations
-         (id,user_id,project_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,closing_at,created_at,updated_at)
-       VALUES ('closed-res',$1,$2,'settled',1000,1000,0,0,now(),now(),now())`,
+         (id,user_id,project_id,status,funding_model,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,closing_at,created_at,updated_at)
+       VALUES ('closed-res',$1,$2,'settled','user_paid',1000,1000,0,0,now(),now(),now())`,
       [ids.userA, ids.projectA],
     );
 
-    // 6. Seed already-bound reservation
+    // 6. Seed already-bound reservation (user_paid, bound to the paid job)
     await client.query(
       `INSERT INTO credit_reservations
-         (id,user_id,project_id,job_project_id,job_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
-       VALUES ('bound-res',$1,$2,$2,'paid-failed-job','open',1000,0,0,1000,now(),now())`,
+         (id,user_id,project_id,job_project_id,job_id,status,funding_model,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
+       VALUES ('bound-res',$1,$2,$2,'paid-failed-job','open','user_paid',1000,0,0,1000,now(),now())`,
       [ids.userA, ids.projectA],
     );
 
     // 7. Seed foreign project reservation
     await client.query(
       `INSERT INTO credit_reservations
-         (id,user_id,project_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
-       VALUES ('foreign-res',$1,$2,'open',1000,0,0,1000,now(),now())`,
+         (id,user_id,project_id,status,funding_model,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
+       VALUES ('foreign-res',$1,$2,'open','user_paid',1000,0,0,1000,now(),now())`,
       [ids.userB, ids.projectB],
     );
 
@@ -522,6 +522,54 @@ schema.test(
         reservationId: 'foreign-res',
       });
       expect(foreignResRetry).toEqual({ kind: 'reservation_binding_invalid' });
+
+      // 15a. user_paid job cannot bind a system_funded reservation (Amendment #16)
+      const crossPaidToSys = await service.manualRetry({
+        projectId: ids.projectA,
+        sourceJobId: 'paid-failed-job',
+        availableInMs: 0,
+        reservationId: 'sys-upstream-res',
+      });
+      expect(crossPaidToSys).toEqual({ kind: 'funding_model_mismatch' });
+
+      // 15b. system_funded job cannot bind a user_paid reservation (Amendment #16)
+      const crossSysToPaid = await service.manualRetry({
+        projectId: ids.projectA,
+        sourceJobId: 'sys-failed-job',
+        availableInMs: 0,
+        reservationId: 'user-open-res',
+      });
+      expect(crossSysToPaid).toEqual({ kind: 'funding_model_mismatch' });
+
+      // Cross-funding rejections must write zero job/reservation/ledger mutation
+      const sysResAfterCross = (
+        await client.query(
+          `SELECT status,funding_model,job_id,job_project_id FROM credit_reservations WHERE id='sys-upstream-res'`,
+        )
+      ).rows[0];
+      expect(sysResAfterCross).toEqual({
+        status: 'open',
+        funding_model: 'system_funded',
+        job_id: null,
+        job_project_id: null,
+      });
+      const paidResAfterCross = (
+        await client.query(
+          `SELECT status,funding_model,job_id,job_project_id FROM credit_reservations WHERE id='user-open-res'`,
+        )
+      ).rows[0];
+      expect(paidResAfterCross).toEqual({
+        status: 'open',
+        funding_model: 'user_paid',
+        job_id: null,
+        job_project_id: null,
+      });
+      expect(
+        (await client.query(`SELECT count(*)::int AS count FROM generation_jobs`)).rows[0].count,
+      ).toBe(2); // only the two seeded failed jobs; no retry jobs created
+      expect(
+        (await client.query(`SELECT count(*)::int AS count FROM credit_ledger`)).rows[0].count,
+      ).toBe(0);
 
       // 16. user_paid retry with valid open reservation -> succeeds and binds reservation
       const paidAllowed = await service.manualRetry({

@@ -2,6 +2,7 @@ import type { AiUsagePort } from './ai-usage-port.js';
 import type { AuditPort } from './audit-port.js';
 import type { ChangeSetRepo } from './change-set-repo.js';
 import type { CharacterRepo } from './character-repo.js';
+import type { CreditBalancePort } from './credit-balance-port.js';
 import type { ConceptRepo } from './concept-repo.js';
 import type { FactRepo } from './fact-repo.js';
 import type { FoundationRepo } from './foundation-repo.js';
@@ -47,6 +48,7 @@ export interface TxPorts {
   readonly outbox: OutboxPort;
   readonly snapshot: SnapshotPort;
   readonly ledger: LedgerPort;
+  readonly creditBalance: CreditBalancePort;
   readonly job: JobPort;
   readonly workflowInvocation: WorkflowInvocationPort;
   readonly generationAttempt: GenerationAttemptPort;

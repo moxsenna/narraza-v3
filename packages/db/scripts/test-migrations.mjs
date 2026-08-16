@@ -310,9 +310,15 @@ async function runUpgrade() {
 
     // Existing reservation financial/binding fields are unchanged; only the
     // new nullable W3.3 linkage columns appear, and they must be NULL.
-    const { quote_id, confirmation_request_id, ...reservationCore } = w32ReservationAfter;
+    // funding_model (Amendment #16) also arrives NULL on upgrade: all
+    // pre-W3.3 reservations keep legacy classification.
+    const { quote_id, confirmation_request_id, funding_model, ...reservationCore } =
+      w32ReservationAfter;
     if (quote_id !== null || confirmation_request_id !== null) {
       throw new Error('Legacy reservation must keep NULL quote_id/confirmation_request_id');
+    }
+    if (funding_model !== null) {
+      throw new Error('Legacy reservation must receive NULL funding_model on upgrade');
     }
     if (stableJson(reservationCore) !== stableJson(w32Before.reservation)) {
       throw new Error('W3.3 migration changed existing credit_reservations fields');
