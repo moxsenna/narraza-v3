@@ -23,4 +23,23 @@ export interface QuotePort {
   insert(input: QuoteInsertInput): Promise<QuoteInsertResult>;
   findById(id: string): Promise<CreditQuoteRecord | null>;
   findByRequestId(userId: string, requestId: string): Promise<CreditQuoteRecord | null>;
+  
+  // Task 6: Confirmation lock - scoped FOR UPDATE on user_id, project_id, quote_id
+  confirmLock(
+    userId: string,
+    projectId: string,
+    quoteId: string
+  ): Promise<CreditQuoteRecord | null>;
+  
+  // Task 6: Consume quote CAS
+  consumeQuote(
+    quoteId: string,
+    expectedWorkflowPlanHash: string,
+    expectedDependencyHash: string
+  ): Promise<
+    | { readonly kind: 'consumed'; readonly quote: CreditQuoteRecord }
+    | { readonly kind: 'not_found' }
+    | { readonly kind: 'already_consumed' }
+    | { readonly kind: 'hash_mismatch' }
+  >;
 }

@@ -115,6 +115,10 @@ export type {
   CreditBalanceSnapshot,
   CreditSummaryView,
   CreditBalancePort,
+  CreditReservationRecord,
+  CreditReservationPort,
+  CreateReservationInput,
+  CreateReservationResult,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
@@ -187,6 +191,15 @@ export type {
 } from './auth/ports.js';
 export { type AuthConfig, type EmailTokenPurpose } from './auth/constants.js';
 export { type AuthError, type AuthErrorCode } from './auth/errors.js';
+
+// Task 6: Credit quote confirmation service
+export {
+  createCreditQuoteConfirmationService,
+} from './credits/credit-quote-confirmation-service.js';
+export type {
+  CreateConfirmationInput,
+  ConfirmQuoteResult,
+} from './credits/confirmation-contract.js';
 export {
   createAuthService,
   type AuthService,

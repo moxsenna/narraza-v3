@@ -218,3 +218,23 @@ export interface CreditQuoteRecord {
   readonly requestId: string | null;
   readonly createdAt: Date;
 }
+
+export interface CreditReservationRecord {
+  readonly id: string;
+  readonly userId: string;
+  readonly projectId: string;
+  readonly jobId: string | null;
+  readonly projectJobId: string | null;
+  readonly status: 'open' | 'closing' | 'settled' | 'released';
+  readonly fundingModel: 'user_paid' | 'system_funded' | null;
+  readonly reservedMicroIdr: bigint;
+  readonly settledMicroIdr: bigint;
+  readonly releasedMicroIdr: bigint;
+  readonly exposureMicroIdr: bigint;
+  readonly closingAt: Date | null;
+  readonly quoteId: string | null;
+  readonly confirmationRequestId: string | null;
+  readonly schemaVersion: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}

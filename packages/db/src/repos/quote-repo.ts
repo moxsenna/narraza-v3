@@ -192,5 +192,81 @@ export function createQuoteRepo(tx: TxClient): QuotePort {
       const row = rows[0];
       return row ? toQuoteRecord(row) : null;
     },
+
+    // Task 6: Confirmation lock - scoped FOR UPDATE on user_id, project_id, quote_id
+    async confirmLock(
+      userId: string,
+      projectId: string,
+      quoteId: string,
+    ): Promise<CreditQuoteRecord | null> {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST}
+           FROM credit_quotes
+          WHERE user_id = $1 AND project_id = $2 AND id = $3 
+            FOR UPDATE`,
+        userId,
+        projectId,
+        quoteId,
+      )) as RawQuoteRow[];
+      const row = rows[0];
+      return row ? toQuoteRecord(row) : null;
+    },
+
+    // Task 6: Consume quote CAS (consumed_at IS NULL check)
+    async consumeQuote(
+      quoteId: string,
+      expectedWorkflowPlanHash: string,
+      expectedDependencyHash: string,
+    ): Promise<
+      | { readonly kind: 'consumed'; readonly quote: CreditQuoteRecord }
+      | { readonly kind: 'not_found' }
+      | { readonly kind: 'already_consumed' }
+      | { readonly kind: 'hash_mismatch' }
+    > {
+      const consumed = (await tx.$queryRawUnsafe(
+        `UPDATE credit_quotes
+           SET consumed_at = now()
+         WHERE id = $1 
+           AND consumed_at IS NULL
+           AND workflow_plan_hash IS NOT DISTINCT FROM $2
+           AND dependency_hash IS NOT DISTINCT FROM $3
+         RETURNING ${COLUMN_LIST}`,
+        quoteId,
+        expectedWorkflowPlanHash,
+        expectedDependencyHash,
+      )) as RawQuoteRow[];
+
+      const row = consumed[0];
+      if (row) {
+        return { kind: 'consumed', quote: toQuoteRecord(row) };
+      }
+
+      // Check if already consumed or hash mismatch
+      const existing = (await tx.$queryRawUnsafe(
+        `SELECT consumed_at, workflow_plan_hash, dependency_hash
+           FROM credit_quotes
+          WHERE id = $1`,
+        quoteId,
+      )) as { consumed_at: Date | null; workflow_plan_hash: string; dependency_hash: string }[];
+
+      const existingRow = existing[0];
+      if (!existingRow) {
+        return { kind: 'not_found' };
+      }
+
+      if (existingRow.consumed_at !== null) {
+        return { kind: 'already_consumed' };
+      }
+
+      if (
+        existingRow.workflow_plan_hash !== expectedWorkflowPlanHash ||
+        existingRow.dependency_hash !== expectedDependencyHash
+      ) {
+        return { kind: 'hash_mismatch' };
+      }
+
+      // Quote exists but not consumable (e.g., expired via expires_at check in service layer)
+      return { kind: 'not_found' };
+    },
   };
 }
