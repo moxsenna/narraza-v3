@@ -66,11 +66,14 @@ test('global and project shells plus distinct mobile sheet and tablet drawer', a
   page,
 }, testInfo) => {
   await createVerifiedSession(page, testInfo);
+
+  // Explicitly navigate to /app for this test's own state requirements
+  await page.goto('/app');
+
   const widths = testInfo.project.name === 'mobile' ? [375, 768] : [1280, 1440];
 
   for (const width of widths) {
     await setViewport(page, width);
-    await page.goto('/app');
     const globalShell = page.getByTestId('global-shell');
     await expect(globalShell).toBeVisible();
     await expect(
@@ -192,7 +195,19 @@ test('global and project shells plus distinct mobile sheet and tablet drawer', a
 test('sheet remains usable with reduced motion', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await createVerifiedSession(page, testInfo);
+
+  // Create a real project (required for project-shell navigation)
+  const project = await createOwnedProject(page);
+
+  // Navigate to the project page (explicit state setup)
   await setViewport(page, 375);
+  await page.goto(`/app/proyek/${project.projectId}`);
+
+  // Assert project-shell visible before testing other elements
+  await expect(page.getByTestId('project-shell')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Lainnya' })).toBeVisible();
+
+  // Test the "Lainnya" sheet interaction
   await page.getByRole('button', { name: 'Lainnya' }).click();
   await expect(page.getByRole('dialog', { name: 'Lainnya' })).toBeVisible();
   await page.keyboard.press('Escape');
