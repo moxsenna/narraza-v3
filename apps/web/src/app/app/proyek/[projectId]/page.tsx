@@ -28,25 +28,25 @@ export default async function ProjectHomePage({
         ← Dashboard
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">{project.title}</h1>
-      <p className="mt-2 text-sm text-[#76656d]">
+      <p className="mt-2 text-sm text-gray-600">
         {project.intakePath} · canon v{project.currentCanonicalVersion}
       </p>
 
       {progress ? (
-        <section className="mt-6 rounded-2xl border border-[#e8dce1] bg-white p-5">
+        <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-5">
           <p className="text-xs font-extrabold tracking-[0.12em] text-brand-700">
             LANGKAH BERIKUTNYA
           </p>
           <p className="mt-2 text-lg font-bold">{progress.stage}</p>
-          <p className="mt-1 text-sm text-[#4a3a42]">{progress.nextAction.code}</p>
+          <p className="mt-1 text-sm text-gray-700">{progress.nextAction.code}</p>
           {progress.blockers.length > 0 ? (
-            <ul className="mt-3 list-disc pl-5 text-sm text-[#76656d]">
+            <ul className="mt-3 list-disc pl-5 text-sm text-gray-600">
               {progress.blockers.map((b) => (
                 <li key={b}>{b}</li>
               ))}
             </ul>
           ) : null}
-          <p className="mt-3 text-sm text-[#76656d]">
+          <p className="mt-3 text-sm text-gray-600">
             Karakter {progress.counts.characters} · Fakta {progress.counts.facts} · Bab{' '}
             {progress.counts.chapters}
           </p>
@@ -58,7 +58,7 @@ export default async function ProjectHomePage({
           <Link
             key={link.href}
             href={link.href}
-            className="rounded-2xl border border-[#e8dce1] bg-white px-5 py-4 font-semibold hover:border-[#ef91af]"
+            className="rounded-2xl border border-gray-200 bg-white px-5 py-4 font-semibold hover:border-pink-300"
           >
             {link.label}
           </Link>
