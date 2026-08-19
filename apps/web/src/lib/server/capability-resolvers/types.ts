@@ -27,3 +27,20 @@ export type ProjectChoiceView = Readonly<{
   readonly title: string;
   readonly outlineCount: number;
 }>;
+
+export type ChapterBlockReason = 
+  | 'no_chapter'
+  | 'foundation_not_locked'
+  | 'no_writable_chapter'
+  | 'chapter_unavailable';
+
+export type ChapterChoiceView = Readonly<{
+  readonly id: string;
+  readonly title: string;
+  readonly ordinal?: number;
+}>;
+
+export type ChapterContextResult =
+  | { kind: 'resolved'; projectId: string; chapterId: string; href: string }
+  | { kind: 'choose'; chapters: ChapterChoiceView[] }
+  | { kind: 'blocked'; reasonCode: ChapterBlockReason; outlineHref: string };

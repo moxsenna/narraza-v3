@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getMyProject } from '../../../../../server/domain/queries';
-import { resolveProjectContext, type ProjectContextResult } from '../../../../lib/server/capability-resolvers/project-context';
+import { resolveProjectContext } from '../../../../../lib/server/capability-resolvers/project-context';
 
 /**
  * Project Writing Entry — Locked Resolver Pattern

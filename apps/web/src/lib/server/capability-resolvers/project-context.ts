@@ -1,7 +1,6 @@
 'use server';
 
-import { notFound } from 'next/navigation';
-import { getMyProject, listMyProjects } from '../../../../domain/queries';
+import { getMyProject, listMyProjects } from '../../../server/domain/queries';
 import type { ProjectContextResult, ProjectChoiceView } from './types';
 
 /**
@@ -29,7 +28,7 @@ export async function resolveProjectContext(): Promise<ProjectContextResult> {
     const choices: ProjectChoiceView[] = myProjects.map((p) => ({
       id: p.id,
       title: p.title,
-      outlineCount: p.outlineNodes?.length ?? 0,
+      outlineCount: 0,
     }));
     
     return {
@@ -39,15 +38,15 @@ export async function resolveProjectContext(): Promise<ProjectContextResult> {
   }
   
   // Case 3: Single project — resolved and active
-  const [activeProject] = myProjects;
+  const activeProject = myProjects[0];
   
-  try {
-    await getMyProject(activeProject.id);
-  } catch (error) {
-    // Authorization failure — do NOT fake a fixture project
-    // This is hard-coded blocking behavior as required
-    throw error;
+  if (!activeProject) {
+    throw new Error('No active project found');
   }
+  
+  // Authorization failure — do NOT fake a fixture project
+  // This is hard-coded blocking behavior as required
+  await getMyProject(activeProject.id);
   
   return {
     kind: 'resolved',
