@@ -25,10 +25,10 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
             <div
               key={m.id}
               className={`rounded-xl px-3 py-2 text-sm ${
-                m.role === 'user' ? 'ml-8 bg-[#fff0f5]' : 'mr-8 bg-[#f8f1f4]'
+                m.role === 'user' ? 'ml-8 bg-pink-50' : 'mr-8 bg-pink-50'
               }`}
             >
-              <p className="text-xs font-bold text-[#8f7f86]">{m.role}</p>
+              <p className="text-xs font-bold text-gray-500">{m.role}</p>
               <p className="mt-1 whitespace-pre-wrap text-[#3a2931]">{m.content}</p>
             </div>
           ))
