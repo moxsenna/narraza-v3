@@ -18,19 +18,19 @@ export default async function RevealPage({ params }: { params: Promise<{ project
         ← {project.title}
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Jadwal rahasia</h1>
-      <p className="mt-2 text-sm text-[#76656d]">
+      <p className="mt-2 text-sm text-gray-600">
         Reveal + breadcrumbs (author_private). Truth tidak pernah ke writer packet.
       </p>
       <section className="mt-8">
         <h2 className="font-bold">Reveal</h2>
         <ul className="mt-3 space-y-2">
           {reveals.length === 0 ? (
-            <li className="text-sm text-[#76656d]">Belum ada reveal.</li>
+            <li className="text-sm text-gray-600">Belum ada reveal.</li>
           ) : (
             reveals.map((r) => (
               <li
                 key={r.id}
-                className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3 text-sm"
+                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
               >
                 fact {r.factId.slice(0, 8)}… · seq {r.targetSequence}
               </li>
@@ -42,12 +42,12 @@ export default async function RevealPage({ params }: { params: Promise<{ project
         <h2 className="font-bold">Breadcrumbs</h2>
         <ul className="mt-3 space-y-2">
           {breadcrumbs.length === 0 ? (
-            <li className="text-sm text-[#76656d]">Belum ada breadcrumb.</li>
+            <li className="text-sm text-gray-600">Belum ada breadcrumb.</li>
           ) : (
             breadcrumbs.map((b) => (
               <li
                 key={b.id}
-                className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3 text-sm"
+                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
               >
                 reveal {b.revealId.slice(0, 8)}… · seq {b.sequence}
               </li>

@@ -51,7 +51,7 @@ export default async function OutlinePage({ params }: { params: Promise<{ projec
               ) : null}
               <span className="ml-2 font-semibold">{n.title || n.id}</span>
               {n.acceptedProseVersionId ? (
-                <span className="ml-2 text-xs text-[#8a2948]">(prose diterima — terkunci)</span>
+                <span className="ml-2 text-xs text-pink-900">(prose diterima — terkunci)</span>
               ) : null}
             </li>
           ))

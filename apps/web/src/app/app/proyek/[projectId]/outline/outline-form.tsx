@@ -167,7 +167,7 @@ export function OutlineForm(props: {
       </form>
 
       {err ? (
-        <p className="rounded-xl bg-[#fff0f3] px-3 py-2 text-sm text-[#8a2948]" role="alert">
+        <p className="rounded-xl bg-pink-100 px-3 py-2 text-sm text-pink-900" role="alert">
           {err}
         </p>
       ) : null}
