@@ -15,21 +15,21 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
         ← {project.title}
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Chat Narra</h1>
-      <p className="mt-2 text-sm text-[#76656d]">Pesan tersimpan. Balasan AI menyusul di M4.</p>
+      <p className="mt-2 text-sm text-gray-600">Pesan tersimpan. Balasan AI menyusul di M4.</p>
 
-      <div className="mt-6 flex-1 space-y-3 rounded-2xl border border-[#e8dce1] bg-white p-4">
+      <div className="mt-6 flex-1 space-y-3 rounded-2xl border border-gray-200 bg-white p-4">
         {messages.length === 0 ? (
-          <p className="text-sm text-[#76656d]">Belum ada pesan.</p>
+          <p className="text-sm text-gray-600">Belum ada pesan.</p>
         ) : (
           messages.map((m) => (
             <div
               key={m.id}
               className={`rounded-xl px-3 py-2 text-sm ${
-                m.role === 'user' ? 'ml-8 bg-[#fff0f5]' : 'mr-8 bg-[#f8f1f4]'
+                m.role === 'user' ? 'ml-8 bg-pink-50' : 'mr-8 bg-pink-50/50'
               }`}
             >
-              <p className="text-xs font-bold text-[#8f7f86]">{m.role}</p>
-              <p className="mt-1 whitespace-pre-wrap text-[#3a2931]">{m.content}</p>
+              <p className="text-xs font-bold text-gray-500">{m.role}</p>
+              <p className="mt-1 whitespace-pre-wrap text-gray-900">{m.content}</p>
             </div>
           ))
         )}

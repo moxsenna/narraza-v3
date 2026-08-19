@@ -327,7 +327,7 @@ export function FoundationForms(props: FoundationFormValues) {
             {draftPending ? 'Menyimpan…' : 'Simpan draft'}
           </button>
         ) : (
-          <p className="text-sm text-[#4a3a42] bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+          <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
             Fondasi terkunci. Perubahan melalui proposal (M5).
           </p>
         )}
