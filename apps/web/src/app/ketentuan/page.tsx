@@ -6,7 +6,7 @@ export default function TermsPage() {
   const copy = APP_MESSAGES_ID.legal.terms;
 
   return (
-    <div className="min-h-screen overflow-x-clip bg-[#fff9f6] text-[#24171e]">
+    <div className="min-h-screen overflow-x-clip bg-gray-50 text-gray-900">
       <header className="border-b border-[#f1e8ec] bg-white">
         <div className="mx-auto flex min-h-[68px] max-w-5xl items-center px-4 sm:px-6">
           <BrandMark href="/" />
