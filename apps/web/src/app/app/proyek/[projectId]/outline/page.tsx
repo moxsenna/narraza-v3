@@ -23,10 +23,9 @@ export default async function OutlinePage({ params }: { params: Promise<{ projec
       <Link href={`/app/proyek/${projectId}`} className="text-sm font-semibold text-brand-700">
         ← {project.title}
       </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold">Outline</h1>
+      <h1 className="mt-4 font-serif text-3xl font-semibold">Rangkaian Cerita</h1>
       <p className="mt-2 text-sm text-gray-600">
-        CRUD ketat user-origin. Fondasi harus terkunci dulu. Bab ber-accepted-prose terkunci dari
-        edit biasa.
+        Buat roadmap, arc karakter, dan bab untuk merancang alur cerita Anda.
       </p>
 
       <OutlineForm

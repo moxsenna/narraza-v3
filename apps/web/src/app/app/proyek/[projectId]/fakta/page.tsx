@@ -15,9 +15,9 @@ export default async function FactPage({ params }: { params: Promise<{ projectId
       <Link href={`/app/proyek/${projectId}`} className="text-sm font-semibold text-brand-700">
         ← {project.title}
       </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold">Fakta</h1>
+      <h1 className="mt-4 font-serif text-3xl font-semibold">Fakta Cerita</h1>
       <p className="mt-2 text-sm text-gray-600">
-        Fakta hanya lewat change set terapan (fact-lifecycle).
+        Fakta tersimpan dari percakapan Narra.
       </p>
       <ul className="mt-8 space-y-2">
         {facts.length === 0 ? (
@@ -29,9 +29,6 @@ export default async function FactPage({ params }: { params: Promise<{ projectId
               className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
             >
               <span className="font-bold">{f.factKey}</span>
-              <span className="ml-2 text-gray-600">
-                {f.canonStatus} · {f.visibility}
-              </span>
             </li>
           ))
         )}

@@ -15,7 +15,7 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
         ← {project.title}
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Chat Narra</h1>
-      <p className="mt-2 text-sm text-gray-600">Pesan tersimpan. Balasan AI menyusul di M4.</p>
+      <p className="mt-2 text-sm text-gray-600">Pesan tersimpan. Balasan AI belum tersedia.</p>
 
       <div className="mt-6 flex-1 space-y-3 rounded-2xl border border-gray-200 bg-white p-4">
         {messages.length === 0 ? (

@@ -128,19 +128,7 @@ export function FoundationForms(props: FoundationFormValues) {
         </h3>
         
         <label className="block">
-          <span className="text-sm font-bold">ID tokoh utama (internal)</span>
-          <input
-            name="mainCharacterId"
-            type="text"
-            defaultValue={props.mainCharacterId || 'main'}
-            disabled={!canEditDraft}
-            placeholder="main"
-            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 disabled:bg-gray-100"
-          />
-        </label>
-        
-        <label className="block">
-          <span className="text-sm font-bold">Identitas</span>
+          <span className="text-sm font-bold">Identitas tokoh</span>
           <input
             name="mainCharacterIdentity"
             type="text"
@@ -205,13 +193,13 @@ export function FoundationForms(props: FoundationFormValues) {
         </h3>
         
         <label className="block">
-          <span className="text-sm font-bold">ID tokoh lain</span>
+          <span className="text-sm font-bold">Tokoh lain</span>
           <input
             name="relationshipOtherId"
             type="text"
-            defaultValue={props.relationshipOtherId || 'other'}
+            defaultValue={props.relationshipOtherId || ''}
             disabled={!canEditDraft}
-            placeholder="other"
+            placeholder="Siapa tokoh ini dalam cerita?"
             className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 disabled:bg-gray-100"
           />
         </label>
@@ -248,70 +236,37 @@ export function FoundationForms(props: FoundationFormValues) {
         {/* Responsive Grid for Secret Timeline */}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="text-sm font-bold">Target chapterId</span>
-            <input
-              name="secretTargetChapterId"
-              type="text"
-              defaultValue={props.secretTargetChapterId || 'chapter-10'}
-              disabled={!canEditDraft}
-              placeholder="chapter-10"
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 disabled:bg-gray-100"
-            />
-          </label>
-          
-          <label className="block">
-            <span className="text-sm font-bold">Target sequence</span>
+            <span className="text-sm font-bold">Waktu pengungkapan rahasia</span>
             <input
               name="secretTargetSequence"
               type="number"
               defaultValue={props.secretTargetSequence || '10'}
               disabled={!canEditDraft}
+              placeholder="10"
               className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 disabled:bg-gray-100"
             />
           </label>
           
           <label className="block">
-            <span className="text-sm font-bold">Breadcrumb 1 chapterId</span>
-            <input
-              name="secretBreadcrumb1ChapterId"
-              type="text"
-              defaultValue={props.secretBreadcrumb1ChapterId || 'chapter-2'}
-              disabled={!canEditDraft}
-              placeholder="chapter-2"
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 disabled:bg-gray-100"
-            />
-          </label>
-          
-          <label className="block">
-            <span className="text-sm font-bold">Breadcrumb 1 sequence</span>
+            <span className="text-sm font-bold">Pemicu awal (opsional)</span>
             <input
               name="secretBreadcrumb1Sequence"
               type="number"
-              defaultValue={props.secretBreadcrumb1Sequence || '2'}
+              defaultValue={props.secretBreadcrumb1Sequence || ''}
               disabled={!canEditDraft}
+              placeholder="-"
               className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 disabled:bg-gray-100"
             />
           </label>
           
           <label className="block">
-            <span className="text-sm font-bold">Breadcrumb 2 chapterId</span>
-            <input
-              name="secretBreadcrumb2ChapterId"
-              type="text"
-              defaultValue={props.secretBreadcrumb2ChapterId || 'chapter-5'}
-              disabled={!canEditDraft}
-              placeholder="chapter-5"
-              className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 disabled:bg-gray-100"
-            />
-          </label>
-          
-          <label className="block">
-            <span className="text-sm font-bold">Breadcrumb 2 sequence</span>
+            <span className="text-sm font-bold">Pemicu kedua (opsional)</span>
             <input
               name="secretBreadcrumb2Sequence"
               type="number"
-              defaultValue={props.secretBreadcrumb2Sequence || '5'}
+              defaultValue={props.secretBreadcrumb2Sequence || ''}
               disabled={!canEditDraft}
+              placeholder="-"
               className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 disabled:bg-gray-100"
             />
           </label>
