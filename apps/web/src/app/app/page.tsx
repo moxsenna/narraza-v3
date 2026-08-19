@@ -14,7 +14,7 @@ export default async function AppHome() {
             <h1 className="mt-2 font-serif text-3xl font-semibold sm:text-4xl">
               {projects.length === 0 ? 'Belum ada proyek' : 'Proyekmu'}
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-[#4a3a42]">
+            <p className="mt-3 max-w-2xl text-base leading-7 text-gray-700">
               {projects.length === 0
                 ? 'Buat proyek baru untuk mulai ngobrol dengan Narra dan menyusun fondasi cerita.'
                 : 'Pilih proyek untuk melanjutkan, atau buat yang baru.'}
@@ -29,8 +29,8 @@ export default async function AppHome() {
         </div>
 
         {projects.length === 0 ? (
-          <section className="mt-10 rounded-2xl border border-[#e8dce1] bg-white p-8 text-center">
-            <p className="text-[#76656d]">Dashboard kosong. Mulai dari ide kasar atau outline.</p>
+          <section className="mt-10 rounded-2xl border border-gray-200 bg-white p-8 text-center">
+            <p className="text-gray-600">Dashboard kosong. Mulai dari ide kasar atau outline.</p>
           </section>
         ) : (
           <ul className="mt-10 grid gap-4 sm:grid-cols-2">
@@ -38,10 +38,10 @@ export default async function AppHome() {
               <li key={project.id}>
                 <Link
                   href={`/app/proyek/${project.id}`}
-                  className="block rounded-2xl border border-[#e8dce1] bg-white p-5 hover:border-[#ef91af] hover:bg-[#fff5f8] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+                  className="block rounded-2xl border border-gray-200 bg-white p-5 hover:border-pink-300 hover:bg-pink-50 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
                 >
-                  <span className="font-bold text-[#3a2931]">{project.title}</span>
-                  <span className="mt-2 block text-sm text-[#76656d]">
+                  <span className="font-bold text-gray-900">{project.title}</span>
+                  <span className="mt-2 block text-sm text-gray-600">
                     {project.intakePath} · v{project.currentCanonicalVersion}
                   </span>
                 </Link>
