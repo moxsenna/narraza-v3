@@ -22,17 +22,17 @@ export default async function CharacterPage({
         ← {project.title}
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Karakter</h1>
-      <p className="mt-2 text-sm text-[#76656d]">
+      <p className="mt-2 text-sm text-gray-600">
         CRUD user-origin lewat change set (API siap; form polish di M6).
       </p>
       <ul className="mt-8 space-y-2">
         {characters.length === 0 ? (
-          <li className="text-sm text-[#76656d]">Belum ada karakter.</li>
+          <li className="text-sm text-gray-600">Belum ada karakter.</li>
         ) : (
           characters.map((c) => (
-            <li key={c.id} className="rounded-xl border border-[#e8dce1] bg-white px-4 py-3">
+            <li key={c.id} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
               <span className="font-bold">{c.displayName}</span>
-              <span className="ml-2 text-sm text-[#76656d]">{c.role}</span>
+              <span className="ml-2 text-sm text-gray-600">{c.role}</span>
             </li>
           ))
         )}

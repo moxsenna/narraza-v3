@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { BrandMark } from '../BrandMark';
-import { Card, Container, Stack } from '../primitives';
 
+// Shared server-rendered shell for auth screens. Visual polish + real design
+// tokens land in M6; this keeps a consistent, centered card for M0.
 export function AuthCard({
   title,
   subtitle,
@@ -12,21 +12,15 @@ export function AuthCard({
   children: ReactNode;
 }) {
   return (
-    <main className="flex min-h-screen items-center bg-canvas py-12">
-      <Container size="form">
-        <Stack gap={6}>
-          <BrandMark href="/" />
-          <Card className="mx-auto w-full max-w-md">
-            <h1 className="font-serif text-3xl font-bold text-primary">{title}</h1>
-            {subtitle ? (
-              <p className="mt-2 mb-6 text-secondary">{subtitle}</p>
-            ) : (
-              <div className="mb-6" />
-            )}
-            {children}
-          </Card>
-        </Stack>
-      </Container>
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
+      <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Narraza</p>
+      <h1 className="mt-1 font-serif text-3xl font-bold text-brand-900">{title}</h1>
+      {subtitle ? (
+        <p className="mt-2 mb-6 text-neutral-600">{subtitle}</p>
+      ) : (
+        <div className="mb-6" />
+      )}
+      {children}
     </main>
   );
 }
