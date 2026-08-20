@@ -61,38 +61,44 @@ describe('resolveProjectWritingContext', () => {
     expect(dependencies.getOutline).toHaveBeenCalledWith('project-b');
   });
 
-  test('has no first-project fallback and returns the same not_found shape for foreign and random IDs', async () => {
-    const dependencies = deps({ projects: { owned: project('Owned') } });
+  test(
+    'has no first-project fallback and returns the same not_found shape for foreign and random IDs',
+    async () => {
+      const dependencies = deps({ projects: { owned: project('Owned') } });
 
-    await expect(resolveProjectWritingContext('foreign', dependencies)).resolves.toEqual({
-      kind: 'not_found',
-    });
-    await expect(
-      resolveProjectWritingContext('00000000-0000-4000-8000-999999999999', dependencies),
-    ).resolves.toEqual({ kind: 'not_found' });
-    expect(dependencies.getOutline).not.toHaveBeenCalled();
-  });
+      await expect(resolveProjectWritingContext('foreign', dependencies)).resolves.toEqual({
+        kind: 'not_found',
+      });
+      await expect(
+        resolveProjectWritingContext('00000000-0000-4000-8000-999999999999', dependencies),
+      ).resolves.toEqual({ kind: 'not_found' });
+      expect(dependencies.getOutline).not.toHaveBeenCalled();
+    },
+  );
 
-  test('returns choose for chapter nodes and never infers resume from first, lowest, only, or accepted prose', async () => {
-    const dependencies = deps({
-      projects: { owned: project('Owned') },
-      outline: [
-        chapter('Bab Ordinal Tinggi', 9, { acceptedProseVersionId: 'accepted-prose' }),
-        chapter('Bab Ordinal Rendah', 1),
-      ],
-    });
+  test(
+    'returns choose for chapter nodes and never infers resume from first, lowest, only, or accepted prose',
+    async () => {
+      const dependencies = deps({
+        projects: { owned: project('Owned') },
+        outline: [
+          chapter('Bab Ordinal Tinggi', 9, { acceptedProseVersionId: 'accepted-prose' }),
+          chapter('Bab Ordinal Rendah', 1),
+        ],
+      });
 
-    const result = await resolveProjectWritingContext('owned', dependencies);
-    expect(result.kind).toBe('choose');
-    if (result.kind !== 'choose') throw new Error('expected choose');
-    expect(result.choices).toEqual([
-      { title: 'Bab Ordinal Tinggi', ordinal: 9 },
-      { title: 'Bab Ordinal Rendah', ordinal: 1 },
-    ]);
-    expect(result).not.toHaveProperty('chapterId');
-    expect(result).not.toHaveProperty('href');
-    expect(JSON.stringify(result)).not.toMatch(/resume|accepted-prose/i);
-  });
+      const result = await resolveProjectWritingContext('owned', dependencies);
+      expect(result.kind).toBe('choose');
+      if (result.kind !== 'choose') throw new Error('expected choose');
+      expect(result.choices).toEqual([
+        { title: 'Bab Ordinal Tinggi', ordinal: 9 },
+        { title: 'Bab Ordinal Rendah', ordinal: 1 },
+      ]);
+      expect(result).not.toHaveProperty('chapterId');
+      expect(result).not.toHaveProperty('href');
+      expect(JSON.stringify(result)).not.toMatch(/resume|accepted-prose/i);
+    },
+  );
 
   test('keeps one real chapter as choose rather than auto-resolving it', async () => {
     const dependencies = deps({
