@@ -18,19 +18,19 @@ export default async function RevealPage({ params }: { params: Promise<{ project
         ← {project.title}
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Jadwal Rahasia</h1>
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-muted">
         Pengungkapan rahasia yang akan terjadi di akhir cerita.
       </p>
       <section className="mt-8">
         <h2 className="font-bold">Poin Rahasia</h2>
         <ul className="mt-3 space-y-2">
           {reveals.length === 0 ? (
-            <li className="text-sm text-gray-600">Belum ada rencana rahasia.</li>
+            <li className="text-sm text-text-muted">Belum ada rencana rahasia.</li>
           ) : (
             reveals.map((r) => (
               <li
                 key={r.id}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                className="rounded-xl border border-border-default bg-surface px-4 py-3 text-sm"
               >
                 Fakta rahasia · Bab {r.targetSequence}
               </li>
@@ -42,12 +42,12 @@ export default async function RevealPage({ params }: { params: Promise<{ project
         <h2 className="font-bold">Titik Pemicu</h2>
         <ul className="mt-3 space-y-2">
           {breadcrumbs.length === 0 ? (
-            <li className="text-sm text-gray-600">Tidak ada pemicu tambahan.</li>
+            <li className="text-sm text-text-muted">Tidak ada pemicu tambahan.</li>
           ) : (
             breadcrumbs.map((b) => (
               <li
                 key={b.id}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+                className="rounded-xl border border-border-default bg-surface px-4 py-3 text-sm"
               >
                 Pengungkapan bab {b.sequence}
               </li>

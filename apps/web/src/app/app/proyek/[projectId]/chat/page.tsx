@@ -15,21 +15,21 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
         ← {project.title}
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Chat Narra</h1>
-      <p className="mt-2 text-sm text-gray-600">Pesan tersimpan. Balasan AI belum tersedia.</p>
+      <p className="mt-2 text-sm text-text-muted">Pesan tersimpan. Balasan AI belum tersedia.</p>
 
-      <div className="mt-6 flex-1 space-y-3 rounded-2xl border border-gray-200 bg-white p-4">
+      <div className="mt-6 flex-1 space-y-3 rounded-2xl border border-border-default bg-surface p-4">
         {messages.length === 0 ? (
-          <p className="text-sm text-gray-600">Belum ada pesan.</p>
+          <p className="text-sm text-text-muted">Belum ada pesan.</p>
         ) : (
           messages.map((m) => (
             <div
               key={m.id}
               className={`rounded-xl px-3 py-2 text-sm ${
-                m.role === 'user' ? 'ml-8 bg-pink-50' : 'mr-8 bg-pink-50/50'
+                m.role === 'user' ? 'ml-8 bg-brand-soft' : 'mr-8 bg-brand-soft/50'
               }`}
             >
-              <p className="text-xs font-bold text-gray-500">{m.role}</p>
-              <p className="mt-1 whitespace-pre-wrap text-gray-900">{m.content}</p>
+              <p className="text-xs font-bold text-text-muted">{m.role}</p>
+              <p className="mt-1 whitespace-pre-wrap text-text-primary">{m.content}</p>
             </div>
           ))
         )}

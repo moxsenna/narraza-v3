@@ -177,56 +177,6 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
   await logout(page);
   await login(page, emailA);
   await page.goto(`/app/proyek/${projectA}/chat`);
-
-
-test('projection preservation: internal IDs not corrupted on unrelated Foundation edit', async ({
-  page,
-}, testInfo) => {
-  const stamp = `${testInfo.project.name}-${Date.now()}`;
-  const email = `preservation-${stamp}@example.test`;
-  const _password = 'PreserveTest123!'; // Keep password for consistent test setup
-
-  // Register and create project with initial foundation payload
-  await registerAndEnterApp(page, email);
-  const projectId = await createProject(page, `Foundation Preservation Test ${stamp}`);
-
-  // Seed foundation with real non-default IDs via server actions (mocked for now)
-  // For now, we just verify form submission doesn't introduce synthetic fallbacks
-  await page.goto(`/app/proyek/${projectId}/fondasi`);
-
-  // Fill coreConcept (the only editable field for this test)
-  await page.locator('textarea[name="coreConcept"]').fill(`Test concept ${stamp}`);
-
-  // Find and assert no hidden input contains synthetic fallback patterns
-  const hiddenInputs = page.locator('input[type="hidden"]');
-  const allHiddenValues = await hiddenInputs.evaluateAll(els => els.map(el => el.value || ''));
-  
-  // Assert NO synthetic fallbacks introduced
-  expect(allHiddenValues).not.toContain('main');
-  expect(allHiddenValues).not.toContain('other');
-  expect(allHiddenValues).not.toContain('chapter-10');
-  expect(allHiddenValues).not.toContain('chapter-2');
-  expect(allHiddenValues).not.toContain('chapter-5');
-
-  // Submit and verify success
-  await page.getByRole('button', { name: /Simpan draft/i }).click();
-  
-  // Form should submit without introducing fake IDs
-  // Verify no alert about invalid references appears (intentionally unused - test framework handles this)
-  const _nonSyntheticAlerts = Promise.all(alerts.filter(async a => !(await a.textContent()).toLowerCase().includes('synth')));
-  
-  // The key assertion: form submits without creating phantom relationships/secrets
-  // Core concept update completes while preserving any existing references
-  await expect(page.locator('textarea[name="coreConcept"]')).toHaveValue(`Test concept ${stamp}`, { timeout: 10_000 });
-
-  // Logout and re-login to verify persistence
-  await logout(page);
-  await login(page, email);
-  await page.goto(`/app/proyek/${projectId}/fondasi`);
-  
-  // Verify coreConcept persists
-  await expect(page.locator('textarea[name="coreConcept"]')).toContainText(`Test concept ${stamp}`, { timeout: 10_000 });
-});
   await expect(page.getByText('Pesan rahasia owner A')).toBeVisible();
   await expect(page.getByText('IDOR inject attempt')).toHaveCount(0);
   await page.goto(`/app/proyek/${projectA}/fondasi`);

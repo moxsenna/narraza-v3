@@ -24,7 +24,7 @@ export default async function OutlinePage({ params }: { params: Promise<{ projec
         ← {project.title}
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Rangkaian Cerita</h1>
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-muted">
         Buat roadmap, arc karakter, dan bab untuk merancang alur cerita Anda.
       </p>
 
@@ -37,20 +37,20 @@ export default async function OutlinePage({ params }: { params: Promise<{ projec
 
       <ul className="mt-8 space-y-2">
         {nodes.length === 0 ? (
-          <li className="text-sm text-gray-600">Belum ada node outline.</li>
+          <li className="text-sm text-text-muted">Belum ada node outline.</li>
         ) : (
           nodes.map((n) => (
             <li
               key={`${n.entityType}-${n.id}`}
-              className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm"
+              className="rounded-xl border border-border-default bg-surface px-4 py-3 text-sm"
             >
-              <span className="font-bold uppercase text-gray-500">{n.entityType}</span>
+              <span className="font-bold uppercase text-text-muted">{n.entityType}</span>
               {n.ordinal !== null ? (
-                <span className="ml-2 text-xs text-gray-500">#{n.ordinal}</span>
+                <span className="ml-2 text-xs text-text-muted">#{n.ordinal}</span>
               ) : null}
               <span className="ml-2 font-semibold">{n.title || n.id}</span>
               {n.acceptedProseVersionId ? (
-                <span className="ml-2 text-xs text-pink-900">(prose diterima — terkunci)</span>
+                <span className="ml-2 text-xs text-brand-ink">(prose diterima — terkunci)</span>
               ) : null}
             </li>
           ))

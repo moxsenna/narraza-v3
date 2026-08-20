@@ -16,13 +16,16 @@ export default async function FactPage({ params }: { params: Promise<{ projectId
         ← {project.title}
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold">Fakta Cerita</h1>
-      <p className="mt-2 text-sm text-gray-600">Fakta tersimpan dari percakapan Narra.</p>
+      <p className="mt-2 text-sm text-text-muted">Fakta tersimpan dari percakapan Narra.</p>
       <ul className="mt-8 space-y-2">
         {facts.length === 0 ? (
-          <li className="text-sm text-gray-600">Belum ada fakta.</li>
+          <li className="text-sm text-text-muted">Belum ada fakta.</li>
         ) : (
           facts.map((f) => (
-            <li key={f.id} className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm">
+            <li
+              key={f.id}
+              className="rounded-xl border border-border-default bg-surface px-4 py-3 text-sm"
+            >
               <span className="font-bold">{f.factKey}</span>
             </li>
           ))

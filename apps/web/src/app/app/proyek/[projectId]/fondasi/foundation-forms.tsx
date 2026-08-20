@@ -26,6 +26,7 @@ export type FoundationFormValues = {
   mainCharacterAddress: string;
   mainCharacterSpeechStyle: string;
   relationshipOtherId: string;
+  relationshipMainIsFrom: boolean | null;
   relationshipDescription: string;
   secretTruth: string;
   secretTargetChapterId: string;
@@ -82,7 +83,7 @@ export function FoundationForms(props: FoundationFormValues) {
             disabled={!canEditDraft}
             placeholder="Tentang apa cerita ini?"
             rows={3}
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100 resize-y"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
           />
         </label>
 
@@ -94,7 +95,7 @@ export function FoundationForms(props: FoundationFormValues) {
             disabled={!canEditDraft}
             placeholder="Apa yang menghalangi protagonis?"
             rows={2}
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100 resize-y"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
           />
         </label>
 
@@ -106,7 +107,7 @@ export function FoundationForms(props: FoundationFormValues) {
             disabled={!canEditDraft}
             placeholder="Bagaimana berakhirnya?"
             rows={2}
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100 resize-y"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
           />
         </label>
 
@@ -118,7 +119,7 @@ export function FoundationForms(props: FoundationFormValues) {
             disabled={!canEditDraft}
             rows={2}
             placeholder="Apa nilai naratif yang dijanjikan?"
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
           />
         </label>
 
@@ -139,7 +140,7 @@ export function FoundationForms(props: FoundationFormValues) {
             defaultValue={props.mainCharacterIdentity}
             disabled={!canEditDraft}
             placeholder="Siapa dia secara esensial?"
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
           />
         </label>
 
@@ -151,7 +152,7 @@ export function FoundationForms(props: FoundationFormValues) {
             defaultValue={props.mainCharacterGoal}
             disabled={!canEditDraft}
             placeholder="Apa yang paling diinginkannya?"
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
           />
         </label>
 
@@ -163,7 +164,7 @@ export function FoundationForms(props: FoundationFormValues) {
             defaultValue={props.mainCharacterMotivation}
             disabled={!canEditDraft}
             placeholder="Mengapa dia berusaha? Apa lukanya?"
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
           />
         </label>
 
@@ -175,7 +176,7 @@ export function FoundationForms(props: FoundationFormValues) {
             defaultValue={props.mainCharacterAddress}
             disabled={!canEditDraft}
             placeholder="Bagaimana orang memanggilnya?"
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
           />
         </label>
 
@@ -187,7 +188,7 @@ export function FoundationForms(props: FoundationFormValues) {
             defaultValue={props.mainCharacterSpeechStyle}
             disabled={!canEditDraft}
             placeholder="Bagaimana cara dia berbicara?"
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
           />
         </label>
 
@@ -196,8 +197,15 @@ export function FoundationForms(props: FoundationFormValues) {
           RELASI UTAMA
         </h3>
 
-        {props.relationshipOtherId ? (
-          <input type="hidden" name="relationshipOtherId" value={props.relationshipOtherId} />
+        {props.relationshipOtherId && props.relationshipMainIsFrom !== null ? (
+          <>
+            <input type="hidden" name="relationshipOtherId" value={props.relationshipOtherId} />
+            <input
+              type="hidden"
+              name="relationshipMainIsFrom"
+              value={String(props.relationshipMainIsFrom)}
+            />
+          </>
         ) : null}
 
         <label className="block">
@@ -212,7 +220,7 @@ export function FoundationForms(props: FoundationFormValues) {
                 ? 'Seperti apa hubungan mereka?'
                 : 'Tidak ada tokoh lain yang terkait (edit tersimpan tanpa menciptakan relasi baru)'
             }
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100 resize-y"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
           />
         </label>
 
@@ -229,27 +237,43 @@ export function FoundationForms(props: FoundationFormValues) {
             disabled={!canEditDraft}
             rows={2}
             placeholder="Apa rahasia yang akan terungkap?"
-            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100 resize-y"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
           />
         </label>
 
         {/* Hidden preservation of existing schedule references */}
-        {props.secretTargetChapterId && props.secretTargetSequence ? (
+        {props.secretTargetChapterId ? (
           <>
             <input type="hidden" name="secretTargetChapterId" value={props.secretTargetChapterId} />
             <input type="hidden" name="secretTargetSequence" value={props.secretTargetSequence} />
           </>
         ) : null}
-        {props.secretBreadcrumb1ChapterId && props.secretBreadcrumb1Sequence ? (
+        {props.secretBreadcrumb1ChapterId ? (
           <>
-            <input type="hidden" name="secretBreadcrumb1ChapterId" value={props.secretBreadcrumb1ChapterId} />
-            <input type="hidden" name="secretBreadcrumb1Sequence" value={props.secretBreadcrumb1Sequence} />
+            <input
+              type="hidden"
+              name="secretBreadcrumb1ChapterId"
+              value={props.secretBreadcrumb1ChapterId}
+            />
+            <input
+              type="hidden"
+              name="secretBreadcrumb1Sequence"
+              value={props.secretBreadcrumb1Sequence}
+            />
           </>
         ) : null}
-        {props.secretBreadcrumb2ChapterId && props.secretBreadcrumb2Sequence ? (
+        {props.secretBreadcrumb2ChapterId ? (
           <>
-            <input type="hidden" name="secretBreadcrumb2ChapterId" value={props.secretBreadcrumb2ChapterId} />
-            <input type="hidden" name="secretBreadcrumb2Sequence" value={props.secretBreadcrumb2Sequence} />
+            <input
+              type="hidden"
+              name="secretBreadcrumb2ChapterId"
+              value={props.secretBreadcrumb2ChapterId}
+            />
+            <input
+              type="hidden"
+              name="secretBreadcrumb2Sequence"
+              value={props.secretBreadcrumb2Sequence}
+            />
           </>
         ) : null}
 
@@ -283,7 +307,7 @@ export function FoundationForms(props: FoundationFormValues) {
             <button
               type="submit"
               disabled={confirmPending}
-              className="min-h-11 rounded-xl border border-line-200 bg-surface px-5 font-semibold disabled:opacity-60 hover:border-gray-400"
+              className="min-h-11 rounded-xl border border-line-200 bg-surface px-5 font-semibold disabled:opacity-60 hover:border-border-active"
             >
               {confirmPending ? '…' : 'Konfirmasi fondasi'}
             </button>
@@ -308,7 +332,7 @@ export function FoundationForms(props: FoundationFormValues) {
             type="submit"
             formAction={lockAction}
             disabled={lockPending}
-            className="w-full min-h-11 rounded-xl bg-brand-900 px-5 font-bold text-white disabled:opacity-60 hover:bg-brand-950 transition-colors"
+            className="w-full min-h-11 rounded-xl bg-brand-900 px-5 font-bold text-white disabled:opacity-60 hover:bg-brand-800 transition-colors"
           >
             {lockPending ? '…' : 'Kunci fondasi'}
           </button>

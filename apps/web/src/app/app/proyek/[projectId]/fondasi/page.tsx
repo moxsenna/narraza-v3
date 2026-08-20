@@ -40,10 +40,23 @@ export default async function FoundationPage({
   const bc1 = asRecord(breadcrumbs[0]);
   const bc2 = asRecord(breadcrumbs[1]);
 
+  const mainId = str(main.id);
+  const fromCharacterId = str(firstRel.fromCharacterId);
+  const toCharacterId = str(firstRel.toCharacterId);
+  const relationshipMainIsFrom =
+    mainId && fromCharacterId && toCharacterId
+      ? fromCharacterId === mainId
+        ? true
+        : toCharacterId === mainId
+          ? false
+          : null
+      : null;
   const otherId =
-    str(firstRel.fromCharacterId) === str(main.id)
-      ? str(firstRel.toCharacterId)
-      : str(firstRel.fromCharacterId) || str(firstRel.toCharacterId);
+    relationshipMainIsFrom === true
+      ? toCharacterId
+      : relationshipMainIsFrom === false
+        ? fromCharacterId
+        : '';
 
   const status = foundation?.status ?? 'belum ada';
 
@@ -66,8 +79,8 @@ export default async function FoundationPage({
               foundation.status === 'locked'
                 ? 'bg-brand-100 text-brand-800'
                 : foundation.status === 'confirmed'
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'bg-gray-100 text-gray-800'
+                  ? 'bg-status-warning-soft text-status-warning'
+                  : 'bg-surface-soft text-ink-800'
             }`}
           >
             {foundation.status}
@@ -76,7 +89,7 @@ export default async function FoundationPage({
       </div>
 
       {/* Status & Revision - Neutral Text Palette */}
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-muted">
         Status: {status}
         {foundation ? ` · rev ${foundation.revision}` : ''}
       </p>
@@ -90,13 +103,14 @@ export default async function FoundationPage({
         conflict={str(payload.conflict)}
         endingDirection={str(payload.endingDirection)}
         readerPromise={str(payload.readerPromise)}
-        mainCharacterId={str(main.id)}
+        mainCharacterId={mainId}
         mainCharacterIdentity={str(main.identity)}
         mainCharacterGoal={str(main.goal)}
         mainCharacterMotivation={str(main.motivation)}
         mainCharacterAddress={str(main.address)}
         mainCharacterSpeechStyle={str(main.speechStyle)}
         relationshipOtherId={otherId}
+        relationshipMainIsFrom={relationshipMainIsFrom}
         relationshipDescription={str(firstRel.description)}
         secretTruth={str(firstSecret.truth)}
         secretTargetChapterId={str(target.chapterId)}
