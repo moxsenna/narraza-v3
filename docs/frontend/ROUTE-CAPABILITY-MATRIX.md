@@ -37,7 +37,7 @@
 | `/app/proyek/{id}/outline` | Story plan | `project.outline.create` | REAL | SERVER_DERIVED | project | Create roadmap/arc/chapter REAL; edit/delete/reorder DISABLED |
 | `/app/proyek/{id}/rahasia` | Secret schedule | `project.secrets.read` | REAL | SERVER_DERIVED | project | Read sequence timeline REAL; mutation DISABLED |
 | `/app/proyek/{id}/fakta` | Locked facts | `project.facts.read` | REAL | SERVER_DERIVED | project | Read lifecycle REAL; mutation DISABLED |
-| `/app/proyek/{id}/tulis` | Continue writing | `chapter.write.resume` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
+| `/app/proyek/{id}/tulis` | Continue writing | `project.write.resume` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
 | `/app/proyek/{id}/naskah` | Project manuscript | `project.manuscript.view` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
 | `/app/proyek/{id}/publish` | Publish package | `project.publish.view` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
 | `/app/proyek/{id}/bab/{chId}/tulis` | Write chapter | `chapter.write.compose` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
