@@ -14,9 +14,7 @@ type PreviewPolicyInput = Readonly<{
   automated: boolean;
 }>;
 
-export function evaluatePreviewPolicy(
-  input: PreviewPolicyInput,
-): Readonly<{ allowed: boolean }> {
+export function evaluatePreviewPolicy(input: PreviewPolicyInput): Readonly<{ allowed: boolean }> {
   if (input.environment === 'production' || input.environment === 'staging') {
     return { allowed: false };
   }
