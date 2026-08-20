@@ -57,6 +57,7 @@ export interface TxPorts {
   readonly aiUsage: AiUsagePort;
   readonly quote: QuotePort;
   readonly dbNow: () => Promise<Date>;
+  readonly dbOperationalNow: () => Promise<Date>;
   readonly allocateId: () => string;
 }
 

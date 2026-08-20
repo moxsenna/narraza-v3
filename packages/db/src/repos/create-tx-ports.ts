@@ -1,5 +1,5 @@
 import type { TxPorts } from '@narraza/application';
-import { dbNow } from '../db-now.js';
+import { dbNow, dbOperationalNow } from '../db-now.js';
 import { createAiUsagePort } from './ai-usage-port.js';
 import { createAuditPort } from './audit-port.js';
 import { createChangeSetRepo } from './change-set-repo.js';
@@ -48,6 +48,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     aiUsage: createAiUsagePort(tx, allocateId),
     quote: createQuoteRepo(tx),
     dbNow: () => dbNow(tx),
+    dbOperationalNow: () => dbOperationalNow(tx),
     allocateId,
   };
 }

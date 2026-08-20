@@ -1,11 +1,78 @@
+import type { CreditReservationRecord, GenerationJobRecord, JsonObject } from '../ports/types.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
-import type { CreateConfirmationInput, ConfirmQuoteResult } from './confirmation-contract.js';
 import { resolveFundingModel, type ActionFundingModel } from './action-funding-policy.js';
+import type { ConfirmQuoteResult, CreateConfirmationInput } from './confirmation-contract.js';
+
+type RollbackResult = Extract<ConfirmQuoteResult, { readonly kind: 'conflict' }>;
+
+class ConfirmationRollbackError extends Error {
+  constructor(readonly result: RollbackResult) {
+    super('Credit quote confirmation transaction must roll back');
+    this.name = 'ConfirmationRollbackError';
+  }
+}
+
+function jsonEquals(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') {
+    return false;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => jsonEquals(value, right[index]))
+    );
+  }
+  const leftRecord = left as JsonObject;
+  const rightRecord = right as JsonObject;
+  const leftKeys = Object.keys(leftRecord).sort();
+  const rightKeys = Object.keys(rightRecord).sort();
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) => key === rightKeys[index] && jsonEquals(leftRecord[key], rightRecord[key]),
+    )
+  );
+}
+
+function reservationMatchesInput(
+  reservation: CreditReservationRecord,
+  input: CreateConfirmationInput,
+): reservation is CreditReservationRecord & { readonly jobId: string } {
+  return (
+    reservation.id === input.reservationId &&
+    reservation.userId === input.userId &&
+    reservation.projectId === input.projectId &&
+    reservation.quoteId === input.quoteId &&
+    reservation.confirmationRequestId === input.confirmationRequestId &&
+    reservation.fundingModel === 'user_paid' &&
+    reservation.jobId !== null &&
+    reservation.jobId === input.jobId &&
+    reservation.projectJobId === input.projectId
+  );
+}
+
+function jobMatchesInput(
+  job: GenerationJobRecord,
+  reservation: CreditReservationRecord,
+  input: CreateConfirmationInput,
+): boolean {
+  return (
+    job.id === input.jobId &&
+    job.projectId === input.projectId &&
+    job.reservationId === reservation.id &&
+    job.kind === input.jobKind &&
+    job.bundleId === input.bundleId &&
+    job.workflowPlanId === input.workflowPlanId &&
+    jsonEquals(job.payload, input.payload)
+  );
+}
 
 export function createCreditQuoteConfirmationService(unitOfWork: UnitOfWork) {
   return {
     async confirmQuote(input: CreateConfirmationInput): Promise<ConfirmQuoteResult> {
-      // Validation 1: Pure funding-model admission check (before UoW or any DB IO)
       let fundingModel: ActionFundingModel;
       try {
         fundingModel = resolveFundingModel(input.jobKind);
@@ -14,156 +81,107 @@ export function createCreditQuoteConfirmationService(unitOfWork: UnitOfWork) {
       }
 
       if (fundingModel !== 'user_paid') {
-        return { kind: 'funding_model_violation', reason: 'unknown_kind' };
+        return { kind: 'funding_model_violation', reason: 'known_ineligible_kind' };
       }
 
-      return await unitOfWork.execute<ConfirmQuoteResult>(async (txPorts) => {
-        // FROZEN LOCK ORDER #1: USER BALANCE SERIALIZATION
-        await txPorts.creditBalance.serializeUserBalance(input.userId);
+      try {
+        return await unitOfWork.execute<ConfirmQuoteResult>(
+          async (txPorts) => {
+            await txPorts.creditBalance.serializeUserBalance(input.userId);
 
-        // FROZEN LOCK ORDER #2: PROJECT LOCK & VALIDATION
-        const project = await txPorts.project.lockForUpdate(input.projectId);
-        if (project === null || project.deletedAt !== null) {
-          return { kind: 'not_found' };
-        }
+            const project = await txPorts.project.lockForUpdate(input.projectId);
+            if (
+              project === null ||
+              project.deletedAt !== null ||
+              project.ownerUserId !== input.userId ||
+              project.status !== 'active'
+            ) {
+              return { kind: 'not_found' };
+            }
 
-        // Validate project owner (non-enumerating)
-        if (project.ownerUserId !== input.userId) {
-          return { kind: 'not_found' };
-        }
+            const quote = await txPorts.quote.confirmLock(
+              input.userId,
+              input.projectId,
+              input.quoteId,
+            );
+            if (quote === null) return { kind: 'not_found' };
 
-        // Project must be active
-        if (project.status !== 'active') {
-          return { kind: 'not_found' };
-        }
+            const replay = await txPorts.creditReservation.findReplayByConfirmationRequestId(
+              input.confirmationRequestId,
+            );
+            if (replay !== null) {
+              if (
+                quote.workflowPlanHash !== input.expectedWorkflowPlanHash ||
+                quote.dependencyHash !== input.expectedDependencyHash ||
+                !reservationMatchesInput(replay, input)
+              ) {
+                return { kind: 'conflict' };
+              }
 
-        // FROZEN LOCK ORDER #3: QUOTE LOCK FOR UPDATE
-        const quote = await txPorts.quote.confirmLock(input.userId, input.projectId, input.quoteId);
+              const job = await txPorts.job.findById({
+                projectId: input.projectId,
+                jobId: replay.jobId,
+              });
+              if (job === null || !jobMatchesInput(job, replay, input)) {
+                return { kind: 'conflict' };
+              }
+              return { kind: 'exact_replay', reservation: replay, job };
+            }
 
-        if (quote === null) {
-          return { kind: 'not_found' };
-        }
+            if (quote.consumedAt !== null) return { kind: 'already_consumed' };
 
-        // Check if already consumed
-        if (quote.consumedAt !== null) {
-          return { kind: 'already_consumed' };
-        }
+            const operationalNow = await txPorts.dbOperationalNow();
+            if (quote.expiresAt <= operationalNow) return { kind: 'expired' };
+            if (quote.maxAmountMicroIdr <= 0n) {
+              return { kind: 'invalid_quote_amount', amount: quote.maxAmountMicroIdr };
+            }
+            if (quote.workflowPlanHash !== input.expectedWorkflowPlanHash) {
+              return { kind: 'hash_mismatch', field: 'workflowPlanHash' };
+            }
+            if (quote.dependencyHash !== input.expectedDependencyHash) {
+              return { kind: 'hash_mismatch', field: 'dependencyHash' };
+            }
 
-        // Check expiry using PostgreSQL clock_timestamp() comparison (done via SQL in next step)
-        // For now, we'll validate after getting full quote details
+            const snapshot = await txPorts.creditBalance.getBalanceSnapshot(input.userId);
+            const availableMicroIdr =
+              snapshot.bookMicroIdr - snapshot.heldMicroIdr - snapshot.reconcilingMicroIdr;
+            if (availableMicroIdr < quote.maxAmountMicroIdr) {
+              return { kind: 'insufficient_credit' };
+            }
 
-        // FROZEN LOCK ORDER #4: REPLAY FIRST (Idempotency Gate)
-        const existingReservation =
-          await txPorts.creditReservation.findReplayByConfirmationRequestId(
-            input.confirmationRequestId,
-          );
+            const consumeResult = await txPorts.quote.consumeQuote(
+              input.quoteId,
+              input.expectedWorkflowPlanHash,
+              input.expectedDependencyHash,
+            );
+            switch (consumeResult.kind) {
+              case 'consumed':
+                break;
+              case 'expired':
+                return { kind: 'expired' };
+              case 'not_found':
+                return { kind: 'not_found' };
+              case 'already_consumed':
+                return { kind: 'already_consumed' };
+              case 'hash_mismatch':
+                return { kind: 'conflict' };
+            }
 
-        if (existingReservation !== null) {
-          // Must match the same quote
-          if (existingReservation.quoteId !== input.quoteId) {
-            // Divergent replay - should not happen due to unique constraint, but handle it
-            return { kind: 'conflict' };
-          }
-
-          // Find the job associated with this reservation
-          const job = await txPorts.job.findById({
-            projectId: input.projectId,
-            jobId: existingReservation.id as string, // Use reservation ID as job ID reference
-          });
-
-          if (job === null) {
-            // Reservation exists but job doesn't - data integrity issue
-            return { kind: 'conflict' };
-          }
-
-          return {
-            kind: 'exact_replay',
-            reservation: existingReservation,
-            job,
-          };
-        }
-
-        // FROZEN LOCK ORDER #5: LIVE QUOTE VALIDATION
-
-        // Check consumed state again (double-safety)
-        if (quote.consumedAt !== null) {
-          return { kind: 'already_consumed' };
-        }
-
-        // Check expiry using PostgreSQL clock_timestamp()
-        // Validate expires_at is still in the future
-        const now = await txPorts.dbNow();
-        if (quote.expiresAt <= now) {
-          return { kind: 'expired' };
-        }
-
-        // Check maxAmountMicroIdr > 0
-        if (quote.maxAmountMicroIdr <= 0n) {
-          return { kind: 'invalid_quote_amount', amount: quote.maxAmountMicroIdr };
-        }
-
-        // Check workflow_plan_hash exact match
-        if (quote.workflowPlanHash !== input.expectedWorkflowPlanHash) {
-          return { kind: 'hash_mismatch', field: 'workflowPlanHash' };
-        }
-
-        // Check dependency_hash exact match
-        if (quote.dependencyHash !== input.expectedDependencyHash) {
-          return { kind: 'hash_mismatch', field: 'dependencyHash' };
-        }
-
-        // FROZEN LOCK ORDER #6: BALANCE SNAPSHOT
-        const snapshot = await txPorts.creditBalance.getBalanceSnapshot(input.userId);
-        const availableMicroIdr =
-          snapshot.bookMicroIdr - snapshot.heldMicroIdr - snapshot.reconcilingMicroIdr;
-
-        if (availableMicroIdr < quote.maxAmountMicroIdr) {
-          return { kind: 'insufficient_credit' };
-        }
-
-        // FROZEN LOCK ORDER #7: CONSUME QUOTE CAS
-        const consumeResult = await txPorts.quote.consumeQuote(
-          input.quoteId,
-          input.expectedWorkflowPlanHash,
-          input.expectedDependencyHash,
-        );
-
-        switch (consumeResult.kind) {
-          case 'consumed':
-            // Proceed with reservation creation
-            break;
-          case 'not_found':
-          case 'already_consumed':
-            return { kind: 'already_consumed' };
-          case 'hash_mismatch':
-            return { kind: 'hash_mismatch', field: 'workflowPlanHash' };
-          default: {
-            const _never: never = consumeResult;
-            return _never;
-          }
-        }
-
-        // FROZEN LOCK ORDER #8: CREATE USER-PAID RESERVATION
-        const reservationId = txPorts.allocateId();
-        const createResult = await txPorts.creditReservation.create({
-          id: reservationId,
-          userId: input.userId,
-          projectId: input.projectId,
-          quoteId: input.quoteId,
-          confirmationRequestId: input.confirmationRequestId,
-          reservedMicroIdr: quote.maxAmountMicroIdr,
-          exposureMicroIdr: quote.maxAmountMicroIdr,
-        });
-
-        switch (createResult.kind) {
-          case 'created': {
-            const reservation = createResult.reservation;
-
-            // FROZEN LOCK ORDER #9: CREATE + BIND JOB
-            const jobId = txPorts.allocateId();
+            const created = await txPorts.creditReservation.create({
+              id: input.reservationId,
+              userId: input.userId,
+              projectId: input.projectId,
+              quoteId: input.quoteId,
+              confirmationRequestId: input.confirmationRequestId,
+              reservedMicroIdr: quote.maxAmountMicroIdr,
+              exposureMicroIdr: quote.maxAmountMicroIdr,
+            });
+            if (created.kind === 'conflict') {
+              throw new ConfirmationRollbackError({ kind: 'conflict' });
+            }
 
             const inserted = await txPorts.job.insert({
-              id: jobId,
+              id: input.jobId,
               projectId: input.projectId,
               kind: input.jobKind,
               fundingModel: 'user_paid',
@@ -172,62 +190,41 @@ export function createCreditQuoteConfirmationService(unitOfWork: UnitOfWork) {
               retryOfJobId: null,
               bundleId: input.bundleId,
               workflowPlanId: input.workflowPlanId,
-              reservationId: reservation.id,
+              reservationId: created.reservation.id,
               schemaVersion: 1,
               payload: input.payload,
             });
-
-            switch (inserted.kind) {
-              case 'inserted':
-                return {
-                  kind: 'confirmed',
-                  reservation,
-                  job: inserted.job,
-                };
-              case 'binding_invalid':
-              case 'funding_model_mismatch':
-                // Rollback would happen automatically on transaction failure
-                return { kind: 'conflict' };
-              case 'conflict':
-                return { kind: 'conflict' };
-              default: {
-                const _never: never = inserted;
-                return _never;
-              }
+            if (inserted.kind !== 'inserted') {
+              throw new ConfirmationRollbackError({ kind: 'conflict' });
             }
-          }
-          case 'conflict': {
-            // Concurrent reservation created - treat as replay
-            const replayReservation =
+
+            const boundReservation =
               await txPorts.creditReservation.findReplayByConfirmationRequestId(
                 input.confirmationRequestId,
               );
-
-            if (replayReservation === null) {
-              return { kind: 'conflict' };
-            }
-
-            const replayJob = await txPorts.job.findById({
-              projectId: input.projectId,
-              jobId: replayReservation.id as string,
-            });
-
-            if (replayJob === null) {
-              return { kind: 'conflict' };
+            if (
+              boundReservation === null ||
+              !reservationMatchesInput(boundReservation, input) ||
+              !jobMatchesInput(inserted.job, boundReservation, input)
+            ) {
+              throw new ConfirmationRollbackError({ kind: 'conflict' });
             }
 
             return {
-              kind: 'exact_replay',
-              reservation: replayReservation,
-              job: replayJob,
+              kind: 'confirmed',
+              reservation: boundReservation,
+              job: inserted.job,
             };
-          }
-          default: {
-            const _never: never = createResult;
-            return _never;
-          }
-        }
-      });
+          },
+          {
+            isolation: 'read_committed',
+            requestId: input.confirmationRequestId,
+          },
+        );
+      } catch (error) {
+        if (error instanceof ConfirmationRollbackError) return error.result;
+        throw error;
+      }
     },
   };
 }

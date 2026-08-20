@@ -1,598 +1,404 @@
-import { expect } from 'vitest';
+import type { ConfirmQuoteResult, CreateConfirmationInput } from '@narraza/application';
 import { createCreditQuoteConfirmationService } from '@narraza/application';
-import { createUnitOfWork } from '../unit-of-work.js';
-import { createSchemaTestSuite } from '../schema-test/harness.js';
-import { ids, seedUsersAndProjects, seedLedgerEntry } from '../schema-test/fixtures.js';
+import type { Pool } from 'pg';
+import { expect } from 'vitest';
 import { createPrismaForUrl } from '../job/job-test-fixtures.js';
+import { ids, seedUsersAndProjects } from './fixtures.js';
+import { createSchemaTestSuite } from './harness.js';
+import { createUnitOfWork } from '../unit-of-work.js';
 
 const schema = createSchemaTestSuite();
+const WORKFLOW_HASH = 'a'.repeat(64);
+const DEPENDENCY_HASH = 'b'.repeat(64);
+const OTHER_WORKFLOW_HASH = 'c'.repeat(64);
+const OTHER_DEPENDENCY_HASH = 'd'.repeat(64);
+const PLAN_ID = 'quote-plan-1';
+const BUNDLE_ID = 'quote-bundle-1';
+const PAID_KIND = 'concept_generation';
 
-const VALID_HASH_A = 'a'.repeat(64);
-const VALID_HASH_B = 'b'.repeat(64);
-const SYSTEM_FUNDED_KIND = 'concept_generation_system_funded'; // system-funded job kind
-const USER_PAID_KIND = 'prose'; // user-paid job kind
+interface QuoteSeed {
+  readonly id: string;
+  readonly userId?: string;
+  readonly projectId?: string;
+  readonly maxAmountMicroIdr?: bigint;
+  readonly expiresIn?: string;
+  readonly consumed?: boolean;
+  readonly workflowPlanHash?: string;
+  readonly dependencyHash?: string;
+}
 
-async function seedWorkflowPlanFixture(client: Parameters<typeof seedUsersAndProjects>[0]) {
-  await seedUsersAndProjects(_client);
+async function seedBase(client: Pool, grantMicroIdr = 100_000n): Promise<void> {
+  await seedUsersAndProjects(client);
   await client.query(
     `INSERT INTO context_snapshots
        (id,project_id,packet_kind,data_class,dependency_hash,content_hash,schema_version,payload,created_at)
-     VALUES ('quote-snap-1',$1,'writer','writer_safe',$2,$2,1,'{}',now())`,
-    [ids.projectA, VALID_HASH_B],
+     VALUES ('quote-snapshot-1',$1,'writer','writer_safe',$2,$2,1,'{}',now())`,
+    [ids.projectA, DEPENDENCY_HASH],
   );
   await client.query(
     `INSERT INTO generation_context_bundles
        (id,project_id,snapshot_id,dependency_hash,bundle_hash,expires_at,schema_version,payload,created_at)
-     VALUES ('quote-bun-1',$1,'quote-snap-1',$2,$2,now() + interval '1 hour',1,'{}',now())`,
-    [VALID_HASH_B],
+     VALUES ($1,$2,'quote-snapshot-1',$3,$3,now() + interval '1 hour',1,'{}',now())`,
+    [BUNDLE_ID, ids.projectA, DEPENDENCY_HASH],
   );
   await client.query(
     `INSERT INTO ai_workflow_plans
        (id,project_id,bundle_id,workflow_kind,plan_hash,estimated_max_micro_idr,schema_version,payload,created_at)
-     VALUES ('quote-plan-1',$1,'quote-bun-1','prose',$2,50000,1,'{}',now())`,
-    [VALID_HASH_A],
+     VALUES ($1,$2,$3,$4,$5,50000,1,'{}',now())`,
+    [PLAN_ID, ids.projectA, BUNDLE_ID, PAID_KIND, WORKFLOW_HASH],
   );
+  if (grantMicroIdr > 0n) {
+    await client.query(
+      `INSERT INTO credit_ledger
+         (id,user_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at)
+       VALUES ('confirmation-grant-1',$1,'grant','credit',$2,'confirmation-grant-dedupe-1',now())`,
+      [ids.userA, grantMicroIdr],
+    );
+  }
 }
 
-/**
- * Create a quote row directly in the database with specified properties.
- */
-async function seedQuote(
-  client: Parameters<typeof seedUsersAndProjects>[0],
-  userId: string,
-  projectId: string,
-  maxAmountMicroIdr: bigint,
-  expiresAt?: Date,
-  consumedAt?: Date | null,
-  workflowPlanHash?: string,
-  dependencyHash?: string,
-  workflowPlanId?: string | null,
-) {
-  const planHash = workflowPlanHash ?? VALID_HASH_A;
-  const depHash = dependencyHash ?? VALID_HASH_B;
-  const planId = workflowPlanId ?? 'quote-plan-1';
-
+async function seedQuote(client: Pool, seed: QuoteSeed): Promise<void> {
   await client.query(
     `INSERT INTO credit_quotes
-       (id,user_id,project_id,workflow_plan_id,workflow_plan_hash,dependency_hash,
-        max_amount_micro_idr,expires_at,consumed_at,request_id,created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())`,
-    'test-quote-' + Math.random().toString(36).substring(2, 8),
-    userId,
-    projectId,
-    planId,
-    planHash,
-    depHash,
-    maxAmountMicroIdr,
-    expiresAt ?? new Date(Date.now() + 10 * 60 * 1000), // 10 minutes from now
-    consumedAt ?? null,
-    null, // no issuance request ID
+       (id,user_id,project_id,workflow_plan_project_id,workflow_plan_id,workflow_plan_hash,
+        dependency_hash,max_amount_micro_idr,expires_at,consumed_at,request_id,created_at)
+     VALUES ($1,$2,$3,$3,$4,$5,$6,$7,clock_timestamp() + $8::interval,
+             CASE WHEN $9 THEN clock_timestamp() ELSE NULL END,NULL,
+             clock_timestamp() - interval '1 hour')`,
+    [
+      seed.id,
+      seed.userId ?? ids.userA,
+      seed.projectId ?? ids.projectA,
+      PLAN_ID,
+      seed.workflowPlanHash ?? WORKFLOW_HASH,
+      seed.dependencyHash ?? DEPENDENCY_HASH,
+      seed.maxAmountMicroIdr ?? 50_000n,
+      seed.expiresIn ?? '10 minutes',
+      seed.consumed ?? false,
+    ],
   );
 }
 
-/**
- * Create a ledger entry to fund user balance.
- */
-async function seedFundingGrant(
-  client: Parameters<typeof seedUsersAndProjects>[0],
-  userId: string,
-  amount: bigint,
-) {
-  await seedLedgerEntry(client, {
-    id: 'grant-' + Math.random().toString(36).substring(2, 8),
-    userId,
-    entryType: 'grant',
-    direction: 'credit',
-    amountMicroIdr: amount,
-    dedupeKey: 'grant-dedupe-key',
+function input(
+  quoteId: string,
+  suffix: string,
+  overrides: Partial<CreateConfirmationInput> = {},
+): CreateConfirmationInput {
+  return {
+    userId: ids.userA,
+    projectId: ids.projectA,
+    quoteId,
+    confirmationRequestId: `confirmation-${suffix}`,
+    expectedWorkflowPlanHash: WORKFLOW_HASH,
+    expectedDependencyHash: DEPENDENCY_HASH,
+    reservationId: `reservation-${suffix}`,
+    jobId: `job-${suffix}`,
+    jobKind: PAID_KIND,
+    bundleId: BUNDLE_ID,
+    workflowPlanId: PLAN_ID,
+    payload: { request: suffix },
+    ...overrides,
+  };
+}
+
+async function counts(
+  client: Pool,
+): Promise<{ quotes: number; reservations: number; jobs: number }> {
+  const row = (
+    await client.query(
+      `SELECT
+         (SELECT count(*)::int FROM credit_quotes) AS quotes,
+         (SELECT count(*)::int FROM credit_reservations) AS reservations,
+         (SELECT count(*)::int FROM generation_jobs) AS jobs`,
+    )
+  ).rows[0] as { quotes: number; reservations: number; jobs: number };
+  return row;
+}
+
+async function expectQuoteUnconsumed(client: Pool, quoteId: string): Promise<void> {
+  const row = (await client.query(`SELECT consumed_at FROM credit_quotes WHERE id = $1`, [quoteId]))
+    .rows[0] as { consumed_at: Date | null };
+  expect(row.consumed_at).toBeNull();
+}
+
+async function withService<T>(
+  databaseUrl: string,
+  run: (confirm: (value: CreateConfirmationInput) => Promise<ConfirmQuoteResult>) => Promise<T>,
+): Promise<T> {
+  const prisma = createPrismaForUrl(databaseUrl);
+  const service = createCreditQuoteConfirmationService(createUnitOfWork(prisma));
+  try {
+    return await run((value) => service.confirmQuote(value));
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+schema.test('1. first paid confirmation succeeds', async ({ client, databaseUrl }) => {
+  await seedBase(client);
+  await seedQuote(client, { id: 'quote-first' });
+
+  await withService(databaseUrl, async (confirm) => {
+    const result = await confirm(input('quote-first', 'first'));
+    expect(result.kind).toBe('confirmed');
+    if (result.kind === 'confirmed') {
+      expect(result.reservation.id).toBe('reservation-first');
+      expect(result.reservation.jobId).toBe('job-first');
+      expect(result.reservation.projectJobId).toBe(ids.projectA);
+      expect(result.job.id).toBe('job-first');
+      expect(result.job.reservationId).toBe('reservation-first');
+    }
+  });
+  expect(await counts(client)).toEqual({ quotes: 1, reservations: 1, jobs: 1 });
+});
+
+schema.test(
+  '2. exact replay returns same quote, reservation, and job IDs',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-replay' });
+    const request = input('quote-replay', 'replay');
+
+    await withService(databaseUrl, async (confirm) => {
+      const first = await confirm(request);
+      const second = await confirm(request);
+      expect(first.kind).toBe('confirmed');
+      expect(second.kind).toBe('exact_replay');
+      if (first.kind === 'confirmed' && second.kind === 'exact_replay') {
+        expect(second.reservation.id).toBe(first.reservation.id);
+        expect(second.job.id).toBe(first.job.id);
+        expect(second.reservation.quoteId).toBe('quote-replay');
+      }
+    });
+    expect(await counts(client)).toEqual({ quotes: 1, reservations: 1, jobs: 1 });
+  },
+);
+
+schema.test(
+  '3. concurrent same request converges to one durable result',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-same-request' });
+    const request = input('quote-same-request', 'same-request');
+
+    await withService(databaseUrl, async (confirm) => {
+      const results = await Promise.all([confirm(request), confirm(request)]);
+      expect(results.map((result) => result.kind).sort()).toEqual(['confirmed', 'exact_replay']);
+    });
+    expect(await counts(client)).toEqual({ quotes: 1, reservations: 1, jobs: 1 });
+  },
+);
+
+schema.test(
+  '4. different requests against same quote produce one confirmation',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-different-requests' });
+
+    await withService(databaseUrl, async (confirm) => {
+      const results = await Promise.all([
+        confirm(input('quote-different-requests', 'different-a')),
+        confirm(input('quote-different-requests', 'different-b')),
+      ]);
+      expect(results.map((result) => result.kind).sort()).toEqual([
+        'already_consumed',
+        'confirmed',
+      ]);
+    });
+    expect(await counts(client)).toEqual({ quotes: 1, reservations: 1, jobs: 1 });
+  },
+);
+
+schema.test(
+  '5. two quotes with limited balance cannot overspend',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client, 50_000n);
+    await seedQuote(client, { id: 'quote-balance-a' });
+    await seedQuote(client, { id: 'quote-balance-b' });
+
+    await withService(databaseUrl, async (confirm) => {
+      const results = await Promise.all([
+        confirm(input('quote-balance-a', 'balance-a')),
+        confirm(input('quote-balance-b', 'balance-b')),
+      ]);
+      expect(results.filter((result) => result.kind === 'confirmed')).toHaveLength(1);
+      expect(results.filter((result) => result.kind === 'insufficient_credit')).toHaveLength(1);
+    });
+    expect(await counts(client)).toEqual({ quotes: 2, reservations: 1, jobs: 1 });
+  },
+);
+
+schema.test(
+  '6. expired quote returns typed expired with zero mutation',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-expired', expiresIn: '-1 second' });
+
+    await withService(databaseUrl, async (confirm) => {
+      expect(await confirm(input('quote-expired', 'expired'))).toEqual({ kind: 'expired' });
+    });
+    expect(await counts(client)).toEqual({ quotes: 1, reservations: 0, jobs: 0 });
+    await expectQuoteUnconsumed(client, 'quote-expired');
+  },
+);
+
+schema.test(
+  '7. zero maximum returns invalid amount with zero mutation',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-zero', maxAmountMicroIdr: 0n });
+
+    await withService(databaseUrl, async (confirm) => {
+      expect(await confirm(input('quote-zero', 'zero'))).toEqual({
+        kind: 'invalid_quote_amount',
+        amount: 0n,
+      });
+    });
+    expect(await counts(client)).toEqual({ quotes: 1, reservations: 0, jobs: 0 });
+    await expectQuoteUnconsumed(client, 'quote-zero');
+  },
+);
+
+schema.test(
+  '8. wrong owner is non-enumerating with zero mutation',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-owner' });
+
+    await withService(databaseUrl, async (confirm) => {
+      expect(await confirm(input('quote-owner', 'owner', { userId: ids.userB }))).toEqual({
+        kind: 'not_found',
+      });
+    });
+    expect(await counts(client)).toEqual({ quotes: 1, reservations: 0, jobs: 0 });
+    await expectQuoteUnconsumed(client, 'quote-owner');
+  },
+);
+
+schema.test('9. workflow hash mismatch has zero mutation', async ({ client, databaseUrl }) => {
+  await seedBase(client);
+  await seedQuote(client, { id: 'quote-workflow-hash' });
+
+  await withService(databaseUrl, async (confirm) => {
+    expect(
+      await confirm(
+        input('quote-workflow-hash', 'workflow-hash', {
+          expectedWorkflowPlanHash: OTHER_WORKFLOW_HASH,
+        }),
+      ),
+    ).toEqual({ kind: 'hash_mismatch', field: 'workflowPlanHash' });
+  });
+  expect(await counts(client)).toEqual({ quotes: 1, reservations: 0, jobs: 0 });
+  await expectQuoteUnconsumed(client, 'quote-workflow-hash');
+});
+
+schema.test('10. dependency hash mismatch has zero mutation', async ({ client, databaseUrl }) => {
+  await seedBase(client);
+  await seedQuote(client, { id: 'quote-dependency-hash' });
+
+  await withService(databaseUrl, async (confirm) => {
+    expect(
+      await confirm(
+        input('quote-dependency-hash', 'dependency-hash', {
+          expectedDependencyHash: OTHER_DEPENDENCY_HASH,
+        }),
+      ),
+    ).toEqual({ kind: 'hash_mismatch', field: 'dependencyHash' });
+  });
+  expect(await counts(client)).toEqual({ quotes: 1, reservations: 0, jobs: 0 });
+  await expectQuoteUnconsumed(client, 'quote-dependency-hash');
+});
+
+schema.test(
+  '11. deterministic job-ID conflict rolls back quote and reservation',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-job-conflict' });
+    await client.query(
+      `INSERT INTO generation_jobs
+       (id,project_id,kind,status,priority,available_at,fence_version,schema_version,payload,created_at,updated_at)
+     VALUES ('job-job-conflict',$1,'prose','queued',0,now(),0,1,'{}',now(),now())`,
+      [ids.projectA],
+    );
+
+    await withService(databaseUrl, async (confirm) => {
+      expect(await confirm(input('quote-job-conflict', 'job-conflict'))).toEqual({
+        kind: 'conflict',
+      });
+    });
+    expect(await counts(client)).toEqual({ quotes: 1, reservations: 0, jobs: 1 });
+    await expectQuoteUnconsumed(client, 'quote-job-conflict');
+  },
+);
+
+schema.test(
+  '12. confirmation establishes reciprocal reservation and job binding',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-binding' });
+
+    await withService(databaseUrl, async (confirm) => {
+      expect((await confirm(input('quote-binding', 'binding'))).kind).toBe('confirmed');
+    });
+    const row = (
+      await client.query(
+        `SELECT r.id AS reservation_id,r.job_project_id,r.job_id,
+              j.project_id AS job_project_id_row,j.id AS job_id_row,j.reservation_id AS job_reservation_id
+         FROM credit_reservations r
+         JOIN generation_jobs j ON j.project_id = r.job_project_id AND j.id = r.job_id
+        WHERE r.id = 'reservation-binding'`,
+      )
+    ).rows[0];
+    expect(row).toEqual({
+      reservation_id: 'reservation-binding',
+      job_project_id: ids.projectA,
+      job_id: 'job-binding',
+      job_project_id_row: ids.projectA,
+      job_id_row: 'job-binding',
+      job_reservation_id: 'reservation-binding',
+    });
+  },
+);
+
+for (const [name, jobKind, reason] of [
+  ['13. known system-funded kind is rejected', 'chat_intake', 'known_ineligible_kind'],
+  ['14. known legacy kind is rejected', 'prose', 'known_ineligible_kind'],
+  ['15. unknown kind is rejected', 'some_new_unmapped_kind', 'unknown_kind'],
+] as const) {
+  schema.test(name, async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: `quote-funding-${reason}-${jobKind}` });
+    const before = await counts(client);
+
+    await withService(databaseUrl, async (confirm) => {
+      expect(
+        await confirm(
+          input(`quote-funding-${reason}-${jobKind}`, `funding-${reason}-${jobKind}`, {
+            jobKind,
+          }),
+        ),
+      ).toEqual({ kind: 'funding_model_violation', reason });
+    });
+    expect(await counts(client)).toEqual(before);
+    await expectQuoteUnconsumed(client, `quote-funding-${reason}-${jobKind}`);
   });
 }
 
-// ======================================================
-// TEST 1: SAME REQUEST REPLAY RETURNS SAME IDs
-// ======================================================
-
 schema.test(
-  'same request replay returns same quote/reservation/job IDs',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    await seedWorkflowPlanFixture(_client);
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const uow = createUnitOfWork(_prisma);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
+  '16. divergent confirmation request ID returns conflict without second mutation',
+  async ({ client, databaseUrl }) => {
+    await seedBase(client);
+    await seedQuote(client, { id: 'quote-divergent-a' });
+    await seedQuote(client, { id: 'quote-divergent-b' });
+    const first = input('quote-divergent-a', 'divergent');
 
-    // Seed initial funding
-    await seedFundingGrant(client, ids.userA, 100_000n);
-
-    // First confirmation
-    const firstResult = await confirmationService.confirmQuote({
-      userId: ids.userA,
-      projectId: ids.projectA,
-      quoteId: 'test-q-1',
-      confirmationRequestId: 'confirm-replay-1',
-      expectedWorkflowPlanHash: VALID_HASH_A,
-      expectedDependencyHash: VALID_HASH_B,
-      jobKind: USER_PAID_KIND,
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
+    await withService(databaseUrl, async (confirm) => {
+      expect((await confirm(first)).kind).toBe('confirmed');
+      expect(await confirm({ ...first, quoteId: 'quote-divergent-b' })).toEqual({
+        kind: 'conflict',
+      });
     });
-
-    if (firstResult.kind !== 'confirmed') {
-      throw new Error('First confirmation should succeed');
-    }
-
-    const firstReservationId = firstResult.reservation.id;
-    const firstJobId = firstResult.job.id;
-
-    // Second confirmation with same request ID
-    const secondResult = await confirmationService.confirmQuote({
-      userId: ids.userA,
-      projectId: ids.projectA,
-      quoteId: 'test-q-1',
-      confirmationRequestId: 'confirm-replay-1',
-      expectedWorkflowPlanHash: VALID_HASH_A,
-      expectedDependencyHash: VALID_HASH_B,
-      jobKind: USER_PAID_KIND,
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
-    });
-
-    expect(secondResult.kind).toBe('exact_replay');
-    if (secondResult.kind === 'exact_replay') {
-      expect(secondResult.reservation.id).toBe(firstReservationId);
-      expect(secondResult.job.id).toBe(firstJobId);
-    }
-  },
-);
-
-// ======================================================
-// TEST 2: CONCURRENT SAME REQUEST → ONE RESERVATION/JOB
-// ======================================================
-
-schema.test(
-  'two concurrent same-request confirmations create one reservation/job',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    await seedWorkflowPlanFixture(_client);
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const uow = createUnitOfWork(_prisma);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
-
-    // Seed funding
-    await seedFundingGrant(client, ids.userA, 100_000n);
-    await seedQuote(client, ids.userA, ids.projectA, 100_000n);
-
-    // Two concurrent confirmations with same request ID
-    const [resultA, resultB] = await Promise.all([
-      confirmationService.confirmQuote({
-        userId: ids.userA,
-        projectId: ids.projectA,
-        quoteId: 'test-q-concurrent',
-        confirmationRequestId: 'confirm-same-req',
-        expectedWorkflowPlanHash: VALID_HASH_A,
-        expectedDependencyHash: VALID_HASH_B,
-        jobKind: USER_PAID_KIND,
-        bundleId: 'quote-bun-1',
-        workflowPlanId: 'quote-plan-1',
-        payload: {},
-      }),
-      confirmationService.confirmQuote({
-        userId: ids.userA,
-        projectId: ids.projectA,
-        quoteId: 'test-q-concurrent',
-        confirmationRequestId: 'confirm-same-req',
-        expectedWorkflowPlanHash: VALID_HASH_A,
-        expectedDependencyHash: VALID_HASH_B,
-        jobKind: USER_PAID_KIND,
-        bundleId: 'quote-bun-1',
-        workflowPlanId: 'quote-plan-1',
-        payload: {},
-      }),
-    ]);
-
-    // Exactly one should succeed, one should replay
-    const confirmed = [resultA, resultB].filter((r) => r.kind === 'confirmed');
-    const replays = [resultA, resultB].filter((r) => r.kind === 'exact_replay');
-
-    expect(confirmed.length).toBe(1);
-    expect(replays.length).toBe(1);
-
-    // Verify same IDs
-    if (confirmed[0].kind === 'confirmed' && replays[0].kind === 'exact_replay') {
-      expect(confirmed[0].reservation.id).toBe(replays[0].reservation.id);
-      expect(confirmed[0].job.id).toBe(replays[0].job.id);
-    }
-  },
-);
-
-// ======================================================
-// TEST 3: DIFFERENT REQUESTS, SAME QUOTE → ONE WINS
-// ======================================================
-
-schema.test(
-  'two different requests against one quote create one reservation/job, loser receives consumed result',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    await seedWorkflowPlanFixture(_client);
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const uow = createUnitOfWork(_prisma);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
-
-    // Seed funding and quote
-    await seedFundingGrant(client, ids.userA, 100_000n);
-    await seedQuote(client, ids.userA, ids.projectA, 100_000n);
-
-    // Two concurrent confirmations with different request IDs
-    const [resultA, resultB] = await Promise.all([
-      confirmationService.confirmQuote({
-        userId: ids.userA,
-        projectId: ids.projectA,
-        quoteId: 'test-q-diff-req',
-        confirmationRequestId: 'confirm-diff-1',
-        expectedWorkflowPlanHash: VALID_HASH_A,
-        expectedDependencyHash: VALID_HASH_B,
-        jobKind: USER_PAID_KIND,
-        bundleId: 'quote-bun-1',
-        workflowPlanId: 'quote-plan-1',
-        payload: {},
-      }),
-      confirmationService.confirmQuote({
-        userId: ids.userA,
-        projectId: ids.projectA,
-        quoteId: 'test-q-diff-req',
-        confirmationRequestId: 'confirm-diff-2',
-        expectedWorkflowPlanHash: VALID_HASH_A,
-        expectedDependencyHash: VALID_HASH_B,
-        jobKind: USER_PAID_KIND,
-        bundleId: 'quote-bun-1',
-        workflowPlanId: 'quote-plan-1',
-        payload: {},
-      }),
-    ]);
-
-    // One should succeed, one should get already_consumed
-    const confirmed = [resultA, resultB].filter((r) => r.kind === 'confirmed');
-    const consumedResults = [resultA, resultB].filter((r) => r.kind === 'already_consumed');
-
-    expect(confirmed.length).toBe(1);
-    expect(consumedResults.length).toBe(1);
-  },
-);
-
-// ======================================================
-// TEST 4: TWO QUOTES RACING LIMITED BALANCE → NO OVERSPEND
-// ======================================================
-
-schema.test(
-  'two quotes racing limited balance cannot overspend',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
-    // Seed exact balance matching one quote
-    await seedFundingGrant(client, ids.userA, 50_000n);
-    await seedQuote(
-      client,
-      ids.userA,
-      ids.projectA,
-      50_000n,
-      undefined,
-      null,
-      VALID_HASH_A,
-      VALID_HASH_B,
-      'quote-plan-1',
-    );
-    await seedQuote(
-      client,
-      ids.userA,
-      ids.projectA,
-      50_000n,
-      undefined,
-      null,
-      VALID_HASH_A,
-      VALID_HASH_B,
-      'quote-plan-1',
-    );
-
-    // Two concurrent confirmations racing against limited balance
-    const [resultA, resultB] = await Promise.all([
-      confirmationService.confirmQuote({
-        userId: ids.userA,
-        projectId: ids.projectA,
-        quoteId: 'test-q-balance-1',
-        confirmationRequestId: 'confirm-balance-1',
-        expectedWorkflowPlanHash: VALID_HASH_A,
-        expectedDependencyHash: VALID_HASH_B,
-        jobKind: USER_PAID_KIND,
-        bundleId: 'quote-bun-1',
-        workflowPlanId: 'quote-plan-1',
-        payload: {},
-      }),
-      confirmationService.confirmQuote({
-        userId: ids.userA,
-        projectId: ids.projectA,
-        quoteId: 'test-q-balance-2',
-        confirmationRequestId: 'confirm-balance-2',
-        expectedWorkflowPlanHash: VALID_HASH_A,
-        expectedDependencyHash: VALID_HASH_B,
-        jobKind: USER_PAID_KIND,
-        bundleId: 'quote-bun-1',
-        workflowPlanId: 'quote-plan-1',
-        payload: {},
-      }),
-    ]);
-
-    // One should succeed, one should get insufficient_credit
-    const confirmed = [resultA, resultB].filter((r) => r.kind === 'confirmed');
-    const insufficient = [resultA, resultB].filter((r) => r.kind === 'insufficient_credit');
-
-    expect(confirmed.length).toBe(1);
-    expect(insufficient.length).toBe(1);
-  },
-);
-
-// ======================================================
-// TEST 5: EXPIRED QUOTE DENIED BEFORE RESERVATION/JOB INSERT
-// ======================================================
-
-schema.test(
-  'expired quote denied before reservation/job insert',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    await seedWorkflowPlanFixture(_client);
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const uow = createUnitOfWork(_prisma);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
-
-    // Seed funding
-    await seedFundingGrant(client, ids.userA, 100_000n);
-
-    // Create expired quote (past expiry)
-    await seedQuote(
-      client,
-      ids.userA,
-      ids.projectA,
-      50_000n,
-      new Date(Date.now() - 1000 * 60 * 10), // 10 minutes ago
-      null,
-      VALID_HASH_A,
-      VALID_HASH_B,
-      'quote-plan-1',
-    );
-
-    const result = await confirmationService.confirmQuote({
-      userId: ids.userA,
-      projectId: ids.projectA,
-      quoteId: 'test-q-expired',
-      confirmationRequestId: 'confirm-expired',
-      expectedWorkflowPlanHash: VALID_HASH_A,
-      expectedDependencyHash: VALID_HASH_B,
-      jobKind: USER_PAID_KIND,
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
-    });
-
-    expect(result.kind).toBe('expired');
-  },
-);
-
-// ======================================================
-// TEST 6: LEGACY ZERO-MAX QUOTE DENIED WITHOUT MUTATION
-// ======================================================
-
-schema.test(
-  'legacy zero-max quote denied before consume and creates zero reservation/job rows',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    await seedWorkflowPlanFixture(_client);
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const uow = createUnitOfWork(_prisma);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
-
-    // Seed funding
-    await seedFundingGrant(client, ids.userA, 100_000n);
-
-    // Create zero-max quote
-    await seedQuote(
-      client,
-      ids.userA,
-      ids.projectA,
-      0n,
-      new Date(Date.now() + 1000 * 60 * 10),
-      null,
-      VALID_HASH_A,
-      VALID_HASH_B,
-      'quote-plan-1',
-    );
-
-    const result = await confirmationService.confirmQuote({
-      userId: ids.userA,
-      projectId: ids.projectA,
-      quoteId: 'test-q-zero',
-      confirmationRequestId: 'confirm-zero',
-      expectedWorkflowPlanHash: VALID_HASH_A,
-      expectedDependencyHash: VALID_HASH_B,
-      jobKind: USER_PAID_KIND,
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
-    });
-
-    expect(result.kind).toBe('invalid_quote_amount');
-    if (result.kind === 'invalid_quote_amount') {
-      expect(result.amount).toBe(0n);
-    }
-  },
-);
-
-// ======================================================
-// TEST 7: WRONG OWNER / HASH / DEPENDENCY DENIED WITHOUT MUTATION
-// ======================================================
-
-schema.test(
-  'wrong owner / workflow hash / dependency hash denied without mutation',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    await seedWorkflowPlanFixture(_client);
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const uow = createUnitOfWork(_prisma);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
-
-    // Seed funding
-    await seedFundingGrant(client, ids.userA, 100_000n);
-    await seedQuote(client, ids.userA, ids.projectA, 50_000n);
-
-    // Wrong owner
-    const wrongOwnerResult = await confirmationService.confirmQuote({
-      userId: ids.userB, // Different user
-      projectId: ids.projectA,
-      quoteId: 'test-q-owner',
-      confirmationRequestId: 'confirm-owner',
-      expectedWorkflowPlanHash: VALID_HASH_A,
-      expectedDependencyHash: VALID_HASH_B,
-      jobKind: USER_PAID_KIND,
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
-    });
-
-    expect(wrongOwnerResult.kind).toBe('not_found');
-
-    // Wrong workflow plan hash
-    const wrongHashResult = await confirmationService.confirmQuote({
-      userId: ids.userA,
-      projectId: ids.projectA,
-      quoteId: 'test-q-hash',
-      confirmationRequestId: 'confirm-hash',
-      expectedWorkflowPlanHash: 'c'.repeat(64), // Wrong hash
-      expectedDependencyHash: VALID_HASH_B,
-      jobKind: USER_PAID_KIND,
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
-    });
-
-    expect(wrongHashResult.kind).toBe('hash_mismatch');
-    if (wrongHashResult.kind === 'hash_mismatch') {
-      expect(wrongHashResult.field).toBe('workflowPlanHash');
-    }
-
-    // Wrong dependency hash
-    const wrongDepResult = await confirmationService.confirmQuote({
-      userId: ids.userA,
-      projectId: ids.projectA,
-      quoteId: 'test-q-dep',
-      confirmationRequestId: 'confirm-dep',
-      expectedWorkflowPlanHash: VALID_HASH_A,
-      expectedDependencyHash: 'd'.repeat(64), // Wrong dependency
-      jobKind: USER_PAID_KIND,
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
-    });
-
-    expect(wrongDepResult.kind).toBe('hash_mismatch');
-    if (wrongDepResult.kind === 'hash_mismatch') {
-      expect(wrongDepResult.field).toBe('dependencyHash');
-    }
-  },
-);
-
-// ======================================================
-// TEST 8 & 9: ROLLBACK ON RESERVATION/JOB FAILURE
-// ======================================================
-
-schema.test(
-  'reservation creation failure rolls back quote consumption',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    // TODO: This test requires injecting a failure scenario
-    // For now, verified implicitly by transaction semantics
-    expect(true).toBe(true);
-  },
-);
-
-schema.test(
-  'job insert/binding failure rolls back quote consumption AND reservation',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    // TODO: This test requires injecting a failure scenario
-    // For now, verified implicitly by transaction semantics
-    expect(true).toBe(true);
-  },
-);
-
-// ======================================================
-// TEST 10: RECIPROCAL JOB/RESERVATION BINDING IS EXACT
-// ======================================================
-
-schema.test(
-  'reciprocal job/reservation binding is exact',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    await seedWorkflowPlanFixture(_client);
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const uow = createUnitOfWork(_prisma);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
-
-    // Seed funding
-    await seedFundingGrant(client, ids.userA, 100_000n);
-    await seedQuote(client, ids.userA, ids.projectA, 50_000n);
-
-    const result = await confirmationService.confirmQuote({
-      userId: ids.userA,
-      projectId: ids.projectA,
-      quoteId: 'test-q-bind',
-      confirmationRequestId: 'confirm-bind',
-      expectedWorkflowPlanHash: VALID_HASH_A,
-      expectedDependencyHash: VALID_HASH_B,
-      jobKind: USER_PAID_KIND,
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
-    });
-
-    if (result.kind !== 'confirmed') {
-      throw new Error('Confirmation should succeed for reciprocal binding test');
-    }
-
-    // Verify reciprocal binding exists in database
-    const [reservationRow, jobRow] = await Promise.all([
-      client.query(
-        `SELECT job_id, project_id FROM credit_reservations WHERE id = $1`,
-        result.reservation.id,
-      ),
-      client.query(`SELECT reservation_id FROM generation_jobs WHERE id = $1`, result.job.id),
-    ]);
-
-    expect(reservationRow.rows[0].job_id).toBe(result.job.id);
-    expect(reservationRow.rows[0].project_id).toBe(ids.projectA);
-    expect(jobRow.rows[0].reservation_id).toBe(result.reservation.id);
-  },
-);
-
-// ======================================================
-// REGRESSION: SYSTEM-FUNDED CANNOT USE USER_PAID CONFIRMATION
-// ======================================================
-
-schema.test(
-  'system-funded job kind cannot use USER_PAID confirmation',
-  async ({ client: _client, databaseUrl: _databaseUrl }) => {
-    await seedWorkflowPlanFixture(_client);
-    const _prisma = createPrismaForUrl(_databaseUrl);
-    const uow = createUnitOfWork(_prisma);
-    const confirmationService = createCreditQuoteConfirmationService(uow);
-
-    // Seed funding
-    await seedFundingGrant(client, ids.userA, 100_000n);
-    await seedQuote(client, ids.userA, ids.projectA, 50_000n);
-
-    const result = await confirmationService.confirmQuote({
-      userId: ids.userA,
-      projectId: ids.projectA,
-      quoteId: 'test-q-system',
-      confirmationRequestId: 'confirm-system',
-      expectedWorkflowPlanHash: VALID_HASH_A,
-      expectedDependencyHash: VALID_HASH_B,
-      jobKind: SYSTEM_FUNDED_KIND, // system-funded job kind
-      bundleId: 'quote-bun-1',
-      workflowPlanId: 'quote-plan-1',
-      payload: {},
-    });
-
-    expect(result.kind).toBe('funding_model_violation');
+    expect(await counts(client)).toEqual({ quotes: 2, reservations: 1, jobs: 1 });
+    await expectQuoteUnconsumed(client, 'quote-divergent-b');
   },
 );

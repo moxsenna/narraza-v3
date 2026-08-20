@@ -221,13 +221,15 @@ export function createQuoteRepo(tx: TxClient): QuotePort {
       | { readonly kind: 'consumed'; readonly quote: CreditQuoteRecord }
       | { readonly kind: 'not_found' }
       | { readonly kind: 'already_consumed' }
+      | { readonly kind: 'expired' }
       | { readonly kind: 'hash_mismatch' }
     > {
       const consumed = (await tx.$queryRawUnsafe(
         `UPDATE credit_quotes
-           SET consumed_at = now()
-         WHERE id = $1 
+           SET consumed_at = clock_timestamp()
+         WHERE id = $1
            AND consumed_at IS NULL
+           AND expires_at > clock_timestamp()
            AND workflow_plan_hash IS NOT DISTINCT FROM $2
            AND dependency_hash IS NOT DISTINCT FROM $3
          RETURNING ${COLUMN_LIST}`,
@@ -243,11 +245,17 @@ export function createQuoteRepo(tx: TxClient): QuotePort {
 
       // Check if already consumed or hash mismatch
       const existing = (await tx.$queryRawUnsafe(
-        `SELECT consumed_at, workflow_plan_hash, dependency_hash
+        `SELECT consumed_at, workflow_plan_hash, dependency_hash,
+                expires_at <= clock_timestamp() AS expired
            FROM credit_quotes
           WHERE id = $1`,
         quoteId,
-      )) as { consumed_at: Date | null; workflow_plan_hash: string; dependency_hash: string }[];
+      )) as {
+        consumed_at: Date | null;
+        workflow_plan_hash: string;
+        dependency_hash: string;
+        expired: boolean;
+      }[];
 
       const existingRow = existing[0];
       if (!existingRow) {
@@ -265,7 +273,10 @@ export function createQuoteRepo(tx: TxClient): QuotePort {
         return { kind: 'hash_mismatch' };
       }
 
-      // Quote exists but not consumable (e.g., expired via expires_at check in service layer)
+      if (existingRow.expired) {
+        return { kind: 'expired' };
+      }
+
       return { kind: 'not_found' };
     },
   };
