@@ -36,8 +36,7 @@ export interface CreditSummaryView {
 export interface CreditBalancePort {
   /** Single-statement snapshot of a user's ledger book and reservation exposure. */
   getBalanceSnapshot(userId: string): Promise<CreditBalanceSnapshot>;
-  
+
   // Task 6: Serialize user balance via FOR UPDATE lock on users row
   serializeUserBalance(userId: string): Promise<void>;
 }
-

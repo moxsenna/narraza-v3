@@ -17,9 +17,9 @@ export type CreateReservationResult =
 export interface CreditReservationPort {
   // Task 6: Find replay by confirmation request ID (unique constraint ensures single record)
   findReplayByConfirmationRequestId(
-    confirmationRequestId: string
+    confirmationRequestId: string,
   ): Promise<CreditReservationRecord | null>;
-  
+
   // Task 6: Create open USER_PAID reservation
   create(input: CreateReservationInput): Promise<CreateReservationResult>;
 }

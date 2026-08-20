@@ -55,13 +55,10 @@ export function createCreditBalanceRepo(tx: TxClient): CreditBalancePort {
         reconcilingMicroIdr: BigInt(row?.reconciling_micro_idr ?? 0),
       };
     },
-    
+
     // Task 6: Serialize user balance via FOR UPDATE lock on users row
     async serializeUserBalance(userId: string): Promise<void> {
-      await tx.$queryRawUnsafe(
-        `SELECT id FROM users WHERE id = $1 FOR UPDATE`,
-        userId,
-      );
+      await tx.$queryRawUnsafe(`SELECT id FROM users WHERE id = $1 FOR UPDATE`, userId);
     },
   };
 }
