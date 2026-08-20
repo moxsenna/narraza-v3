@@ -27,15 +27,11 @@ export function evaluatePreviewPolicy(input: PreviewPolicyInput): Readonly<{ all
 }
 
 function runtimeEnvironment(): PreviewEnvironment {
+  if (process.env.NODE_ENV === 'production') return 'production';
+  if (process.env.NODE_ENV === 'test') return 'test';
+
   const value = process.env.NARRAZA_ENV ?? process.env.NODE_ENV ?? 'unknown';
-  if (
-    value === 'production' ||
-    value === 'staging' ||
-    value === 'development' ||
-    value === 'test'
-  ) {
-    return value;
-  }
+  if (value === 'staging' || value === 'development' || value === 'test') return value;
   return 'unknown';
 }
 
@@ -74,7 +70,7 @@ export async function resolvePreviewAccess(
 
   const decision = evaluatePreviewPolicy({
     environment: runtimeEnvironment(),
-    authenticated: user !== null,
+    authenticated: user?.status === 'active',
     scenarioAllowed: scenario !== null,
     scopeAuthorized,
     automated: isAutomatedTestPath(),

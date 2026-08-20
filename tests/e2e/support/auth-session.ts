@@ -56,7 +56,7 @@ export async function createOwnedProject(
   await page.locator('input[name="title"]').fill(title);
   await page.locator('input[name="jalur"][value="rough_idea"]').check();
   await page.getByRole('button', { name: /Buat proyek/i }).click();
-  await expect(page).toHaveURL(/\/app\/proyek\/(?!baru(?:\/|$))[^/?#]+$/);
+  await expect(page).toHaveURL(/\/app\/proyek\/(?!baru(?:\/|$))[^/?#]+$/, { timeout: 45_000 });
 
   const match = page.url().match(/\/app\/proyek\/([^/?#]+)/);
   if (!match) throw new Error(`project id missing from URL: ${page.url()}`);

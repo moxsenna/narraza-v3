@@ -47,7 +47,10 @@ describe('preview presentation fixtures', () => {
         'utf8',
       ),
       readFileSync(
-        new URL('../../../app/app/__preview/frontend-parity/page.tsx', import.meta.url),
+        new URL(
+          '../../../app/(preview)/app/%255F_preview/frontend-parity/page.tsx',
+          import.meta.url,
+        ),
         'utf8',
       ),
     ].join('\n');

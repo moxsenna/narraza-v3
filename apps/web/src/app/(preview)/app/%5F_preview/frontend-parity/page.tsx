@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 
-import { resolvePreviewAccess } from '../../../../lib/server/preview/gate';
-import { mapPreviewScenario } from '../../../../lib/server/preview/map-scenario';
-import { PREVIEW_PRESENTATION_FIXTURES } from '../../../../lib/server/preview/presentation-fixtures';
+import { resolvePreviewAccess } from '../../../../../lib/server/preview/gate';
+import { mapPreviewScenario } from '../../../../../lib/server/preview/map-scenario';
+import { PREVIEW_PRESENTATION_FIXTURES } from '../../../../../lib/server/preview/presentation-fixtures';
+
+export const dynamic = 'force-dynamic';
 
 type SearchValue = string | string[] | undefined;
 
