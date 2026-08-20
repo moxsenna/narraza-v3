@@ -1,7 +1,6 @@
 # Narraza Frontend Foundation — Route/Capability Matrix (PR1)
 
 **Branch:** `fix/pr1-post-merge-audit`  
-**Head SHA:** `300fc799c0a6f79f1239bf420529dc9160b14352`
 
 ## Legend
 
@@ -28,24 +27,24 @@
 |-------|---------|----------------|------|--------|-------|-------|
 | `/app` | Dashboard all projects | `app.dashboard.view` | REAL | SERVER_DERIVED | global | Shows empty or user projects; no project shell/sidebar |
 | `/app/proyek/baru` | Create project | `app.project.create` | REAL | SERVER_DERIVED | global → project | Server Action boundary; title stable "Proyek Demo Frontend" in tests |
-| `/app/kredit` | Credit summary | `app.credit.view` | PRESENTATION | SERVER_DERIVED | global | Until read model available |
-| `/app/pengaturan` | Settings profile | `app.settings.view` | PRESENTATION | SERVER_DERIVED | global | Until auth actions available |
+| `/app/kredit` | Credit summary | `app.credit.view` | PRESENTATION | UNAVAILABLE | global | Feature disabled |
+| `/app/pengaturan` | Settings profile | `app.settings.view` | PRESENTATION | UNAVAILABLE | global | Feature disabled |
 | `/app/proyek/{id}` | Project home | `project.home.view` | REAL | SERVER_DERIVED | project | Redirects not mocked; 404 on missing |
 | `/app/proyek/{id}/chat` | Chat Narra | `project.chat.user-message` | REAL | SERVER_DERIVED | project | User message persist REAL; AI reply DISABLED until M4 |
-| `/app/proyek/{id}/konsep` | Choose concept | `project.concept.choose` | PRESENTATION | SERVER_DERIVED | project | Until use case available |
+| `/app/proyek/{id}/konsep` | Choose concept | `project.concept.choose` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
 | `/app/proyek/{id}/fondasi` | Foundation story | `project.foundation.manage` | REAL | SERVER_DERIVED | project | Draft, confirm, readiness, lock operations |
 | `/app/proyek/{id}/karakter` | Characters | `project.characters.read` | REAL | SERVER_DERIVED | project | READ capability real; create/edit/delete DISABLED |
 | `/app/proyek/{id}/outline` | Story plan | `project.outline.create` | REAL | SERVER_DERIVED | project | Create roadmap/arc/chapter REAL; edit/delete/reorder DISABLED |
 | `/app/proyek/{id}/rahasia` | Secret schedule | `project.secrets.read` | REAL | SERVER_DERIVED | project | Read sequence timeline REAL; mutation DISABLED |
 | `/app/proyek/{id}/fakta` | Locked facts | `project.facts.read` | REAL | SERVER_DERIVED | project | Read lifecycle REAL; mutation DISABLED |
-| `/app/proyek/{id}/tulis` | Continue writing | `chapter.write.resume` | PRESENTATION | SERVER_DERIVED | project | Resolver resume target chapter |
-| `/app/proyek/{id}/naskah` | Project manuscript | `project.manuscript.view` | PRESENTATION | SERVER_DERIVED | project | Accepted prose overview |
-| `/app/proyek/{id}/publish` | Publish package | `project.publish.view` | PRESENTATION | SERVER_DERIVED | project | Publish status per chapter |
-| `/app/proyek/{id}/bab/{chId}/tulis` | Write chapter | `chapter.write.compose` | PRESENTATION | SERVER_DERIVED | project | Until M3–M5 binding complete |
-| `/app/proyek/{id}/bab/{chId}/cek` | Check story | `chapter.check.run` | PRESENTATION | SERVER_DERIVED | project | Until validation use case available |
-| `/app/proyek/{id}/bab/{chId}/selesaikan` | Complete chapter | `chapter.complete.run` | PRESENTATION | SERVER_DERIVED | project | Until atomic accept available |
-| `/app/proyek/{id}/bab/{chId}/naskah` | Chapter manuscript | `chapter.manuscript.view` | PRESENTATION | SERVER_DERIVED | project | Until accepted prose read model available |
-| `/app/proyek/{id}/bab/{chId}/publish` | Chapter publish | `chapter.publish.build` | PRESENTATION | SERVER_DERIVED | project | Until accepted prose and artifact available |
+| `/app/proyek/{id}/tulis` | Continue writing | `chapter.write.resume` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
+| `/app/proyek/{id}/naskah` | Project manuscript | `project.manuscript.view` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
+| `/app/proyek/{id}/publish` | Publish package | `project.publish.view` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
+| `/app/proyek/{id}/bab/{chId}/tulis` | Write chapter | `chapter.write.compose` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
+| `/app/proyek/{id}/bab/{chId}/cek` | Check story | `chapter.check.run` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
+| `/app/proyek/{id}/bab/{chId}/selesaikan` | Complete chapter | `chapter.complete.run` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
+| `/app/proyek/{id}/bab/{chId}/naskah` | Chapter manuscript | `chapter.manuscript.view` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
+| `/app/proyek/{id}/bab/{chId}/publish` | Chapter publish | `chapter.publish.build` | PRESENTATION | UNAVAILABLE | project | Feature disabled |
 
 ## Deferred Routes (Not in PR1 Scope)
 
@@ -68,8 +67,8 @@ These routes are intentionally not implemented yet but documented for future IA:
 | `legal.terms` | Ketentuan Layanan | REAL | AVAILABLE | STATIC_AVAILABLE | true |
 | `app.dashboard.view` | Dashboard proyek | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
 | `app.project.create` | Buat proyek | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
-| `app.credit.view` | Lihat penggunaan | PRESENTATION | BACKEND_NOT_AVAILABLE | SERVER_DERIVED | false |
-| `app.settings.view` | Buka pengaturan | PRESENTATION | BACKEND_NOT_AVAILABLE | SERVER_DERIVED | false |
+| `app.credit.view` | Lihat penggunaan | PRESENTATION | BACKEND_NOT_AVAILABLE | UNAVAILABLE | false |
+| `app.settings.view` | Buka pengaturan | PRESENTATION | BACKEND_NOT_AVAILABLE | UNAVAILABLE | false |
 | `project.home.view` | Beranda proyek | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
 | `project.chat.user-message` | Kirim pesan | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
 | `project.chat.ai-reply` | Minta balasan Narra | DISABLED | BACKEND_NOT_AVAILABLE | UNAVAILABLE | false |
@@ -79,14 +78,14 @@ These routes are intentionally not implemented yet but documented for future IA:
 | `project.outline.create` | Buat rencana | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
 | `project.secrets.read` | Lihat jadwal rahasia | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
 | `project.facts.read` | Lihat fakta yang dikunci | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
-| `project.write.resume` | Lanjut menulis | PRESENTATION | CHAPTER_CONTEXT_REQUIRED | SERVER_DERIVED | false |
-| `project.manuscript.view` | Baca naskah proyek | PRESENTATION | ACCEPTED_PROSE_REQUIRED | SERVER_DERIVED | false |
-| `project.publish.view` | Siapkan paket publikasi | PRESENTATION | ACCEPTED_PROSE_REQUIRED | SERVER_DERIVED | false |
-| `chapter.write.compose` | Tulis bab | PRESENTATION | VALIDATION_REQUIRED | SERVER_DERIVED | false |
-| `chapter.check.run` | Cek cerita | PRESENTATION | VALIDATION_REQUIRED | SERVER_DERIVED | false |
-| `chapter.complete.run` | Selesaikan bab | PRESENTATION | VALIDATION_REQUIRED | SERVER_DERIVED | false |
-| `chapter.manuscript.view` | Baca naskah bab | PRESENTATION | ACCEPTED_PROSE_REQUIRED | SERVER_DERIVED | false |
-| `chapter.publish.build` | Siapkan paket publikasi bab | PRESENTATION | ACCEPTED_PROSE_REQUIRED | SERVER_DERIVED | false |
+| `project.write.resume` | Lanjut menulis | PRESENTATION | CHAPTER_CONTEXT_REQUIRED | UNAVAILABLE | false |
+| `project.manuscript.view` | Baca naskah proyek | PRESENTATION | ACCEPTED_PROSE_REQUIRED | UNAVAILABLE | false |
+| `project.publish.view` | Siapkan paket publikasi | PRESENTATION | ACCEPTED_PROSE_REQUIRED | UNAVAILABLE | false |
+| `chapter.write.compose` | Tulis bab | PRESENTATION | VALIDATION_REQUIRED | UNAVAILABLE | false |
+| `chapter.check.run` | Cek cerita | PRESENTATION | VALIDATION_REQUIRED | UNAVAILABLE | false |
+| `chapter.complete.run` | Selesaikan bab | PRESENTATION | VALIDATION_REQUIRED | UNAVAILABLE | false |
+| `chapter.manuscript.view` | Baca naskah bab | PRESENTATION | ACCEPTED_PROSE_REQUIRED | UNAVAILABLE | false |
+| `chapter.publish.build` | Siapkan paket publikasi bab | PRESENTATION | ACCEPTED_PROSE_REQUIRED | UNAVAILABLE | false |
 | `shell.logout` | Keluar | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
 | `shell.project-navigation` | Navigasi proyek | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
 | `shell.mobile-more` | Menu lainnya | REAL | PREREQUISITE_MISSING | SERVER_DERIVED | server-derived |
