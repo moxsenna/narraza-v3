@@ -1,6 +1,10 @@
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('../../../server/domain/queries', () => ({
+  getMyProject: vi.fn(),
+  getProjectOutline: vi.fn(),
+}));
 
 import {
   resolveProjectWritingContext,
@@ -21,7 +25,7 @@ const chapter = (
 
 function deps(input: {
   projects?: Record<string, { title: string } | null>;
-  outline?: readonly Array<{
+  outline?: ReadonlyArray<{
     entityType: string;
     title: string;
     ordinal: number | null;
