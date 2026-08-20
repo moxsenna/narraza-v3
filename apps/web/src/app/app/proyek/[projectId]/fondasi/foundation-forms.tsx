@@ -127,6 +127,10 @@ export function FoundationForms(props: FoundationFormValues) {
           TOKOH UTAMA
         </h3>
 
+        {props.mainCharacterId ? (
+          <input type="hidden" name="mainCharacterId" value={props.mainCharacterId} />
+        ) : null}
+
         <label className="block">
           <span className="text-sm font-bold">Identitas tokoh</span>
           <input
@@ -192,20 +196,22 @@ export function FoundationForms(props: FoundationFormValues) {
           RELASI UTAMA
         </h3>
 
-        <input
-          type="hidden"
-          name="relationshipOtherId"
-          value={props.relationshipOtherId || 'other'}
-        />
+        {props.relationshipOtherId ? (
+          <input type="hidden" name="relationshipOtherId" value={props.relationshipOtherId} />
+        ) : null}
 
         <label className="block">
           <span className="text-sm font-bold">Jenis hubungan / keterangan</span>
           <textarea
             name="relationshipDescription"
             defaultValue={props.relationshipDescription}
-            disabled={!canEditDraft}
+            disabled={!canEditDraft || !props.relationshipOtherId}
             rows={2}
-            placeholder="Seperti apa hubungan mereka?"
+            placeholder={
+              props.relationshipOtherId
+                ? 'Seperti apa hubungan mereka?'
+                : 'Tidak ada tokoh lain yang terkait (edit tersimpan tanpa menciptakan relasi baru)'
+            }
             className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100 resize-y"
           />
         </label>
@@ -227,44 +233,31 @@ export function FoundationForms(props: FoundationFormValues) {
           />
         </label>
 
-        {/* Responsive Grid for Secret Timeline */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-sm font-bold">Waktu pengungkapan rahasia</span>
-            <input
-              name="secretTargetSequence"
-              type="number"
-              defaultValue={props.secretTargetSequence || '10'}
-              disabled={!canEditDraft}
-              placeholder="10"
-              className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
-            />
-          </label>
+        {/* Hidden preservation of existing schedule references */}
+        {props.secretTargetChapterId && props.secretTargetSequence ? (
+          <>
+            <input type="hidden" name="secretTargetChapterId" value={props.secretTargetChapterId} />
+            <input type="hidden" name="secretTargetSequence" value={props.secretTargetSequence} />
+          </>
+        ) : null}
+        {props.secretBreadcrumb1ChapterId && props.secretBreadcrumb1Sequence ? (
+          <>
+            <input type="hidden" name="secretBreadcrumb1ChapterId" value={props.secretBreadcrumb1ChapterId} />
+            <input type="hidden" name="secretBreadcrumb1Sequence" value={props.secretBreadcrumb1Sequence} />
+          </>
+        ) : null}
+        {props.secretBreadcrumb2ChapterId && props.secretBreadcrumb2Sequence ? (
+          <>
+            <input type="hidden" name="secretBreadcrumb2ChapterId" value={props.secretBreadcrumb2ChapterId} />
+            <input type="hidden" name="secretBreadcrumb2Sequence" value={props.secretBreadcrumb2Sequence} />
+          </>
+        ) : null}
 
-          <label className="block">
-            <span className="text-sm font-bold">Pemicu awal (opsional)</span>
-            <input
-              name="secretBreadcrumb1Sequence"
-              type="number"
-              defaultValue={props.secretBreadcrumb1Sequence || ''}
-              disabled={!canEditDraft}
-              placeholder="-"
-              className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-bold">Pemicu kedua (opsional)</span>
-            <input
-              name="secretBreadcrumb2Sequence"
-              type="number"
-              defaultValue={props.secretBreadcrumb2Sequence || ''}
-              disabled={!canEditDraft}
-              placeholder="-"
-              className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-gray-100"
-            />
-          </label>
-        </div>
+        {!props.secretTargetChapterId && !props.secretBreadcrumb1ChapterId && (
+          <p className="mt-2 text-xs text-ink-500 italic">
+            Jadwal pengungkapan memerlukan bab referensi. Tidak dapat disetel saat ini.
+          </p>
+        )}
 
         {/* Submit Button - Primary Brand Size LG */}
         {canEditDraft ? (
