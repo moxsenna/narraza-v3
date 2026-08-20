@@ -33,16 +33,16 @@
 | `/app/proyek/{id}/outline` | Rencana Cerita | `project.outline.create` | PRESENTATION | SERVER_DERIVED | project | Presentational copy: "Pratinjau fitur" |
 | `/app/proyek/{id}/karakter` | Karakter | `project.characters.read` | REAL | SERVER_DERIVED | project | READ capability real; creation DISABLED |
 | `/app/proyek/{id}/fondasi` | Fondasi | `project.foundation.manage` | SERVER_DERIVED | SERVER_DERIVED | project | Requires foundation lock before proceeding |
-| `/app/proyek/{id}/jadwal-rahasia` | Jadwal Rahasia | `project.secrets.read` | PRESENTATION | SERVER_DERIVED | project | Preview |
+| `/rahasia` | Jadwal Rahasia | `project.secrets.read` | PRESENTATION | SERVER_DERIVED | project | Preview |
 | `/app/proyek/{id}/fakta` | Fakta | `project.facts.read` | PRESENTATION | SERVER_DERIVED | project | Preview |
 | `/app/proyek/{id}/naskah` | Naskah | `project.manuscript.view` | PRESENTATION | SERVER_DERIVED | project | Disabled with `aria-disabled="true"`; zero links inside dialog |
 | `/app/proyek/{id}/tulis` | **Deferred** | `chapter.write.compose` | PRESENTATION | SERVER_DERIVED | project | Route does NOT exist in PR1 |
 | `/app/proyek/{id}/bab/{chId}/tulis` | **Deferred** | `chapter.write.compose` | PRESENTATION | SERVER_DERIVED | project | Route does NOT exist in PR1 |
-| `/app/proyek/{id}/cecerita` | Cek Cerita | `chapter.check.run` | PRESENTATION | SERVER_DERIVED | project | Preview |
+| `/cek-cerita` | Cek Cerita | `chapter.check.run` | PRESENTATION | SERVER_DERIVED | project | Preview |
 | `/app/proyek/{id}/selesaikan-bab` | Selesaikan Bab | `chapter.complete.run` | PRESENTATION | SERVER_DERIVED | project | Deferred route not in PR1 |
 | `/app/proyek/{id}/naskah/view` | Naskah View | `chapter.manuscript.view` | PRESENTATION | SERVER_DERIVED | project | Deferred |
 | `/app/proyek/{id}/paket-publish` | Paket Publish | `project.publish.view` / `chapter.publish.build` | PRESENTATION | SERVER_DERIVED | project | Preview |
-| `/app/ kredit` | Kredit & Penggunaan | `app.credit.view` | PRESENTATION | UNAVAILABLE | global | Feature disabled |
+| `/kredit` | Kredit & Penggunaan | `app.credit.view` | PRESENTATION | UNAVAILABLE | global | Feature disabled |
 | `/app/pengaturan` | Pengaturan | `app.settings.view` | PRESENTATION | UNAVAILABLE | global | Feature disabled |
 
 ## Capability Declarations Summary (Selected Keys)

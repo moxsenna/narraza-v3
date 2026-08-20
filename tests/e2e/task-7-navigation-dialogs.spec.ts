@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { clearMailpit, waitForMailLink } from './mailpit';
 
-const mailpitApiUrl = process.env.MAILPIT_API_URL ?? 'http://localhost:8026';
+const mailpitApiUrl = process.env.MAILPIT_API_URL ?? 'http://localhost:8025';
 const verifySubject = 'Verifikasi email Narraza-mu';
 const password = 'Narraza!Task7Fix123';
 
