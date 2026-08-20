@@ -1,0 +1,28 @@
+import type { ReactNode } from 'react';
+import type { ProjectIdentityViewModel } from '../../lib/frontend/view-model';
+import { MobileBottomNav } from './MobileBottomNav';
+import { ProjectNavigationDrawer } from './ProjectNavigationDrawer';
+import { ProjectSidebar } from './ProjectSidebar';
+
+export function ProjectAppShell({
+  project,
+  children,
+}: {
+  project: ProjectIdentityViewModel;
+  children: ReactNode;
+}) {
+  return (
+    <div data-testid="project-shell" className="mx-auto flex w-full max-w-[1600px]">
+      <ProjectSidebar projectId={project.projectId} />
+      <div className="min-w-0 flex-1 pb-20 xl:pb-0">
+        <div className="border-b border-default bg-surface px-4 py-3 sm:px-6">
+          <ProjectNavigationDrawer projectId={project.projectId} />
+          <p className="text-xs font-semibold text-muted">PROYEK</p>
+          <p className="truncate font-bold text-primary">{project.title}</p>
+        </div>
+        {children}
+      </div>
+      <MobileBottomNav context={{ kind: 'project', projectId: project.projectId }} />
+    </div>
+  );
+}

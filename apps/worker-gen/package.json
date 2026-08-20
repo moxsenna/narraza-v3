@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts",
+    "start": "node dist/main.js",
     "build": "tsc -b",
     "test": "vitest run --passWithNoTests",
     "clean": "rimraf dist *.tsbuildinfo"

@@ -1,5 +1,6 @@
 import type { TxPorts } from '@narraza/application';
 import { dbNow } from '../db-now.js';
+import { createAiUsagePort } from './ai-usage-port.js';
 import { createAuditPort } from './audit-port.js';
 import { createChangeSetRepo } from './change-set-repo.js';
 import { createCharacterRepo } from './character-repo.js';
@@ -7,7 +8,8 @@ import { createConceptRepo } from './concept-repo.js';
 import { createFactRepo } from './fact-repo.js';
 import { createFoundationRepo } from './foundation-repo.js';
 import { createIntakeRepo } from './intake-repo.js';
-import { createJobStub, createLedgerStub } from './stub-ports.js';
+import { createJobRepo } from './job-repo.js';
+import { createLedgerPort } from './ledger-port.js';
 import { createOutlineRepo } from './outline-repo.js';
 import { createOutboxPort } from './outbox-port.js';
 import { createProjectRepo } from './project-repo.js';
@@ -15,8 +17,11 @@ import { createProposalRepo } from './proposal-repo.js';
 import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
 import type { TxClient } from './tx-client.js';
+import { createWorkflowInvocationRepo } from './workflow-invocation-repo.js';
 
 export function createTxPorts(tx: TxClient): TxPorts {
+  const allocateId = () => crypto.randomUUID();
+  const workflowInvocation = createWorkflowInvocationRepo(tx);
   return {
     project: createProjectRepo(tx),
     foundation: createFoundationRepo(tx),
@@ -31,9 +36,12 @@ export function createTxPorts(tx: TxClient): TxPorts {
     audit: createAuditPort(tx),
     outbox: createOutboxPort(tx),
     snapshot: createSnapshotPort(tx),
-    ledger: createLedgerStub(),
-    job: createJobStub(),
+    ledger: createLedgerPort(tx),
+    job: createJobRepo(tx),
+    workflowInvocation,
+    generationAttempt: workflowInvocation,
+    aiUsage: createAiUsagePort(tx, allocateId),
     dbNow: () => dbNow(tx),
-    allocateId: () => crypto.randomUUID(),
+    allocateId,
   };
 }

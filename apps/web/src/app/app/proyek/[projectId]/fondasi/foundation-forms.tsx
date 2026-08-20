@@ -96,12 +96,9 @@ export function FoundationForms(props: FoundationFormValues) {
         <h2 className="pt-2 text-sm font-extrabold tracking-[0.12em] text-brand-700">
           TOKOH UTAMA
         </h2>
-        <TextInput
-          name="mainCharacterId"
-          label="ID tokoh utama (internal)"
-          defaultValue={props.mainCharacterId || 'main'}
-          disabled={!canEditDraft}
-        />
+        {props.mainCharacterId ? (
+          <input type="hidden" name="mainCharacterId" value={props.mainCharacterId} />
+        ) : null}
         <TextInput
           name="mainCharacterIdentity"
           label="Identitas"
@@ -136,17 +133,19 @@ export function FoundationForms(props: FoundationFormValues) {
         <h2 className="pt-2 text-sm font-extrabold tracking-[0.12em] text-brand-700">
           RELASI UTAMA
         </h2>
-        <TextInput
-          name="relationshipOtherId"
-          label="ID tokoh lain"
-          defaultValue={props.relationshipOtherId || 'other'}
-          disabled={!canEditDraft}
-        />
+        {props.relationshipOtherId ? (
+          <input type="hidden" name="relationshipOtherId" value={props.relationshipOtherId} />
+        ) : null}
         <Field
           name="relationshipDescription"
           label="Jenis hubungan / keterangan"
           defaultValue={props.relationshipDescription}
-          disabled={!canEditDraft}
+          disabled={!canEditDraft || !props.relationshipOtherId}
+          placeholder={
+            props.relationshipOtherId
+              ? 'Seperti apa hubungan mereka?'
+              : 'Tidak ada tokoh lain yang terkait (edit tersimpan tanpa menciptakan relasi baru)'
+          }
         />
 
         <h2 className="pt-2 text-sm font-extrabold tracking-[0.12em] text-brand-700">
@@ -154,48 +153,34 @@ export function FoundationForms(props: FoundationFormValues) {
         </h2>
         <Field
           name="secretTruth"
-          label="Rahasia (truth)"
+          label="Isu rahasia"
           defaultValue={props.secretTruth}
           disabled={!canEditDraft}
         />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <TextInput
-            name="secretTargetChapterId"
-            label="Target chapterId"
-            defaultValue={props.secretTargetChapterId || 'chapter-10'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretTargetSequence"
-            label="Target sequence"
-            defaultValue={props.secretTargetSequence || '10'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretBreadcrumb1ChapterId"
-            label="Breadcrumb 1 chapterId"
-            defaultValue={props.secretBreadcrumb1ChapterId || 'chapter-2'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretBreadcrumb1Sequence"
-            label="Breadcrumb 1 sequence"
-            defaultValue={props.secretBreadcrumb1Sequence || '2'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretBreadcrumb2ChapterId"
-            label="Breadcrumb 2 chapterId"
-            defaultValue={props.secretBreadcrumb2ChapterId || 'chapter-5'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretBreadcrumb2Sequence"
-            label="Breadcrumb 2 sequence"
-            defaultValue={props.secretBreadcrumb2Sequence || '5'}
-            disabled={!canEditDraft}
-          />
-        </div>
+        {props.secretTargetChapterId ? (
+          <>
+            <input type="hidden" name="secretTargetChapterId" value={props.secretTargetChapterId} />
+            <input type="hidden" name="secretTargetSequence" value={props.secretTargetSequence || ''} />
+          </>
+        ) : null}
+        {props.secretBreadcrumb1ChapterId ? (
+          <>
+            <input type="hidden" name="secretBreadcrumb1ChapterId" value={props.secretBreadcrumb1ChapterId} />
+            <input type="hidden" name="secretBreadcrumb1Sequence" value={props.secretBreadcrumb1Sequence || ''} />
+          </>
+        ) : null}
+        {props.secretBreadcrumb2ChapterId ? (
+          <>
+            <input type="hidden" name="secretBreadcrumb2ChapterId" value={props.secretBreadcrumb2ChapterId} />
+            <input type="hidden" name="secretBreadcrumb2Sequence" value={props.secretBreadcrumb2Sequence || ''} />
+          </>
+        ) : null}
+
+        {(!props.secretTargetChapterId || !props.secretBreadcrumb1ChapterId) && (
+          <p className="mt-2 text-xs text-ink-500 italic">
+            Jadwal pengungkapan memerlukan bab referensi. Tidak dapat disetel saat ini.
+          </p>
+        )}
 
         {canEditDraft ? (
           <button

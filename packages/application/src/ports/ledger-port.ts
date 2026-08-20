@@ -1,8 +1,20 @@
-/**
- * Credit ledger port — full engine lands in M3. M2 defines the interface only;
- * Prisma adapter may throw if invoked before M3 wiring.
- */
+export interface ReleaseQueuedCancellationInput {
+  readonly projectId: string;
+  readonly jobId: string;
+  readonly reservationId: string;
+  readonly ledgerEntryId: string;
+  readonly dedupeKey: `release:${string}:queued-cancel`;
+  readonly entryType: 'release';
+  readonly direction: 'credit';
+}
+
+export type ReleaseQueuedCancellationResult =
+  | { readonly kind: 'released' }
+  | { readonly kind: 'already_released' }
+  | { readonly kind: 'binding_invalid' };
+
 export interface LedgerPort {
-  /** Reserved for M3; calling before M3 is a programming error. */
-  assertNotUsedInM2(): void;
+  releaseQueuedCancellation(
+    input: ReleaseQueuedCancellationInput,
+  ): Promise<ReleaseQueuedCancellationResult>;
 }
