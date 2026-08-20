@@ -26,10 +26,10 @@ export function ChatForm({ projectId }: { projectId: string }) {
         required
         rows={3}
         placeholder="Tulis pesan ke Narra…"
-        className="w-full rounded-xl border border-[#e8dce1] px-3 py-3"
+        className="w-full rounded-xl border border-gray-200 px-3 py-3"
       />
       {state.message ? (
-        <p className="text-sm text-[#8a2948]" role="alert">
+        <p className="text-sm text-pink-900" role="alert">
           {state.message}
         </p>
       ) : null}
