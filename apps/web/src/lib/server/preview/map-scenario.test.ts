@@ -41,9 +41,9 @@ describe('preview scenario mapper', () => {
     ] as const) {
       const scenario = getPreviewScenario(key);
       if (!scenario) throw new Error(`scenario missing: ${key}`);
-      expect(mapPreviewScenario(scenario, PREVIEW_PRESENTATION_FIXTURES[key]).actionsDisabled).toBe(
-        true,
-      );
+      expect(
+        mapPreviewScenario(scenario, PREVIEW_PRESENTATION_FIXTURES[key]).actionsDisabled,
+      ).toBe(true);
     }
   });
 });
