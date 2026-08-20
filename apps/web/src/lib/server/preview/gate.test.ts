@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('../../../server/domain/queries', () => ({ getMyProject: vi.fn() }));
+vi.mock('../../../server/auth/session', () => ({ getCurrentUser: vi.fn() }));
 
 import { evaluatePreviewPolicy } from './gate';
 
@@ -81,7 +83,10 @@ describe('preview gate policy', () => {
   test('preview sources contain no public-env bypass, browser storage, or real-data fixture fallback', () => {
     const source = [
       readFileSync(new URL('./gate.ts', import.meta.url), 'utf8'),
-      readFileSync(new URL('../../../app/app/__preview/frontend-parity/page.tsx', import.meta.url), 'utf8'),
+      readFileSync(
+        new URL('../../../app/app/__preview/frontend-parity/page.tsx', import.meta.url),
+        'utf8',
+      ),
     ].join('\n');
 
     expect(source).not.toMatch(/NEXT_PUBLIC_/);
