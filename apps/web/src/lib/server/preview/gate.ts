@@ -1,7 +1,7 @@
 import 'server-only';
 
-import { getMyProject } from '../../../server/domain/queries';
 import { getCurrentUser } from '../../../server/auth/session';
+import { getMyProject } from '../../../server/domain/queries';
 import { getPreviewScenario, type PreviewScenario } from './scenario-registry';
 
 type PreviewEnvironment = 'production' | 'staging' | 'development' | 'test' | 'unknown';
@@ -14,7 +14,9 @@ type PreviewPolicyInput = Readonly<{
   automated: boolean;
 }>;
 
-export function evaluatePreviewPolicy(input: PreviewPolicyInput): Readonly<{ allowed: boolean }> {
+export function evaluatePreviewPolicy(
+  input: PreviewPolicyInput,
+): Readonly<{ allowed: boolean }> {
   if (input.environment === 'production' || input.environment === 'staging') {
     return { allowed: false };
   }
@@ -60,10 +62,12 @@ export type ResolvedPreviewAccess = Readonly<{
  * Public preview boundary. Only scenario/project identifiers may come from the request.
  * Authentication, environment, allowlist membership, and scope authorization are derived server-side.
  */
-export async function resolvePreviewAccess(input: Readonly<{
-  scenarioKey: string;
-  projectId?: string;
-}>): Promise<ResolvedPreviewAccess | null> {
+export async function resolvePreviewAccess(
+  input: Readonly<{
+    scenarioKey: string;
+    projectId?: string;
+  }>,
+): Promise<ResolvedPreviewAccess | null> {
   const scenario = getPreviewScenario(input.scenarioKey);
   const user = await getCurrentUser();
   const scopeAuthorized = scenario
