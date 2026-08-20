@@ -40,22 +40,61 @@ export default async function FoundationPage({
   const bc1 = asRecord(breadcrumbs[0]);
   const bc2 = asRecord(breadcrumbs[1]);
 
+  const mainId = str(main.id);
+  const fromCharacterId = str(firstRel.fromCharacterId);
+  const toCharacterId = str(firstRel.toCharacterId);
+  const relationshipMainIsFrom =
+    mainId && fromCharacterId && toCharacterId
+      ? fromCharacterId === mainId
+        ? true
+        : toCharacterId === mainId
+          ? false
+          : null
+      : null;
   const otherId =
-    str(firstRel.fromCharacterId) === str(main.id)
-      ? str(firstRel.toCharacterId)
-      : str(firstRel.fromCharacterId) || str(firstRel.toCharacterId);
+    relationshipMainIsFrom === true
+      ? toCharacterId
+      : relationshipMainIsFrom === false
+        ? fromCharacterId
+        : '';
+
+  const status = foundation?.status ?? 'belum ada';
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
-      <Link href={`/app/proyek/${projectId}`} className="text-sm font-semibold text-brand-700">
+      {/* Header Section - Using Semantic Colors */}
+      <Link
+        href={`/app/proyek/${projectId}`}
+        className="text-sm font-semibold text-brand-700 hover:text-brand-800 transition-colors"
+      >
         ← {project.title}
       </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold">Fondasi cerita</h1>
-      <p className="mt-2 text-sm text-[#76656d]">
-        Status: {foundation?.status ?? 'belum ada'}
+
+      <div className="mt-4 flex items-center justify-between">
+        <h1 className="font-serif text-3xl font-semibold">Fondasi cerita</h1>
+
+        {foundation?.status && (
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              foundation.status === 'locked'
+                ? 'bg-brand-100 text-brand-800'
+                : foundation.status === 'confirmed'
+                  ? 'bg-status-warning-soft text-status-warning'
+                  : 'bg-surface-soft text-ink-800'
+            }`}
+          >
+            {foundation.status}
+          </span>
+        )}
+      </div>
+
+      {/* Status & Revision - Neutral Text Palette */}
+      <p className="mt-2 text-sm text-text-muted">
+        Status: {status}
         {foundation ? ` · rev ${foundation.revision}` : ''}
       </p>
 
+      {/* Form Section */}
       <FoundationForms
         projectId={projectId}
         status={foundation?.status ?? null}
@@ -64,21 +103,22 @@ export default async function FoundationPage({
         conflict={str(payload.conflict)}
         endingDirection={str(payload.endingDirection)}
         readerPromise={str(payload.readerPromise)}
-        mainCharacterId={str(main.id) || 'main'}
+        mainCharacterId={mainId}
         mainCharacterIdentity={str(main.identity)}
         mainCharacterGoal={str(main.goal)}
         mainCharacterMotivation={str(main.motivation)}
         mainCharacterAddress={str(main.address)}
         mainCharacterSpeechStyle={str(main.speechStyle)}
-        relationshipOtherId={otherId || 'other'}
+        relationshipOtherId={otherId}
+        relationshipMainIsFrom={relationshipMainIsFrom}
         relationshipDescription={str(firstRel.description)}
         secretTruth={str(firstSecret.truth)}
-        secretTargetChapterId={str(target.chapterId) || 'chapter-10'}
-        secretTargetSequence={numStr(target.sequence, '10')}
-        secretBreadcrumb1ChapterId={str(bc1.chapterId) || 'chapter-2'}
-        secretBreadcrumb1Sequence={numStr(bc1.sequence, '2')}
-        secretBreadcrumb2ChapterId={str(bc2.chapterId) || 'chapter-5'}
-        secretBreadcrumb2Sequence={numStr(bc2.sequence, '5')}
+        secretTargetChapterId={str(target.chapterId)}
+        secretTargetSequence={numStr(target.sequence)}
+        secretBreadcrumb1ChapterId={str(bc1.chapterId)}
+        secretBreadcrumb1Sequence={numStr(bc1.sequence)}
+        secretBreadcrumb2ChapterId={str(bc2.chapterId)}
+        secretBreadcrumb2Sequence={numStr(bc2.sequence)}
       />
     </main>
   );

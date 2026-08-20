@@ -26,6 +26,7 @@ export type FoundationFormValues = {
   mainCharacterAddress: string;
   mainCharacterSpeechStyle: string;
   relationshipOtherId: string;
+  relationshipMainIsFrom: boolean | null;
   relationshipDescription: string;
   secretTruth: string;
   secretTargetChapterId: string;
@@ -38,6 +39,7 @@ export type FoundationFormValues = {
 
 export function FoundationForms(props: FoundationFormValues) {
   const router = useRouter();
+
   // Application only allows draft updates; confirmed/locked fields are read-only in UI.
   const canEditDraft = props.status !== 'locked';
   const [draftState, draftAction, draftPending] = useActionState(
@@ -57,232 +59,292 @@ export function FoundationForms(props: FoundationFormValues) {
   const err = draftState.message || confirmState.message || lockState.message;
 
   return (
-    <div className="mt-8 space-y-6">
+    <section className="mt-8 space-y-6">
+      {/* Draft Form - Primary Brand */}
       <form
         action={draftAction}
-        className="space-y-4 rounded-2xl border border-[#e8dce1] bg-white p-6"
+        className="space-y-4 rounded-2xl border border-line-200 bg-surface p-6 shadow-sm"
       >
         <input type="hidden" name="projectId" value={props.projectId} />
         {props.revision !== null ? (
           <input type="hidden" name="expectedRevision" value={String(props.revision)} />
         ) : null}
 
-        <h2 className="text-sm font-extrabold tracking-[0.12em] text-brand-700">DASAR CERITA</h2>
-        <Field
-          name="coreConcept"
-          label="Konsep inti"
-          defaultValue={props.coreConcept}
-          disabled={!canEditDraft}
-        />
-        <Field
-          name="conflict"
-          label="Konflik"
-          defaultValue={props.conflict}
-          disabled={!canEditDraft}
-        />
-        <Field
-          name="endingDirection"
-          label="Arah ending"
-          defaultValue={props.endingDirection}
-          disabled={!canEditDraft}
-        />
-        <Field
-          name="readerPromise"
-          label="Janji pembaca"
-          defaultValue={props.readerPromise}
-          disabled={!canEditDraft}
-        />
+        {/* Section Headers - Semantic brand-700 */}
+        <h3 className="text-xs font-extrabold tracking-widest uppercase text-brand-700">
+          DASAR CERITA
+        </h3>
 
-        <h2 className="pt-2 text-sm font-extrabold tracking-[0.12em] text-brand-700">
+        <label className="block">
+          <span className="text-sm font-bold">Konsep inti</span>
+          <textarea
+            name="coreConcept"
+            defaultValue={props.coreConcept}
+            disabled={!canEditDraft}
+            placeholder="Tentang apa cerita ini?"
+            rows={3}
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-bold">Konflik sentral</span>
+          <textarea
+            name="conflict"
+            defaultValue={props.conflict}
+            disabled={!canEditDraft}
+            placeholder="Apa yang menghalangi protagonis?"
+            rows={2}
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-bold">Arah akhiran</span>
+          <textarea
+            name="endingDirection"
+            defaultValue={props.endingDirection}
+            disabled={!canEditDraft}
+            placeholder="Bagaimana berakhirnya?"
+            rows={2}
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-bold">Janji pada pembaca</span>
+          <textarea
+            name="readerPromise"
+            defaultValue={props.readerPromise}
+            disabled={!canEditDraft}
+            rows={2}
+            placeholder="Apa nilai naratif yang dijanjikan?"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
+          />
+        </label>
+
+        {/* Section Header */}
+        <h3 className="text-xs font-extrabold tracking-widest uppercase text-brand-700 pt-2">
           TOKOH UTAMA
-        </h2>
-        <TextInput
-          name="mainCharacterId"
-          label="ID tokoh utama (internal)"
-          defaultValue={props.mainCharacterId || 'main'}
-          disabled={!canEditDraft}
-        />
-        <TextInput
-          name="mainCharacterIdentity"
-          label="Identitas"
-          defaultValue={props.mainCharacterIdentity}
-          disabled={!canEditDraft}
-        />
-        <TextInput
-          name="mainCharacterGoal"
-          label="Tujuan"
-          defaultValue={props.mainCharacterGoal}
-          disabled={!canEditDraft}
-        />
-        <TextInput
-          name="mainCharacterMotivation"
-          label="Motivasi / luka"
-          defaultValue={props.mainCharacterMotivation}
-          disabled={!canEditDraft}
-        />
-        <TextInput
-          name="mainCharacterAddress"
-          label="Panggilan"
-          defaultValue={props.mainCharacterAddress}
-          disabled={!canEditDraft}
-        />
-        <TextInput
-          name="mainCharacterSpeechStyle"
-          label="Gaya bicara"
-          defaultValue={props.mainCharacterSpeechStyle}
-          disabled={!canEditDraft}
-        />
+        </h3>
 
-        <h2 className="pt-2 text-sm font-extrabold tracking-[0.12em] text-brand-700">
+        {props.mainCharacterId ? (
+          <input type="hidden" name="mainCharacterId" value={props.mainCharacterId} />
+        ) : null}
+
+        <label className="block">
+          <span className="text-sm font-bold">Identitas tokoh</span>
+          <input
+            name="mainCharacterIdentity"
+            type="text"
+            defaultValue={props.mainCharacterIdentity}
+            disabled={!canEditDraft}
+            placeholder="Siapa dia secara esensial?"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-bold">Tujuan utama</span>
+          <input
+            name="mainCharacterGoal"
+            type="text"
+            defaultValue={props.mainCharacterGoal}
+            disabled={!canEditDraft}
+            placeholder="Apa yang paling diinginkannya?"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-bold">Motivasi / luka</span>
+          <input
+            name="mainCharacterMotivation"
+            type="text"
+            defaultValue={props.mainCharacterMotivation}
+            disabled={!canEditDraft}
+            placeholder="Mengapa dia berusaha? Apa lukanya?"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-bold">Panggilan</span>
+          <input
+            name="mainCharacterAddress"
+            type="text"
+            defaultValue={props.mainCharacterAddress}
+            disabled={!canEditDraft}
+            placeholder="Bagaimana orang memanggilnya?"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-bold">Gaya bicara</span>
+          <input
+            name="mainCharacterSpeechStyle"
+            type="text"
+            defaultValue={props.mainCharacterSpeechStyle}
+            disabled={!canEditDraft}
+            placeholder="Bagaimana cara dia berbicara?"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft"
+          />
+        </label>
+
+        {/* Section Header */}
+        <h3 className="text-xs font-extrabold tracking-widest uppercase text-brand-700 pt-2">
           RELASI UTAMA
-        </h2>
-        <TextInput
-          name="relationshipOtherId"
-          label="ID tokoh lain"
-          defaultValue={props.relationshipOtherId || 'other'}
-          disabled={!canEditDraft}
-        />
-        <Field
-          name="relationshipDescription"
-          label="Jenis hubungan / keterangan"
-          defaultValue={props.relationshipDescription}
-          disabled={!canEditDraft}
-        />
+        </h3>
 
-        <h2 className="pt-2 text-sm font-extrabold tracking-[0.12em] text-brand-700">
+        {props.relationshipOtherId && props.relationshipMainIsFrom !== null ? (
+          <>
+            <input type="hidden" name="relationshipOtherId" value={props.relationshipOtherId} />
+            <input
+              type="hidden"
+              name="relationshipMainIsFrom"
+              value={String(props.relationshipMainIsFrom)}
+            />
+          </>
+        ) : null}
+
+        <label className="block">
+          <span className="text-sm font-bold">Jenis hubungan / keterangan</span>
+          <textarea
+            name="relationshipDescription"
+            defaultValue={props.relationshipDescription}
+            disabled={!canEditDraft || !props.relationshipOtherId}
+            rows={2}
+            placeholder={
+              props.relationshipOtherId
+                ? 'Seperti apa hubungan mereka?'
+                : 'Tidak ada tokoh lain yang terkait (edit tersimpan tanpa menciptakan relasi baru)'
+            }
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
+          />
+        </label>
+
+        {/* Section Header */}
+        <h3 className="text-xs font-extrabold tracking-widest uppercase text-brand-700 pt-2">
           RAHASIA / JADWAL REVEAL
-        </h2>
-        <Field
-          name="secretTruth"
-          label="Rahasia (truth)"
-          defaultValue={props.secretTruth}
-          disabled={!canEditDraft}
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <TextInput
-            name="secretTargetChapterId"
-            label="Target chapterId"
-            defaultValue={props.secretTargetChapterId || 'chapter-10'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretTargetSequence"
-            label="Target sequence"
-            defaultValue={props.secretTargetSequence || '10'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretBreadcrumb1ChapterId"
-            label="Breadcrumb 1 chapterId"
-            defaultValue={props.secretBreadcrumb1ChapterId || 'chapter-2'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretBreadcrumb1Sequence"
-            label="Breadcrumb 1 sequence"
-            defaultValue={props.secretBreadcrumb1Sequence || '2'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretBreadcrumb2ChapterId"
-            label="Breadcrumb 2 chapterId"
-            defaultValue={props.secretBreadcrumb2ChapterId || 'chapter-5'}
-            disabled={!canEditDraft}
-          />
-          <TextInput
-            name="secretBreadcrumb2Sequence"
-            label="Breadcrumb 2 sequence"
-            defaultValue={props.secretBreadcrumb2Sequence || '5'}
-            disabled={!canEditDraft}
-          />
-        </div>
+        </h3>
 
+        <label className="block">
+          <span className="text-sm font-bold">Isu rahasia</span>
+          <textarea
+            name="secretTruth"
+            defaultValue={props.secretTruth}
+            disabled={!canEditDraft}
+            rows={2}
+            placeholder="Apa rahasia yang akan terungkap?"
+            className="mt-2 w-full rounded-xl border border-line-200 px-3 py-2 disabled:bg-surface-soft resize-y"
+          />
+        </label>
+
+        {/* Hidden preservation of existing schedule references */}
+        {props.secretTargetChapterId ? (
+          <>
+            <input type="hidden" name="secretTargetChapterId" value={props.secretTargetChapterId} />
+            <input type="hidden" name="secretTargetSequence" value={props.secretTargetSequence} />
+          </>
+        ) : null}
+        {props.secretBreadcrumb1ChapterId ? (
+          <>
+            <input
+              type="hidden"
+              name="secretBreadcrumb1ChapterId"
+              value={props.secretBreadcrumb1ChapterId}
+            />
+            <input
+              type="hidden"
+              name="secretBreadcrumb1Sequence"
+              value={props.secretBreadcrumb1Sequence}
+            />
+          </>
+        ) : null}
+        {props.secretBreadcrumb2ChapterId ? (
+          <>
+            <input
+              type="hidden"
+              name="secretBreadcrumb2ChapterId"
+              value={props.secretBreadcrumb2ChapterId}
+            />
+            <input
+              type="hidden"
+              name="secretBreadcrumb2Sequence"
+              value={props.secretBreadcrumb2Sequence}
+            />
+          </>
+        ) : null}
+
+        {!props.secretTargetChapterId && !props.secretBreadcrumb1ChapterId && (
+          <p className="mt-2 text-xs text-ink-500 italic">
+            Jadwal pengungkapan memerlukan bab referensi. Tidak dapat disetel saat ini.
+          </p>
+        )}
+
+        {/* Submit Button - Primary Brand Size LG */}
         {canEditDraft ? (
           <button
             type="submit"
             disabled={draftPending}
-            className="min-h-11 rounded-xl bg-brand-700 px-5 font-bold text-white disabled:opacity-60"
+            className="w-full min-h-11 rounded-xl bg-brand-700 px-5 font-bold text-white disabled:opacity-60 hover:bg-brand-800 transition-colors"
           >
             {draftPending ? 'Menyimpan…' : 'Simpan draft'}
           </button>
         ) : (
-          <p className="text-sm text-[#76656d]">Fondasi terkunci. Perubahan lewat proposal (M5).</p>
+          <p className="text-sm text-ink-700 bg-surface-soft border border-line-100 rounded-xl px-3 py-2">
+            Fondasi terkunci. Perubahan besar diajukan sebagai usulan di halaman Fakta.
+          </p>
         )}
       </form>
 
+      {/* Confirm Action - Secondary Style */}
       {props.status === 'draft' ? (
-        <form action={confirmAction}>
-          <input type="hidden" name="projectId" value={props.projectId} />
-          <button
-            type="submit"
-            disabled={confirmPending}
-            className="min-h-11 rounded-xl border border-[#e8dce1] bg-white px-5 font-semibold disabled:opacity-60"
-          >
-            {confirmPending ? '…' : 'Konfirmasi fondasi'}
-          </button>
-        </form>
+        <div className="rounded-xl border border-line-200 bg-surface p-4">
+          <form action={confirmAction} className="flex justify-end">
+            <input type="hidden" name="projectId" value={props.projectId} />
+            <button
+              type="submit"
+              disabled={confirmPending}
+              className="min-h-11 rounded-xl border border-line-200 bg-surface px-5 font-semibold disabled:opacity-60 hover:border-border-active"
+            >
+              {confirmPending ? '…' : 'Konfirmasi fondasi'}
+            </button>
+          </form>
+        </div>
       ) : null}
 
+      {/* Lock Action - High Contrast Warning */}
       {props.status === 'confirmed' ? (
-        <form action={lockAction} className="rounded-2xl border border-[#e8dce1] bg-white p-6">
+        <div className="rounded-xl border border-line-200 bg-surface p-6">
           <input type="hidden" name="projectId" value={props.projectId} />
-          <p className="text-sm text-[#4a3a42]">
-            Mengunci fondasi membekukan dasar cerita. Checklist kesiapan harus lengkap (100%).
+          <p className="text-sm text-ink-700 mb-4">
+            Mengunci fondasi membekukan dasar cerita. Perubahan besar diajukan sebagai usulan.
           </p>
-          <label className="mt-4 flex items-center gap-2 text-sm font-semibold">
+
+          <label className="flex items-center gap-2 text-sm font-semibold mb-4">
             <input type="checkbox" name="acknowledged" />
             Aku mengerti konsekuensinya
           </label>
+
           <button
             type="submit"
+            formAction={lockAction}
             disabled={lockPending}
-            className="mt-4 min-h-11 rounded-xl bg-brand-900 px-5 font-bold text-white disabled:opacity-60"
+            className="w-full min-h-11 rounded-xl bg-brand-900 px-5 font-bold text-white disabled:opacity-60 hover:bg-brand-800 transition-colors"
           >
             {lockPending ? '…' : 'Kunci fondasi'}
           </button>
-        </form>
+        </div>
       ) : null}
 
+      {/* Error Alert - Semantic Colors */}
       {err ? (
-        <p className="rounded-xl bg-[#fff0f3] px-3 py-2 text-sm text-[#8a2948]" role="alert">
+        <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700" role="alert">
           {err}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-function Field(props: { name: string; label: string; defaultValue: string; disabled?: boolean }) {
-  return (
-    <label className="block">
-      <span className="text-sm font-bold">{props.label}</span>
-      <textarea
-        name={props.name}
-        defaultValue={props.defaultValue}
-        disabled={props.disabled}
-        rows={2}
-        className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2 disabled:bg-[#f8f1f4]"
-      />
-    </label>
-  );
-}
-
-function TextInput(props: {
-  name: string;
-  label: string;
-  defaultValue: string;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-bold">{props.label}</span>
-      <input
-        name={props.name}
-        type="text"
-        defaultValue={props.defaultValue}
-        disabled={props.disabled}
-        className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2 disabled:bg-[#f8f1f4]"
-      />
-    </label>
+    </section>
   );
 }

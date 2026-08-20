@@ -42,7 +42,7 @@ export function OutlineForm(props: {
     <div className="mt-6 space-y-4">
       <form
         action={roadmapAction}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-[#e8dce1] bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border-default bg-surface p-4"
       >
         <input type="hidden" name="projectId" value={props.projectId} />
         <label className="min-w-[12rem] flex-1">
@@ -51,7 +51,7 @@ export function OutlineForm(props: {
             name="title"
             type="text"
             defaultValue="Roadmap utama"
-            className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           />
         </label>
         <button
@@ -65,7 +65,7 @@ export function OutlineForm(props: {
 
       <form
         action={arcAction}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-[#e8dce1] bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border-default bg-surface p-4"
       >
         <input type="hidden" name="projectId" value={props.projectId} />
         <label className="min-w-[10rem]">
@@ -74,7 +74,7 @@ export function OutlineForm(props: {
             name="parentId"
             defaultValue={defaultRoadmap}
             required
-            className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           >
             {props.roadmaps.length === 0 ? (
               <option value="">Buat roadmap dulu</option>
@@ -93,7 +93,7 @@ export function OutlineForm(props: {
             name="title"
             type="text"
             defaultValue="Arc 1"
-            className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           />
         </label>
         <label className="w-24">
@@ -102,7 +102,7 @@ export function OutlineForm(props: {
             name="ordinal"
             type="number"
             defaultValue={0}
-            className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           />
         </label>
         <button
@@ -116,7 +116,7 @@ export function OutlineForm(props: {
 
       <form
         action={chapterAction}
-        className="flex flex-wrap items-end gap-3 rounded-2xl border border-[#e8dce1] bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border-default bg-surface p-4"
       >
         <input type="hidden" name="projectId" value={props.projectId} />
         <label className="min-w-[10rem]">
@@ -125,7 +125,7 @@ export function OutlineForm(props: {
             name="parentId"
             defaultValue={defaultArc}
             required
-            className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           >
             {props.arcs.length === 0 ? (
               <option value="">Buat arc dulu</option>
@@ -145,7 +145,7 @@ export function OutlineForm(props: {
             type="text"
             required
             placeholder="Judul bab"
-            className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           />
         </label>
         <label className="w-24">
@@ -154,7 +154,7 @@ export function OutlineForm(props: {
             name="ordinal"
             type="number"
             defaultValue={props.nextChapterOrdinal}
-            className="mt-2 w-full rounded-xl border border-[#e8dce1] px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           />
         </label>
         <button
@@ -167,7 +167,10 @@ export function OutlineForm(props: {
       </form>
 
       {err ? (
-        <p className="rounded-xl bg-[#fff0f3] px-3 py-2 text-sm text-[#8a2948]" role="alert">
+        <p
+          className="rounded-xl bg-status-danger-soft px-3 py-2 text-sm text-status-danger"
+          role="alert"
+        >
           {err}
         </p>
       ) : null}
