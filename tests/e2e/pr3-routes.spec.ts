@@ -12,14 +12,18 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 async function addRoadmap(page: Page): Promise<void> {
-  const form = page.locator('form').filter({ has: page.getByRole('button', { name: 'Tambah roadmap' }) });
+  const form = page
+    .locator('form')
+    .filter({ has: page.getByRole('button', { name: 'Tambah roadmap' }) });
   await form.locator('input[name="title"]').fill('Roadmap PR3');
   await form.getByRole('button', { name: 'Tambah roadmap' }).click();
   await expect(page.getByText('Roadmap PR3')).toBeVisible();
 }
 
 async function addArc(page: Page): Promise<void> {
-  const form = page.locator('form').filter({ has: page.getByRole('button', { name: 'Tambah arc' }) });
+  const form = page
+    .locator('form')
+    .filter({ has: page.getByRole('button', { name: 'Tambah arc' }) });
   await expect(form.locator('select[name="parentId"] option')).toHaveCount(1);
   await form.locator('input[name="title"]').fill('Arc PR3');
   await form.getByRole('button', { name: 'Tambah arc' }).click();
@@ -27,7 +31,9 @@ async function addArc(page: Page): Promise<void> {
 }
 
 async function addChapter(page: Page, title: string): Promise<void> {
-  const form = page.locator('form').filter({ has: page.getByRole('button', { name: 'Tambah bab' }) });
+  const form = page
+    .locator('form')
+    .filter({ has: page.getByRole('button', { name: 'Tambah bab' }) });
   await expect(form.locator('select[name="parentId"] option')).toHaveCount(1);
   await form.locator('input[name="title"]').fill(title);
   await form.getByRole('button', { name: 'Tambah bab' }).click();
@@ -39,16 +45,29 @@ test('PR3 routes expose only honest owner-scoped presentation', async ({ page },
   const { projectId, title } = await createOwnedProject(page);
 
   await page.goto('/app/kredit');
-  await expect(page.getByRole('heading', { level: 1, name: 'Kredit & penggunaan' })).toBeVisible();
-  await expect(page.getByText('Informasi kredit belum tersedia di akunmu saat ini.')).toBeVisible();
-  await expect(page.getByText('Kamu tidak perlu melakukan apa pun untuk sekarang.')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Kembali ke dashboard' })).toHaveAttribute('href', '/app');
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Kredit & penggunaan' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Informasi kredit belum tersedia di akunmu saat ini.'),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Kamu tidak perlu melakukan apa pun untuk sekarang.'),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Kembali ke dashboard' })).toHaveAttribute(
+    'href',
+    '/app',
+  );
   const kreditCopy = (await page.locator('main').innerText()).toLowerCase();
-  expect(kreditCopy).not.toMatch(/saldo|transaksi|ledger|potongan|refund|langganan|pembayaran|m4|backend|real-time|estimasi/);
+  expect(kreditCopy).not.toMatch(
+    /saldo|transaksi|ledger|potongan|refund|langganan|pembayaran|m4|backend|real-time|estimasi/,
+  );
   await expect(page.locator('a[href*="__preview"]')).toHaveCount(0);
 
   await page.goto(`/app/proyek/${projectId}/tulis`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Siapkan rangkaian cerita' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Siapkan rangkaian cerita' }),
+  ).toBeVisible();
   await expect(page.getByText(title)).toBeVisible();
   await expect(
     page.getByText('Buat rangkaian cerita terlebih dahulu agar penulisan memiliki arah yang jelas.'),
@@ -62,14 +81,20 @@ test('PR3 routes expose only honest owner-scoped presentation', async ({ page },
   await page.goto(`/app/proyek/${projectId}/outline`);
   await addRoadmap(page);
   await page.goto(`/app/proyek/${projectId}/tulis`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Lengkapi rangkaian cerita' })).toBeVisible();
-  await expect(page.getByText('Tambahkan bagian cerita yang dapat disiapkan untuk penulisan.')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Lengkapi rangkaian cerita' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Tambahkan bagian cerita yang dapat disiapkan untuk penulisan.'),
+  ).toBeVisible();
 
   await page.goto(`/app/proyek/${projectId}/outline`);
   await addArc(page);
   await addChapter(page, 'Bab Pilihan PR3');
   await page.goto(`/app/proyek/${projectId}/tulis`);
-  await expect(page.getByRole('heading', { level: 1, name: 'Pilih bagian cerita' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Pilih bagian cerita' }),
+  ).toBeVisible();
   await expect(page.getByText('Bab Pilihan PR3')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tulis' })).toBeDisabled();
   await expect(page.getByText('Penulisan bab belum tersedia dari halaman ini.')).toBeVisible();
@@ -90,16 +115,22 @@ test('preview is authenticated, allowlisted, scope-authorized, and action-disabl
 
   await page.goto('/app/__preview/frontend-parity?scenario=unknown');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  expect((await page.locator('body').innerText()).toLowerCase()).toMatch(/tidak ditemukan|not found|halaman/);
+  expect((await page.locator('body').innerText()).toLowerCase()).toMatch(
+    /tidak ditemukan|not found|halaman/,
+  );
 
   await page.goto('/app/__preview/frontend-parity?scenario=kredit-unavailable');
-  await expect(page.getByRole('heading', { level: 1, name: 'Kredit & penggunaan' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Kredit & penggunaan' }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Kembali ke dashboard' })).toBeDisabled();
 
   await page.goto(
     `/app/__preview/frontend-parity?scenario=tulis-choose&projectId=${encodeURIComponent(projectId)}`,
   );
-  await expect(page.getByRole('heading', { level: 1, name: 'Pilih bagian cerita' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Pilih bagian cerita' }),
+  ).toBeVisible();
   await expect(page.getByText('Pertemuan di Stasiun')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tulis' }).first()).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Tinjau rangkaian cerita' })).toBeDisabled();
@@ -124,7 +155,9 @@ test('PR3 production routes remain responsive at locked widths with correct shel
     await expectNoHorizontalOverflow(page);
 
     if (width === 375) {
-      await expect(page.getByRole('navigation', { name: 'Navigasi aplikasi mobile' })).toBeVisible();
+      await expect(
+        page.getByRole('navigation', { name: 'Navigasi aplikasi mobile' }),
+      ).toBeVisible();
       await expect(page.getByRole('button', { name: 'Menu proyek' })).toBeHidden();
       await expect(page.getByTestId('project-sidebar')).toBeHidden();
     } else if (width === 768) {
@@ -132,7 +165,9 @@ test('PR3 production routes remain responsive at locked widths with correct shel
       await expect(page.getByTestId('project-sidebar')).toBeHidden();
     } else {
       await expect(page.getByTestId('project-sidebar')).toBeVisible();
-      await expect(page.getByRole('navigation', { name: 'Navigasi aplikasi mobile' })).toBeHidden();
+      await expect(
+        page.getByRole('navigation', { name: 'Navigasi aplikasi mobile' }),
+      ).toBeHidden();
     }
   }
 });
