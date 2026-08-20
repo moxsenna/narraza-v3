@@ -90,21 +90,21 @@ export default async function FoundationPage({
         conflict={str(payload.conflict)}
         endingDirection={str(payload.endingDirection)}
         readerPromise={str(payload.readerPromise)}
-        mainCharacterId={str(main.id) || 'main'}
+        mainCharacterId={str(main.id)}
         mainCharacterIdentity={str(main.identity)}
         mainCharacterGoal={str(main.goal)}
         mainCharacterMotivation={str(main.motivation)}
         mainCharacterAddress={str(main.address)}
         mainCharacterSpeechStyle={str(main.speechStyle)}
-        relationshipOtherId={otherId || 'other'}
+        relationshipOtherId={otherId}
         relationshipDescription={str(firstRel.description)}
         secretTruth={str(firstSecret.truth)}
-        secretTargetChapterId={str(target.chapterId) || 'chapter-10'}
-        secretTargetSequence={numStr(target.sequence, '10')}
-        secretBreadcrumb1ChapterId={str(bc1.chapterId) || 'chapter-2'}
-        secretBreadcrumb1Sequence={numStr(bc1.sequence, '2')}
-        secretBreadcrumb2ChapterId={str(bc2.chapterId) || 'chapter-5'}
-        secretBreadcrumb2Sequence={numStr(bc2.sequence, '5')}
+        secretTargetChapterId={str(target.chapterId)}
+        secretTargetSequence={numStr(target.sequence)}
+        secretBreadcrumb1ChapterId={str(bc1.chapterId)}
+        secretBreadcrumb1Sequence={numStr(bc1.sequence)}
+        secretBreadcrumb2ChapterId={str(bc2.chapterId)}
+        secretBreadcrumb2Sequence={numStr(bc2.sequence)}
       />
     </main>
   );
