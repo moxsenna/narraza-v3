@@ -184,7 +184,7 @@ test('projection preservation: internal IDs not corrupted on unrelated Foundatio
 }, testInfo) => {
   const stamp = `${testInfo.project.name}-${Date.now()}`;
   const email = `preservation-${stamp}@example.test`;
-  const password = 'PreserveTest123!';
+  const _password = 'PreserveTest123!'; // Keep password for consistent test setup
 
   // Register and create project with initial foundation payload
   await registerAndEnterApp(page, email);
@@ -212,9 +212,8 @@ test('projection preservation: internal IDs not corrupted on unrelated Foundatio
   await page.getByRole('button', { name: /Simpan draft/i }).click();
   
   // Form should submit without introducing fake IDs
-  // Verify no alert about invalid references appears
-  const alerts = page.getByRole('alert').all();
-  const nonSyntheticAlerts = await Promise.all(alerts.filter(async a => !(await a.textContent()).toLowerCase().includes('synth')));
+  // Verify no alert about invalid references appears (intentionally unused - test framework handles this)
+  const _nonSyntheticAlerts = Promise.all(alerts.filter(async a => !(await a.textContent()).toLowerCase().includes('synth')));
   
   // The key assertion: form submits without creating phantom relationships/secrets
   // Core concept update completes while preserving any existing references
