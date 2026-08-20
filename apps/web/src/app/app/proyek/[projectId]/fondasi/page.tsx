@@ -45,17 +45,43 @@ export default async function FoundationPage({
       ? str(firstRel.toCharacterId)
       : str(firstRel.fromCharacterId) || str(firstRel.toCharacterId);
 
+  const status = foundation?.status ?? 'belum ada';
+
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
-      <Link href={`/app/proyek/${projectId}`} className="text-sm font-semibold text-brand-700">
+      {/* Header Section - Using Semantic Colors */}
+      <Link
+        href={`/app/proyek/${projectId}`}
+        className="text-sm font-semibold text-brand-700 hover:text-brand-800 transition-colors"
+      >
         ← {project.title}
       </Link>
-      <h1 className="mt-4 font-serif text-3xl font-semibold">Fondasi cerita</h1>
-      <p className="mt-2 text-sm text-[#76656d]">
-        Status: {foundation?.status ?? 'belum ada'}
+
+      <div className="mt-4 flex items-center justify-between">
+        <h1 className="font-serif text-3xl font-semibold">Fondasi cerita</h1>
+
+        {foundation?.status && (
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              foundation.status === 'locked'
+                ? 'bg-brand-100 text-brand-800'
+                : foundation.status === 'confirmed'
+                  ? 'bg-yellow-100 text-yellow-800'
+                  : 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {foundation.status}
+          </span>
+        )}
+      </div>
+
+      {/* Status & Revision - Neutral Text Palette */}
+      <p className="mt-2 text-sm text-gray-600">
+        Status: {status}
         {foundation ? ` · rev ${foundation.revision}` : ''}
       </p>
 
+      {/* Form Section */}
       <FoundationForms
         projectId={projectId}
         status={foundation?.status ?? null}
