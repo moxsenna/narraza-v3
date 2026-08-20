@@ -79,12 +79,21 @@ export type WinnerClassificationResult =
   | { readonly kind: 'conflict' }
   | { readonly kind: 'not_authorized' };
 
+export type FinalizationEligibility =
+  'eligible' | 'ineligible_owner' | 'cancelled' | 'project_tombstoned';
+
+export type InvocationFinalizationLockResult =
+  | { readonly kind: 'locked'; readonly invocation: WorkflowInvocationRecord }
+  | { readonly kind: 'not_authorized' };
+
 export interface WorkflowInvocationPort {
   beginAttempt(input: BeginAttemptInput): Promise<BeginAttemptPortResult>;
+  lockForFinalization(input: FinalizeAttemptInput): Promise<InvocationFinalizationLockResult>;
   classifyWinner(
     input: FinalizeAttemptInput,
     attempt: GenerationAttemptRecord,
     allowSelection: boolean,
+    eligibility: FinalizationEligibility,
   ): Promise<WinnerClassificationResult>;
 }
 

@@ -91,6 +91,7 @@ export type {
   JobReclaimResult,
   JobFencedLockResult,
   JobLiveOwnerLockResult,
+  JobFinalizationLockResult,
   JobPort,
 } from './job-port.js';
 export type { UsageMetrics, AppendUsageResult, AiUsagePort } from './ai-usage-port.js';
@@ -104,6 +105,8 @@ export type {
   BeginAttemptPortResult,
   FinalizeAttemptPortResult,
   WinnerClassificationResult,
+  FinalizationEligibility,
+  InvocationFinalizationLockResult,
   WorkflowInvocationPort,
   GenerationAttemptPort,
 } from './workflow-invocation-port.js';

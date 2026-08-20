@@ -571,5 +571,32 @@ export function createJobRepo(tx: TxClient): JobPort {
       const row = rows[0];
       return row ? { kind: 'locked', job: toRecord(row) } : { kind: 'not_authorized' };
     },
+
+    async lockForFinalization(identity: JobLeaseIdentity) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT cancel_requested_at,
+                lease_token = $3
+                AND fence_version = $4
+                AND status = 'running'
+                AND lease_expires_at > clock_timestamp() AS eligible
+           FROM generation_jobs
+          WHERE project_id = $1 AND id = $2
+          FOR UPDATE`,
+        identity.projectId,
+        identity.jobId,
+        identity.leaseToken,
+        identity.fenceVersion,
+      )) as Array<{ cancel_requested_at: Date | null; eligible: boolean }>;
+      const row = rows[0];
+      if (!row) return { kind: 'not_authorized' as const };
+      return {
+        kind: 'locked' as const,
+        eligibility: row.cancel_requested_at
+          ? ('cancelled' as const)
+          : row.eligible
+            ? ('eligible' as const)
+            : ('ineligible_owner' as const),
+      };
+    },
   };
 }

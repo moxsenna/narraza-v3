@@ -105,6 +105,13 @@ export type JobLiveOwnerLockResult =
   | { readonly kind: 'locked'; readonly job?: GenerationJobRecord }
   | { readonly kind: 'not_authorized' };
 
+export type JobFinalizationLockResult =
+  | {
+      readonly kind: 'locked';
+      readonly eligibility: 'eligible' | 'cancelled' | 'ineligible_owner';
+    }
+  | { readonly kind: 'not_authorized' };
+
 export interface JobPort {
   insert(input: JobInsertInput): Promise<JobInsertResult>;
   findById(input: JobLookupInput): Promise<GenerationJobRecord | null>;
@@ -121,4 +128,5 @@ export interface JobPort {
   lockForFencedPublish(identity: JobLeaseIdentity): Promise<JobFencedLockResult>;
   /** Locks exact running, unexpired, uncancelled lease owner or returns non-enumerating denial. */
   lockLiveOwnerForAttempt(identity: JobLeaseIdentity): Promise<JobLiveOwnerLockResult>;
+  lockForFinalization(identity: JobLeaseIdentity): Promise<JobFinalizationLockResult>;
 }

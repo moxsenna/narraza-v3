@@ -93,6 +93,10 @@ function harness(options: HarnessOptions = {}) {
       const kind = options.begin ?? 'started';
       return kind === 'conflict' ? { kind } : { kind, invocation, attempt };
     }),
+    lockForFinalization: vi.fn(async () => {
+      calls.push('workflow.lockForFinalization');
+      return { kind: 'locked' as const, invocation };
+    }),
     classifyWinner: vi.fn<WorkflowInvocationPort['classifyWinner']>(async () => {
       calls.push('workflow.classifyWinner');
       const kind = options.winner ?? 'selected';
@@ -100,7 +104,9 @@ function harness(options: HarnessOptions = {}) {
         ? { kind }
         : { kind: 'classified', winner: kind };
     }),
-  } satisfies WorkflowInvocationPort;
+  } as unknown as WorkflowInvocationPort & {
+    lockForFinalization: ReturnType<typeof vi.fn>;
+  };
   const generationAttempt = {
     finalizeAttempt: vi.fn<GenerationAttemptPort['finalizeAttempt']>(async (input) => {
       calls.push('attempt.finalize');
@@ -136,7 +142,13 @@ function harness(options: HarnessOptions = {}) {
       calls.push('job.lockLiveOwnerForAttempt');
       return { kind: options.owner ?? 'locked' } as const;
     }),
-  } as unknown as JobPort;
+    lockForFinalization: vi.fn(async () => {
+      calls.push('job.lockForFinalization');
+      return { kind: 'locked' as const, eligibility: 'eligible' as const };
+    }),
+  } as unknown as JobPort & {
+    lockForFinalization: ReturnType<typeof vi.fn>;
+  };
   const projectRepo = {
     lockForUpdate: vi.fn(async () => {
       calls.push('project.lockForUpdate');
@@ -253,6 +265,9 @@ describe('workflow invocation service Tx B', () => {
       expect(result).toMatchObject({ winner });
       expect(h.calls).toEqual([
         'begin',
+        'project.lockForUpdate',
+        'job.lockForFinalization',
+        'workflow.lockForFinalization',
         'attempt.finalize',
         'usage.appendForAttempt',
         'workflow.classifyWinner',
@@ -271,6 +286,7 @@ describe('workflow invocation service Tx B', () => {
       finalizeInput,
       expect.any(Object),
       false,
+      'eligible',
     );
   });
 
