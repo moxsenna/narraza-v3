@@ -40,7 +40,7 @@ export default async function ChapterSelesaikanPage({
         <div className="rounded-xl border border-border-default bg-status-info-soft p-4">
           <p className="text-sm font-semibold text-text-primary">Kelayakan tidak tersedia</p>
           <p className="mt-1 text-sm leading-6 text-text-secondary">
-            Status kelayakan penyelesaian akan muncul setelah data real terverifikasi.
+            Status kelayakan bab belum tersedia.
           </p>
         </div>
 

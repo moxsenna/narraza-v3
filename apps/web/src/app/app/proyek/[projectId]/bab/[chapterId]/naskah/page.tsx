@@ -31,7 +31,7 @@ export default async function ChapterNaskahPage({
       </header>
 
       <section className="rounded-2xl border border-border-default bg-surface p-6 sm:p-8">
-        <h2 className="mb-4 text-xl font-semibold text-text-primary">Manuscript</h2>
+        <h2 className="mb-4 text-xl font-semibold text-text-primary">Naskah</h2>
         <div className="rounded-xl border border-border-default bg-surface-soft p-8">
           <p className="text-base leading-7 text-text-secondary mb-4">
             Naskah yang telah diterima akan ditampilkan di sini.
@@ -42,14 +42,14 @@ export default async function ChapterNaskahPage({
               Tidak ada naskah yang tersedia
             </p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Naskah yang telah diterima diperlukan untuk menampilkan manuscript bab ini.
+              Naskah yang telah diterima diperlukan untuk menampilkan naskah bab ini.
             </p>
           </div>
         </div>
 
         <nav className="mt-8 flex items-center gap-3">
           <a
-            href={`/app/proyek/${projectId}/tulis`}
+            href={`/app/proyek/${projectId}/bab/${chapterId}/tulis`}
             className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border-default bg-surface-soft px-5 text-sm font-bold text-text-primary hover:bg-surface focus:border-brand-focus focus:outline-none focus:ring-2 focus:ring-brand-focus/20"
           >
             Kembali ke penulisan

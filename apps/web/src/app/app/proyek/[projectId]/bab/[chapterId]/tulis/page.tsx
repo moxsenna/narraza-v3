@@ -58,7 +58,7 @@ export default async function ChapterTulisPage({
           <div className="rounded-2xl border border-border-default bg-surface p-5">
             <h2 className="mb-3 text-base font-semibold text-text-primary">Panduan Scene</h2>
             <p className="text-sm leading-6 text-text-secondary">
-              Panduan scene dan beat akan muncul di sini ketika data real tersedia.
+              Panduan scene dan beat belum tersedia untuk bab ini.
             </p>
           </div>
 

@@ -87,7 +87,7 @@ export default async function ChapterPublishPage({
             disabled
             className="w-full min-h-11 rounded-xl border border-border-default bg-surface-soft px-5 text-sm font-bold text-text-muted"
           >
-            Generate preview
+            Pratinjau belum tersedia
           </button>
         </aside>
       </section>
