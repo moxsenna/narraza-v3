@@ -79,26 +79,25 @@ async function createProjectWithChapter(page: Page, title: string): Promise<{ pr
     await expect(page.getByText(/Bab 1: Awal Cerita/i)).toBeVisible({ timeout: 15_000 });
   } else {
     // Fallback: check if outline already has chapters we can use
-    console.log('No add chapter button found, using existing chapter if available');
   }
 
   // Extract chapter ID from the outline - it should be in a link or data attribute
   const chapterRow = page.locator('tr[data-entity-type="chapter"], [data-entity-type="chapter"]').first();
-  let chapterId: string;
+  let _chapterId: string;
   
   if (await chapterRow.count() > 0) {
-    chapterId = await chapterRow.getAttribute('data-id');
-    if (!chapterId) {
-      chapterId = await chapterRow.locator('a[href*="/bab/"]').getAttribute('href');
-      if (chapterId) {
-        const parts = chapterId.split('/');
-        chapterId = parts[parts.length - 1];
+    _chapterId = await chapterRow.getAttribute('data-id');
+    if (!_chapterId) {
+      _chapterId = await chapterRow.locator('a[href*="/bab/"]').getAttribute('href');
+      if (_chapterId) {
+        const parts = _chapterId.split('/');
+        _chapterId = parts[parts.length - 1];
       }
     }
   }
 
   // If we still don't have chapterId, try to navigate through UI
-  if (!chapterId) {
+  if (!_chapterId) {
     // Try clicking on any chapter link we find
     const chapterLink = page.locator('a[href*="/bab/"]').first();
     if (await chapterLink.count() > 0) {
@@ -107,18 +106,18 @@ async function createProjectWithChapter(page: Page, title: string): Promise<{ pr
       const newUrl = page.url();
       const chapterMatch = newUrl.match(/\/bab\/([^?]+)/);
       if (chapterMatch) {
-        chapterId = chapterMatch[1]!;
+        _chapterId = chapterMatch[1]!;
         // Navigate back to outline to continue
         await page.goto(`/app/proyek/${projectId}`);
       }
     }
   }
 
-  if (!chapterId) {
+  if (!_chapterId) {
     throw new Error('Could not obtain chapter ID from outline');
   }
 
-  return { projectId, chapterId };
+  return { projectId: projectId, chapterId: _chapterId };
 }
 
 async function verifyRoutePage(page: Page, route: string, expectations: {
@@ -198,7 +197,7 @@ test.describe('PR4 Chapter Routes - Owner Context', () => {
     const stamp = `${testInfo.project.name}-${Date.now()}`;
     const email = `pr4-context-${stamp}@example.test`;
     const projectTitle = `Context Test Project ${stamp}`;
-    const chapterTitle = 'Bab 1: Pembukaan';
+    const _chapterTitle = 'Bab 1: Pembukaan';
 
     await clearMailpit(mailpitApiUrl);
     await registerAndEnterApp(page, email);
@@ -267,8 +266,7 @@ test.describe('PR4 Chapter Routes - Responsive Verification', () => {
         await expect(mainContent).toBeVisible({ timeout: 15_000 });
 
         // Shell navigation should be appropriate for viewport
-        const bottomNav = page.getByRole('navigation', { name: /bawah/i }).first();
-        const drawer = page.locator('[aria-haspopup="dialog"]');
+        void page.getByRole('navigation', { name: /bawah/i }).first();
         
         if (viewport.name === 'mobile') {
           // Mobile should have bottom nav option
