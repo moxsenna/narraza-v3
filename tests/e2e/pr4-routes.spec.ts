@@ -43,13 +43,16 @@ async function registerAndEnterApp(page: Page, email: string): Promise<void> {
   await expect(page).toHaveURL(/\/app$/);
 }
 
-async function createProjectWithChapter(page: Page, title: string): Promise<{ projectId: string; chapterId: string }> {
+async function createProjectWithChapter(
+  page: Page,
+  title: string,
+): Promise<{ projectId: string; chapterId: string }> {
   await page.goto('/app/proyek/baru');
   await page.locator('input[name="title"]').fill(title);
   await page.locator('input[name="jalur"][value="rough_idea"]').check();
   await page.getByRole('button', { name: /Buat proyek/i }).click();
   await expect(page).toHaveURL(/\/app\/proyek\/(?!baru(?:\/|$))[^/?#]+$/, { timeout: 45_000 });
-  
+
   const url = page.url();
   const match = url.match(/\/app\/proyek\/([^/?#]+)/);
   if (!match || match[1] === 'baru') {
@@ -59,22 +62,24 @@ async function createProjectWithChapter(page: Page, title: string): Promise<{ pr
 
   // Navigate to outline and add a chapter
   await page.goto(`/app/proyek/${projectId}/outline`);
-  
+
   // Look for "Tambah Bab" or similar button
-  const addChapterButton = page.getByRole('button', { name: /Tambah Bab|Tambahkan Bab/i })
-    .first();
-  
+  const addChapterButton = page.getByRole('button', { name: /Tambah Bab|Tambahkan Bab/i }).first();
+
   if (await addChapterButton.isVisible()) {
     await addChapterButton.click();
-    
+
     // Fill chapter details
     const chapterTitleInput = page.locator('input[name="title"]').first();
     if (await chapterTitleInput.isVisible()) {
       await chapterTitleInput.fill('Bab 1: Awal Cerita');
     }
-    
-    await page.getByRole('button', { name: /Simpan|Tambah/i }).first().click();
-    
+
+    await page
+      .getByRole('button', { name: /Simpan|Tambah/i })
+      .first()
+      .click();
+
     // Wait for chapter to appear in list
     await expect(page.getByText(/Bab 1: Awal Cerita/i)).toBeVisible({ timeout: 15_000 });
   } else {
@@ -82,10 +87,12 @@ async function createProjectWithChapter(page: Page, title: string): Promise<{ pr
   }
 
   // Extract chapter ID from the outline - it should be in a link or data attribute
-  const chapterRow = page.locator('tr[data-entity-type="chapter"], [data-entity-type="chapter"]').first();
+  const chapterRow = page
+    .locator('tr[data-entity-type="chapter"], [data-entity-type="chapter"]')
+    .first();
   let _chapterId: string;
-  
-  if (await chapterRow.count() > 0) {
+
+  if ((await chapterRow.count()) > 0) {
     _chapterId = await chapterRow.getAttribute('data-id');
     if (!_chapterId) {
       _chapterId = await chapterRow.locator('a[href*="/bab/"]').getAttribute('href');
@@ -100,9 +107,9 @@ async function createProjectWithChapter(page: Page, title: string): Promise<{ pr
   if (!_chapterId) {
     // Try clicking on any chapter link we find
     const chapterLink = page.locator('a[href*="/bab/"]').first();
-    if (await chapterLink.count() > 0) {
+    if ((await chapterLink.count()) > 0) {
       await chapterLink.click();
-      await expect(page).toHaveURL(/\/app\/proyek\/[^\/]+\/bab\/[^?]+/, { timeout: 15_000 });
+      await expect(page).toHaveURL(/\/app\/proyek\/[^/]+\/bab\/[^?]+/, { timeout: 15_000 });
       const newUrl = page.url();
       const chapterMatch = newUrl.match(/\/bab\/([^?]+)/);
       if (chapterMatch) {
@@ -120,14 +127,18 @@ async function createProjectWithChapter(page: Page, title: string): Promise<{ pr
   return { projectId: projectId, chapterId: _chapterId };
 }
 
-async function verifyRoutePage(page: Page, route: string, expectations: {
-  hasContextHeader?: boolean;
-  noRawIds?: boolean;
-  noTechnicalJargon?: boolean;
-  hasUnavailableState?: boolean;
-}): Promise<void> {
+async function verifyRoutePage(
+  page: Page,
+  route: string,
+  expectations: {
+    hasContextHeader?: boolean;
+    noRawIds?: boolean;
+    noTechnicalJargon?: boolean;
+    hasUnavailableState?: boolean;
+  },
+): Promise<void> {
   await page.goto(route);
-  
+
   // Route should resolve without 404
   const status = page.url();
   expect(status).not.toContain('not-found');
@@ -156,10 +167,10 @@ async function verifyRoutePage(page: Page, route: string, expectations: {
   if (expectations.hasUnavailableState) {
     // Should show some kind of unavailable/honest state message
     const unavailablePatterns = [
-      /belum tersedia|belum ada|tersedia|tidak tersedia|honest|disabled|capabilit(y|ies)/i
+      /belum tersedia|belum ada|tersedia|tidak tersedia|honest|disabled|capabilit(y|ies)/i,
     ];
     const body = await page.locator('body').innerText();
-    const hasUnavailable = unavailablePatterns.some(pattern => pattern.test(body));
+    const hasUnavailable = unavailablePatterns.some((pattern) => pattern.test(body));
     expect(hasUnavailable).toBeTruthy();
   }
 }
@@ -172,7 +183,10 @@ test.describe('PR4 Chapter Routes - Owner Context', () => {
     await clearMailpit(mailpitApiUrl);
     await registerAndEnterApp(page, email);
 
-    const { projectId, chapterId } = await createProjectWithChapter(page, `Pr4Test Project ${stamp}`);
+    const { projectId, chapterId } = await createProjectWithChapter(
+      page,
+      `Pr4Test Project ${stamp}`,
+    );
 
     // Verify each of the five routes
     const routes = [
@@ -210,7 +224,7 @@ test.describe('PR4 Chapter Routes - Owner Context', () => {
     // Check context header contains titles
     const heading = page.locator('header h1').first();
     await expect(heading).toBeVisible({ timeout: 15_000 });
-    
+
     // Should contain chapter title (partial match acceptable)
     const headingText = await heading.innerText();
     expect(headingText.toLowerCase()).toContain('bab');
@@ -233,14 +247,19 @@ test.describe('PR4 Chapter Routes - Responsive Verification', () => {
   test.describe.configure({ timeout: 180_000 });
 
   for (const viewport of viewports) {
-    test(`${viewport.name} (${viewport.width}px) - all five routes render correctly`, async ({ page }, testInfo) => {
+    test(`${viewport.name} (${viewport.width}px) - all five routes render correctly`, async ({
+      page,
+    }, testInfo) => {
       const stamp = `${testInfo.project.name}-${Date.now()}`;
       const email = `pr4-responsive-${viewport.name}-${stamp}@example.test`;
 
       await clearMailpit(mailpitApiUrl);
       await registerAndEnterApp(page, email);
 
-      const { projectId, chapterId } = await createProjectWithChapter(page, `Responsive Test ${stamp}`);
+      const { projectId, chapterId } = await createProjectWithChapter(
+        page,
+        `Responsive Test ${stamp}`,
+      );
 
       // Set viewport
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -259,7 +278,10 @@ test.describe('PR4 Chapter Routes - Responsive Verification', () => {
         // No horizontal overflow
         const html = page.locator('html');
         const scrollbarWidth = await html.evaluate((el) => el.scrollWidth - el.clientWidth);
-        expect(scrollbarWidth).toBeLessThanOrEqual(0, `Horizontal overflow detected on ${viewport.name} at ${route}`);
+        expect(scrollbarWidth).toBeLessThanOrEqual(
+          0,
+          `Horizontal overflow detected on ${viewport.name} at ${route}`,
+        );
 
         // Key controls should be visible
         const mainContent = page.locator('main');
@@ -267,10 +289,12 @@ test.describe('PR4 Chapter Routes - Responsive Verification', () => {
 
         // Shell navigation should be appropriate for viewport
         void page.getByRole('navigation', { name: /bawah/i }).first();
-        
+
         if (viewport.name === 'mobile') {
           // Mobile should have bottom nav option
-          await expect(page.locator('.nav-btm-root')).toBeVisible({ timeout: 5000 }).catch(() => {});
+          await expect(page.locator('.nav-btm-root'))
+            .toBeVisible({ timeout: 5000 })
+            .catch(() => {});
         } else if (viewport.name === 'tablet') {
           // Tablet may have drawer or sidebar
         }
@@ -300,9 +324,9 @@ test.describe('PR4 Chapter Routes - Capability Honesty', () => {
 
     for (const route of routes) {
       await page.goto(route);
-      
+
       const body = await page.locator('body').innerText().toLowerCase();
-      
+
       // Should NOT contain text suggesting these capabilities are active
       const fakeCapabilityIndicators = [
         // Fake AI generation claims
