@@ -23,7 +23,9 @@ describe('frontend foundation contracts', () => {
     // PR4 chapter workspace is now implemented as five presentation-only routes with honest unavailable states
     expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx')).toBe(true);
     expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/cek/page.tsx')).toBe(true);
-    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/selesaikan/page.tsx')).toBe(true);
+    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/selesaikan/page.tsx')).toBe(
+      true,
+    );
     expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/naskah/page.tsx')).toBe(true);
     expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/publish/page.tsx')).toBe(true);
     // Shared resolver provides security properties without exposing raw IDs
