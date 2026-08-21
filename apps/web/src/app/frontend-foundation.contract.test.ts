@@ -17,8 +17,8 @@ describe('frontend foundation contracts', () => {
     expect(() => source('components/__missing-required-source__.tsx')).toThrow();
   });
 
-  test('deferred authoring routes do not exist in PR1', () => {
-    expect(sourceExists('app/app/proyek/[projectId]/tulis/page.tsx')).toBe(false);
+  test('PR3 project writing entry exists while PR4 chapter writing route remains deferred', () => {
+    expect(sourceExists('app/app/proyek/[projectId]/tulis/page.tsx')).toBe(true);
     expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx')).toBe(false);
   });
 
