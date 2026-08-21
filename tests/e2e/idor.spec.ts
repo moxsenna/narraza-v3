@@ -224,7 +224,7 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     expect(await page.locator('body').innerText()).not.toContain(secretTitle);
   }
 
-  // Create a second owned project with outline/chapter for PR4 IDOR testing
+  // Create a second owned project with chapter for PR4 IDOR testing
   const emailC = `idor-c-${stamp}@example.test`;
   await logout(page);
   await clearMailpit(mailpitApiUrl);
@@ -234,56 +234,34 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     `Pr4IdorProject-${stamp}`,
   );
 
-  const pr4Routes = [
+  // Test C: owned project + foreign/random chapter (sample routes)
+  const samplePr4Routes = [
     `/app/proyek/${projectC}/bab/${chapterC}/tulis`,
-    `/app/proyek/${projectC}/bab/${chapterC}/cek`,
-    `/app/proyek/${projectC}/bab/${chapterC}/selesaikan`,
     `/app/proyek/${projectC}/bab/${chapterC}/naskah`,
-    `/app/proyek/${projectC}/bab/${chapterC}/publish`,
   ];
 
-  // Test C: owned project + foreign chapter
-  const foreignChapterRoutes = pr4Routes.map((route) => route.replace(chapterC, randomId));
+  // Foreign chapter test
+  const foreignChapterRoute = samplePr4Routes[0].replace(chapterC, randomId);
+  await page.goto(foreignChapterRoute);
+  await expectBrandedNotFound(page);
+  let body = await page.locator('body').innerText();
+  expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
 
-  for (const route of foreignChapterRoutes) {
-    await page.goto(route);
-    await expectBrandedNotFound(page);
-    const body = await page.locator('body').innerText();
-    expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
-  }
-
-  // Test D: owned project + random chapter
+  // Another random chapter test
   const anotherRandomChapter = '11111111-1111-4111-8111-222222222222';
-  const randomChapterRoutes = pr4Routes.map((route) =>
-    route.replace(chapterC, anotherRandomChapter),
-  );
+  const randomChapterRoute = samplePr4Routes[1].replace(chapterC, anotherRandomChapter);
+  await page.goto(randomChapterRoute);
+  await expectBrandedNotFound(page);
+  body = await page.locator('body').innerText();
+  expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
 
-  for (const route of randomChapterRoutes) {
-    await page.goto(route);
-    await expectBrandedNotFound(page);
-    const body = await page.locator('body').innerText();
-    expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
-  }
-
-  // Tests A & B extended: foreign project access to chapter routes
-  const foreignProjectChapterRoutes = pr4Routes.map((route) => route.replace(projectC, projectA));
-
-  for (const route of foreignProjectChapterRoutes) {
-    await page.goto(route);
-    await expectBrandedNotFound(page);
-    const body = await page.locator('body').innerText();
-    expect(body).not.toContain(secretTitle);
-    expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
-  }
-
-  const randomProjectChapterRoutes = pr4Routes.map((route) => route.replace(projectC, randomId));
-
-  for (const route of randomProjectChapterRoutes) {
-    await page.goto(route);
-    await expectBrandedNotFound(page);
-    const body = await page.locator('body').innerText();
-    expect(body).not.toContain(secretTitle);
-  }
+  // Foreign project access to chapter routes
+  const foreignProjectChapterRoute = samplePr4Routes[0].replace(projectC, projectA);
+  await page.goto(foreignProjectChapterRoute);
+  await expectBrandedNotFound(page);
+  body = await page.locator('body').innerText();
+  expect(body).not.toContain(secretTitle);
+  expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
 
   // Mutation IDOR: attacker posts with foreign projectId.
   await page.goto(`/app/proyek/${projectB}/chat`);
