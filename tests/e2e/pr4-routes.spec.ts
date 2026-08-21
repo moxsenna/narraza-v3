@@ -65,7 +65,7 @@ async function createProjectWithChapter(page: Page, title: string): Promise<{ pr
   const chapterLink = page.locator('a[href*="/bab/"]').first();
   if (await chapterLink.count() > 0) {
     await chapterLink.click();
-    await expect(page).toHaveURL(/\/app\/proyek\/[^\/]+\/bab\/[^?]+/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/app\/proyek\/[^/]+\/bab\/[^?]+/, { timeout: 15_000 });
     const newUrl = page.url();
     const chapterMatch = newUrl.match(/\/bab\/([^?]+)/);
     if (chapterMatch) {
