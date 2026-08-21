@@ -62,10 +62,26 @@ export async function resolveProjectWritingContext(
     };
   }
 
+  const sortedChapters = [...chapterNodes].sort((a, b) => {
+    const aOrdinal = a.ordinal;
+    const bOrdinal = b.ordinal;
+
+    if (aOrdinal !== null && bOrdinal !== null) {
+      if (aOrdinal !== bOrdinal) return aOrdinal - bOrdinal;
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+    }
+
+    if (aOrdinal === null && bOrdinal === null) {
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+    }
+
+    return aOrdinal === null ? 1 : -1;
+  });
+
   return {
     kind: 'choose',
     projectTitle: project.title,
-    choices: chapterNodes.map((node) => ({
+    choices: sortedChapters.map((node) => ({
       title: node.title,
       ...(node.ordinal === null ? {} : { ordinal: node.ordinal }),
     })),

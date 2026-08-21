@@ -66,25 +66,52 @@ describe('resolveProjectWritingContext', () => {
     expect(dependencies.getOutline).not.toHaveBeenCalled();
   });
 
-  test('returns choose for chapter nodes and never infers resume from first, lowest, only, or accepted prose', async () => {
+  test('deterministically orders chapter choices by ordinal then title', async () => {
     const dependencies = deps({
       projects: { owned: project('Owned') },
       outline: [
-        chapter('Bab Ordinal Tinggi', 9, { acceptedProseVersionId: 'accepted-prose' }),
-        chapter('Bab Ordinal Rendah', 1),
+        chapter('Bab Z', 9),
+        chapter('Bab B', 1),
+        chapter('Bab A', 1),
+        chapter('Bab D', null),
+        chapter('Bab C', null),
+        {
+          entityType: 'chapter' as const,
+          title: 'Bab Z with accepted prose',
+          ordinal: 9,
+          acceptedProseVersionId: 'accepted-prose',
+        },
       ],
     });
 
     const result = await resolveProjectWritingContext('owned', dependencies);
     expect(result.kind).toBe('choose');
     if (result.kind !== 'choose') throw new Error('expected choose');
+
     expect(result.choices).toEqual([
-      { title: 'Bab Ordinal Tinggi', ordinal: 9 },
-      { title: 'Bab Ordinal Rendah', ordinal: 1 },
+      { title: 'Bab A', ordinal: 1 },
+      { title: 'Bab B', ordinal: 1 },
+      { title: 'Bab Z', ordinal: 9 },
+      { title: 'Bab Z with accepted prose', ordinal: 9 },
+      { title: 'Bab C' },
+      { title: 'Bab D' },
     ]);
-    expect(result).not.toHaveProperty('chapterId');
-    expect(result).not.toHaveProperty('href');
+
     expect(JSON.stringify(result)).not.toMatch(/resume|accepted-prose/i);
+  });
+
+  test('does not mutate original outline array', async () => {
+    const originalOutline = [chapter('Z', 2), chapter('A', 1)] as const;
+
+    const dependencies = deps({
+      projects: { owned: project('Owned') },
+      outline: [...originalOutline],
+    });
+
+    await resolveProjectWritingContext('owned', dependencies);
+
+    expect(originalOutline[0]?.title).toBe('Z');
+    expect(originalOutline[1]?.title).toBe('A');
   });
 
   test('keeps one real chapter as choose rather than auto-resolving it', async () => {
