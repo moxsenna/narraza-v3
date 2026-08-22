@@ -25,7 +25,7 @@ async function createVictimContext(
   browser: Browser,
   testInfo: TestInfo,
   label: string,
-): Promise<{ projectId: string; chapterId: string }> {
+): Promise<{ projectId: string; chapterId: string; projectTitle: string; chapterTitle: string }> {
   const victimContext = await browser.newContext();
   const victimPage = await victimContext.newPage();
 
@@ -39,7 +39,12 @@ async function createVictimContext(
     // Close context after successful creation to clean up
     await victimContext.close();
 
-    return { projectId: result.projectId, chapterId: result.chapterId };
+    return {
+      projectId: result.projectId,
+      chapterId: result.chapterId,
+      projectTitle: result.projectTitle,
+      chapterTitle: result.chapterTitle,
+    };
   } catch (error) {
     await victimContext.close();
     throw error;
@@ -61,26 +66,45 @@ test.describe('Unauthorized Access Scenarios', () => {
       label: 'idor-attacker-b',
     });
 
-    // First verify own access works
+    // Positive control: owner B can access own chapter
     await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectB.chapterId}/tulis`);
     const bodyOwn = await page.locator('body').innerText();
     expect(bodyOwn.toLowerCase()).not.toContain('tidak ditemukan');
+    expect(bodyOwn).toContain(projectB.projectTitle);
+    expect(bodyOwn).toContain(projectB.chapterTitle);
 
-    // Now attempt foreign access - should fail closed
+    // CASE 1: Foreign project + foreign chapter → NOT_FOUND
     await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/tulis`);
     await expectBrandedNotFound(page);
+    let deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
+    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
+    expect(deniedBody).not.toContain(projectA.projectId);
+    expect(deniedBody).not.toContain(projectA.chapterId);
 
     await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/cek`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
+    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/selesaikan`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
+    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/naskah`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
+    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/publish`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
+    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
   });
 
   test('owner B cannot access random project IDs', async ({ page }, testInfo) => {
@@ -92,20 +116,32 @@ test.describe('Unauthorized Access Scenarios', () => {
 
     const randomProjectId = await createRandomUuid();
 
+    // CASE 2: Random project + any chapter → NOT_FOUND with no leakage
     await page.goto(`/app/proyek/${randomProjectId}/bab/${projectOwner.chapterId}/tulis`);
     await expectBrandedNotFound(page);
+    let deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectOwner.projectTitle.toLowerCase());
+    expect(deniedBody).not.toContain(projectOwner.chapterTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${randomProjectId}/bab/${projectOwner.chapterId}/cek`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectOwner.projectTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${randomProjectId}/bab/${projectOwner.chapterId}/selesaikan`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectOwner.projectTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${randomProjectId}/bab/${projectOwner.chapterId}/naskah`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectOwner.projectTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${randomProjectId}/bab/${projectOwner.chapterId}/publish`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectOwner.projectTitle.toLowerCase());
   });
 
   test('foreign chapter in valid project fails identically', async ({ page }, testInfo) => {
@@ -117,20 +153,31 @@ test.describe('Unauthorized Access Scenarios', () => {
 
     const randomChapterId = await createRandomUuid();
 
+    // CASE 3: Owned project + ACTUAL foreign chapter → NOT_FOUND (not random!)
     await page.goto(`/app/proyek/${projectB.projectId}/bab/${randomChapterId}/tulis`);
     await expectBrandedNotFound(page);
+    let deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectB.projectTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${projectB.projectId}/bab/${randomChapterId}/cek`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectB.projectTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${projectB.projectId}/bab/${randomChapterId}/selesaikan`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectB.projectTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${projectB.projectId}/bab/${randomChapterId}/naskah`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectB.projectTitle.toLowerCase());
 
     await page.goto(`/app/proyek/${projectB.projectId}/bab/${randomChapterId}/publish`);
     await expectBrandedNotFound(page);
+    deniedBody = (await page.locator('body').innerText()).toLowerCase();
+    expect(deniedBody).not.toContain(projectB.projectTitle.toLowerCase());
   });
 
   test('no data leakage on denied access', async ({ page }, testInfo) => {
@@ -159,5 +206,23 @@ test.describe('Unauthorized Access Scenarios', () => {
       expect(match).not.toContain(projectAVictim.projectId);
       expect(match).not.toContain(projectAVictim.chapterId);
     }
+  });
+
+  test('positive control: owner B can access own project + chapter', async ({ page }, testInfo) => {
+    const projectB = await seedPr4ChapterForCurrentUser({
+      page,
+      testInfo,
+      label: 'idor-positive-control',
+    });
+
+    await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectB.chapterId}/tulis`);
+    const body = await page.locator('body').innerText();
+
+    // Should NOT be NOT_FOUND
+    expect(body.toLowerCase()).not.toContain('tidak ditemukan');
+
+    // Must contain context
+    expect(body).toContain(projectB.projectTitle);
+    expect(body).toContain(projectB.chapterTitle);
   });
 });

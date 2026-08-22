@@ -30,9 +30,22 @@ test('five chapter routes resolve with valid owner context', async ({ page }, te
     const body = await page.locator('body').innerText();
     expect(body.toLowerCase()).not.toContain('tidak ditemukan');
 
-    // Project and chapter context should be visible
-    expect(projectTitle).toBeTruthy();
-    expect(chapterTitle).toBeTruthy();
+    // Project and chapter context must actually be rendered
+    expect(body).toContain(projectTitle);
+    expect(body).toContain(chapterTitle);
+
+    // No raw UUIDs exposed in body
+    const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    expect(body).not.toMatch(uuidPattern);
+
+    // No internal jargon
+    const forbiddenTerms = ['m4', 'backend', 'resolver', 'disabled', 'realdata'];
+    for (const term of forbiddenTerms) {
+      expect(body.toLowerCase()).not.toContain(term);
+    }
+
+    // Honest unavailable state visible
+    expect(body.toLowerCase()).toMatch(/belum tersedia|capabilit/i);
   }
 });
 

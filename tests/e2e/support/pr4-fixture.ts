@@ -60,9 +60,10 @@ async function completeFoundationSeed(
   };
 
   // Create Foundation draft
-  const createUpdateFoundationDraft = await import('../../packages/application/dist/index.js').then(
-    (m) => m.createUpdateFoundationDraft,
-  );
+  const createUpdateFoundationDraft =
+    await import('../../../packages/application/dist/index.js').then(
+      (m) => m.createUpdateFoundationDraft,
+    );
 
   const updateFoundation = createUpdateFoundationDraft(uow);
   const foundationResult = await updateFoundation({
@@ -77,7 +78,7 @@ async function completeFoundationSeed(
   }
 
   // Confirm Foundation
-  const createConfirmFoundation = await import('../../packages/application/dist/index.js').then(
+  const createConfirmFoundation = await import('../../../packages/application/dist/index.js').then(
     (m) => m.createConfirmFoundation,
   );
 
@@ -92,7 +93,7 @@ async function completeFoundationSeed(
   }
 
   // Lock Foundation
-  const createLockFoundation = await import('../../packages/application/dist/index.js').then(
+  const createLockFoundation = await import('../../../packages/application/dist/index.js').then(
     (m) => m.createLockFoundation,
   );
 
@@ -125,13 +126,14 @@ export async function seedPr4ChapterForCurrentUser({
   if (!dbUrl) {
     throw new Error('DATABASE_URL or DATABASE_URL_WEB required for PR4 fixture');
   }
+
   const [application, db] = await Promise.all([
-    import('../../packages/application/dist/index.js'),
-    import('../../packages/db/dist/index.js'),
+    import('../../../packages/application/dist/index.js'),
+    import('../../../packages/db/dist/index.js'),
   ]);
 
   const email = (await createVerifiedSession(page, testInfo)).email;
-  const prisma = db.createPrismaClient(DATABASE_URL);
+  const prisma = db.createPrismaClient(dbUrl);
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {

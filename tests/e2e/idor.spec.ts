@@ -114,6 +114,7 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     `/app/proyek/${projectA}/karakter`,
     `/app/proyek/${projectA}/fakta`,
     `/app/proyek/${projectA}/rahasia`,
+    `/app/proyek/${projectA}/tulis`,
   ];
   const randomRoutes = [
     `/app/proyek/${randomId}`,
@@ -123,6 +124,7 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     `/app/proyek/${randomId}/karakter`,
     `/app/proyek/${randomId}/fakta`,
     `/app/proyek/${randomId}/rahasia`,
+    `/app/proyek/${randomId}/tulis`,
   ];
 
   for (const route of [...foreignRoutes, ...randomRoutes]) {
@@ -132,6 +134,14 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     expect(body).not.toContain(secretTitle);
     expect(body).not.toContain('Konsep rahasia milik A');
     expect(body).not.toContain('Pesan rahasia owner A');
+  }
+
+  for (const deniedProjectId of [projectA, randomId]) {
+    await page.goto(
+      `/app/__preview/frontend-parity?scenario=tulis-choose&projectId=${encodeURIComponent(deniedProjectId)}`,
+    );
+    await expectBrandedNotFound(page);
+    expect(await page.locator('body').innerText()).not.toContain(secretTitle);
   }
 
   // Mutation IDOR: attacker posts with foreign projectId.
