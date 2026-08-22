@@ -109,8 +109,7 @@ test.describe('Unauthorized Access Scenarios', () => {
 
   test('authenticated owner B cannot access random project + random chapter', async ({
     page,
-    testInfo,
-  }) => {
+  }, testInfo) => {
     // CASE 2: Authenticated B attempts completely random project + random chapter → NOT_FOUND
 
     // First, authenticate as real owner B
@@ -187,7 +186,7 @@ test.describe('Unauthorized Access Scenarios', () => {
     expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
   });
 
-  test('owned project B cannot access random chapter ID', async ({ page, testInfo }) => {
+  test('owned project B cannot access random chapter ID', async ({ page }, testInfo) => {
     // CASE 4: Owned project (B) + completely random chapter ID → NOT_FOUND
 
     const projectB = await seedPr4ChapterForCurrentUser({
