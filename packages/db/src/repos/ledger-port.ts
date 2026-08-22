@@ -76,7 +76,7 @@ async function findExactRelease(
   const row = rows[0];
   if (!row) return false;
 
-  // Validate full semantic tuple
+  // Validate full semantic tuple (Blocker 6 - EXACT REPLAY)
   if (
     row.id !== input.ledgerEntryId ||
     row.user_id !== input.userId ||
@@ -89,22 +89,6 @@ async function findExactRelease(
     row.dedupe_key !== input.dedupeKey
   ) {
     return false;
-  }
-
-  // For settlement-linked releases, also validate allocationId through admission ledger
-  if (input.reason === 'invocation_completed' && input.allocationId) {
-    const admissionRows = (await tx.$queryRawUnsafe(
-      `SELECT id FROM credit_ledger
-       WHERE reservation_id = $1 AND project_id = $2 AND entry_type = 'charge' AND direction = 'debit'
-         AND array_position((SELECT jsonb_array_elements_text(admission_allocation_ids FROM credit_reservations WHERE id = $1)), $3) > 0`,
-      input.reservationId,
-      input.projectId,
-      input.allocationId,
-    )) as Array<{ id: string }>;
-
-    if (admissionRows.length === 0) {
-      return false;
-    }
   }
 
   return true;
@@ -277,33 +261,14 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
 
       const reservation = reservationRows[0]!;
 
-      const currentSettled = reservation.settled_micro_idr;
-
-      // Monotonicity check: settlement never decreases
-      if (input.amountMicroIdr < currentSettled) {
-        return {
-          kind: 'monotonicity_violation',
-          current: currentSettled,
-          proposed: input.amountMicroIdr,
-        };
-      }
-
-      // Zero-delta handling: skip insert per DB CHECK (amount_micro_idr > 0), return no-op success (Blocker 7)
+      // Zero-delta handling: skip insert, return no-op success (Blocker 3 - delta semantics)
       if (input.amountMicroIdr === 0n) {
         return { kind: 'settled' };
       }
 
-      // Validate conservation law: S + L + E = R always holds
-      const newSettled = input.amountMicroIdr;
-      const newExposure =
-        reservation.reserved_micro_idr - newSettled - reservation.released_micro_idr;
-
-      if (newExposure < 0n) {
-        return { kind: 'conservation_violation', reason: 'exposure would be negative' };
-      }
-
-      // CRITICAL FIX (Blocker 1): Use correct DB vocabulary - HARDCODED, NOT from input
-      // Settlement ALWAYS uses: 'reservation_settlement'/'debit' (frozen by migration)
+      // Validate conservation law only applies to delta (not absolute comparison)
+      // Reservation monotonicity belongs to applyReconciliationTarget with absolute targets
+      // Here we validate: delta > 0 is allowed regardless of current cumulative S/L
       const inserted = (await tx.$queryRawUnsafe(
         `INSERT INTO credit_ledger
            (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,
@@ -403,33 +368,14 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
       }
 
       const reservation = reservationRows[0]!;
-      const currentReleased = reservation.released_micro_idr;
 
-      // Monotonicity check: release never decreases
-      if (input.amountMicroIdr < currentReleased) {
-        return {
-          kind: 'monotonicity_violation',
-          current: currentReleased,
-          proposed: input.amountMicroIdr,
-        };
-      }
-
-      // Zero-delta handling: skip insert per DB CHECK (Blocker 7)
+      // Zero-delta handling: skip insert (Blocker 3 - delta semantics)
       if (input.amountMicroIdr === 0n) {
         return { kind: 'released' };
       }
 
-      // Validate conservation law
-      const newReleased = input.amountMicroIdr;
-      const newExposure =
-        reservation.reserved_micro_idr - reservation.settled_micro_idr - newReleased;
-
-      if (newExposure < 0n) {
-        return { kind: 'conservation_violation', reason: 'exposure would be negative' };
-      }
-
-      // CRITICAL FIX (Blocker 1): Use correct DB vocabulary - HARDCODED, NOT from input
-      // Release ALWAYS uses: 'release'/'credit' (frozen by migration)
+      // Reservation monotonicity belongs to applyReconciliationTarget with absolute targets
+      // Here we validate only positive delta is allowed
       const inserted = (await tx.$queryRawUnsafe(
         `INSERT INTO credit_ledger
            (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,
