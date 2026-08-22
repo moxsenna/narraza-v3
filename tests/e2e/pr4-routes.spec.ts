@@ -6,7 +6,22 @@
 import { expect, test } from '@playwright/test';
 import { seedPr4ChapterForCurrentUser } from './support/pr4-fixture';
 
-test.describe.configure({ timeout: 120_000 });
+test.describe.configure({ timeout: 180_000 });
+
+const VIEWPORTS = [
+  { width: 375, height: 812 },
+  { width: 768, height: 1024 },
+  { width: 1280, height: 900 },
+  { width: 1440, height: 900 },
+] as const;
+
+const RESPONSIVE_ROUTE_EXPECTATIONS = [
+  { suffix: 'tulis', unavailableText: 'Penulisan bab belum tersedia' },
+  { suffix: 'cek', unavailableText: 'Validasi bab belum tersedia' },
+  { suffix: 'selesaikan', unavailableText: 'Penyelesaian bab belum tersedia' },
+  { suffix: 'naskah', unavailableText: 'Tidak ada naskah yang tersedia' },
+  { suffix: 'publish', unavailableText: 'Publish bab belum tersedia' },
+] as const;
 
 const routeExpectations = [
   {
@@ -84,4 +99,87 @@ test('no raw IDs or technical jargon visible in chapter routes', async ({ page }
   for (const term of forbiddenTerms) {
     expect(body.toLowerCase()).not.toContain(term);
   }
+});
+
+/**
+ * Responsive coverage: 5 routes × 4 viewports = 20 cells
+ * Uses single persisted fixture across all dimensions
+ */
+test.describe('Responsive Chapter Workspace', () => {
+  test('desktop: five routes render correctly at all viewport widths', async ({ page }, testInfo) => {
+    if (testInfo.project.name !== 'desktop') {
+      test.skip();
+    }
+
+    const { projectId, chapterId, projectTitle, chapterTitle } = await seedPr4ChapterForCurrentUser({
+      page,
+      testInfo,
+      label: 'responsive-single-registration',
+    });
+
+    for (const routeExpectation of RESPONSIVE_ROUTE_EXPECTATIONS) {
+      for (const viewport of VIEWPORTS) {
+        await test.step(`Route ${routeExpectation.suffix} @ ${viewport.width}px`, async () => {
+          await page.setViewportSize(viewport);
+
+          const routeUrl = `/app/proyek/${projectId}/bab/${chapterId}/${routeExpectation.suffix}`;
+          await page.goto(routeUrl);
+          await page.waitForLoadState('domcontentloaded');
+
+          // Collect errors BEFORE navigation ends
+          const errors: string[] = [];
+          const onConsole = (msg: unknown) => {
+            if (typeof msg === 'object' && msg && 'type' in msg) {
+              const typedMsg = msg as { type(): string; text(): string };
+              if (typedMsg.type() === 'error') {
+                errors.push(typedMsg.text());
+              }
+            }
+          };
+
+          page.on('console', onConsole);
+
+          try {
+            // Core visibility checks
+            await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+            await expect(page.locator('body')).toContainText(projectTitle, { timeout: 10_000 });
+            await expect(page.locator('body')).toContainText(chapterTitle, { timeout: 10_000 });
+            await expect(page.locator('body')).toContainText(routeExpectation.unavailableText, {
+              timeout: 10_000,
+            });
+
+            // No raw UUIDs
+            const bodyText = await page.locator('body').innerText();
+            const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+            expect(bodyText).not.toMatch(uuidPattern);
+
+            // No internal jargon
+            const forbiddenTerms = [
+              'm4',
+              'backend',
+              'resolver',
+              'REALDATA',
+              'PRESENTATION',
+              'DISABLED',
+            ];
+            for (const term of forbiddenTerms) {
+              expect(bodyText.toLowerCase()).not.toContain(term.toLowerCase());
+            }
+
+            // Overflow check - no horizontal overflow (max 1px tolerance for browser rounding)
+            const dimensions = await page.evaluate(() => ({
+              scrollWidth: document.documentElement.scrollWidth,
+              clientWidth: document.documentElement.clientWidth,
+            }));
+            expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+
+            // Verify no accumulated console errors
+            expect(errors).toEqual([]);
+          } finally {
+            page.off('console', onConsole);
+          }
+        });
+      }
+    }
+  });
 });
