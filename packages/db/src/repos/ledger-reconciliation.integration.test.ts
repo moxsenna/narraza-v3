@@ -34,7 +34,7 @@ function deriveReservationStatus(input: {
 const TEST_PROJECT_ID = 'proj-task8-test-a';
 const TEST_USER_ID = 'user-task8-test-a';
 
-// Helper to seed a reservation with specific state
+// Helper to seed a reservation with specific state using raw SQL (PrismaClient.model.create() undefined in harness)
 async function seedCreditReservation(
   prisma: PrismaClient,
   status: string,
@@ -42,24 +42,27 @@ async function seedCreditReservation(
   settledMicroIdr: bigint = 0n,
   releasedMicroIdr: bigint = 0n,
   exposureMicroIdr?: bigint,
-) {
+): Promise<{ id: string; jobId: string }> {
   const actualExposure = exposureMicroIdr ?? reservedMicroIdr - settledMicroIdr - releasedMicroIdr;
 
-  const result = await prisma.creditReservations.create({
-    data: {
-      id: `res-task8-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      userId: TEST_USER_ID,
-      projectId: TEST_PROJECT_ID ?? null,
-      jobProjectId: TEST_PROJECT_ID ?? null,
-      jobId: `job-task8-${Date.now()}`,
-      status,
-      reservedMicroIdr,
-      settledMicroIdr,
-      releasedMicroIdr,
-      exposureMicroIdr: actualExposure,
-    },
-  });
-  return result;
+  const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `INSERT INTO credit_reservations 
+       (id, user_id, project_id, job_project_id, job_id, status, reserved_micro_idr, settled_micro_idr, released_micro_idr, exposure_micro_idr)
+     VALUES (gen_random_uuid()::text, $1, $2, $2, gen_random_uuid()::text, $3, $4, $5, $6, $7)
+     RETURNING id`,
+    TEST_USER_ID,
+    TEST_PROJECT_ID,
+    status,
+    BigInt(reservedMicroIdr),
+    BigInt(settledMicroIdr),
+    BigInt(releasedMicroIdr),
+    BigInt(actualExposure),
+  );
+
+  return {
+    id: rows[0]?.id ?? `failed-${Date.now()}`,
+    jobId: `job-task8-${Date.now()}`,
+  };
 }
 
 // Integration test cases following schema harness pattern
