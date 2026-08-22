@@ -15,26 +15,18 @@ const VIEWPORTS = [
   { width: 1440, height: 900 },
 ] as const;
 
-const RESPONSIVE_ROUTE_EXPECTATIONS = [
-  { suffix: 'tulis', unavailableText: 'Penulisan bab belum tersedia' },
-  { suffix: 'cek', unavailableText: 'Validasi bab belum tersedia' },
-  { suffix: 'selesaikan', unavailableText: 'Penyelesaian bab belum tersedia' },
-  { suffix: 'naskah', unavailableText: 'Tidak ada naskah yang tersedia' },
-  { suffix: 'publish', unavailableText: 'Publish bab belum tersedia' },
-] as const;
-
 const routeExpectations = [
   {
     suffix: 'tulis',
-    unavailableText: 'Penulisan bab belum tersedia',
+    unavailableText: 'Penulisan dari halaman ini belum tersedia',
   },
   {
     suffix: 'cek',
-    unavailableText: 'Validasi bab belum tersedia',
+    unavailableText: 'Pemeriksaan otomatis untuk bab ini belum tersedia',
   },
   {
     suffix: 'selesaikan',
-    unavailableText: 'Penyelesaian bab belum tersedia',
+    unavailableText: 'Status penyelesaian bab belum dapat ditentukan saat ini',
   },
   {
     suffix: 'naskah',
@@ -42,7 +34,7 @@ const routeExpectations = [
   },
   {
     suffix: 'publish',
-    unavailableText: 'Publish bab belum tersedia',
+    unavailableText: 'Paket terbit belum tersedia',
   },
 ] as const;
 
@@ -106,27 +98,29 @@ test('no raw IDs or technical jargon visible in chapter routes', async ({ page }
  * Uses single persisted fixture across all dimensions
  */
 test.describe('Responsive Chapter Workspace', () => {
-  test('desktop: five routes render correctly at all viewport widths', async ({ page }, testInfo) => {
+  test('desktop: five routes render correctly at all viewport widths', async ({
+    page,
+  }, testInfo) => {
     if (testInfo.project.name !== 'desktop') {
       test.skip();
     }
 
-    const { projectId, chapterId, projectTitle, chapterTitle } = await seedPr4ChapterForCurrentUser({
-      page,
-      testInfo,
-      label: 'responsive-single-registration',
-    });
+    const { projectId, chapterId, projectTitle, chapterTitle } = await seedPr4ChapterForCurrentUser(
+      {
+        page,
+        testInfo,
+        label: 'responsive-single-registration',
+      },
+    );
 
-    for (const routeExpectation of RESPONSIVE_ROUTE_EXPECTATIONS) {
+    for (const routeExpectation of routeExpectations) {
       for (const viewport of VIEWPORTS) {
         await test.step(`Route ${routeExpectation.suffix} @ ${viewport.width}px`, async () => {
           await page.setViewportSize(viewport);
 
           const routeUrl = `/app/proyek/${projectId}/bab/${chapterId}/${routeExpectation.suffix}`;
-          await page.goto(routeUrl);
-          await page.waitForLoadState('domcontentloaded');
 
-          // Collect errors BEFORE navigation ends
+          // Attach console listener BEFORE navigation
           const errors: string[] = [];
           const onConsole = (msg: unknown) => {
             if (typeof msg === 'object' && msg && 'type' in msg) {
@@ -140,6 +134,9 @@ test.describe('Responsive Chapter Workspace', () => {
           page.on('console', onConsole);
 
           try {
+            await page.goto(routeUrl);
+            await page.waitForLoadState('domcontentloaded');
+
             // Core visibility checks
             await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
             await expect(page.locator('body')).toContainText(projectTitle, { timeout: 10_000 });

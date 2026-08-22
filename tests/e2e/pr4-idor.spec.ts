@@ -107,43 +107,47 @@ test.describe('Unauthorized Access Scenarios', () => {
     expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
   });
 
-  test('owner B cannot access random project + random chapter combinations', async ({ page }, testInfo) => {
-    // CASE 2: Completely random project + completely random chapter → NOT_FOUND with no leakage
+  test('authenticated owner B cannot access random project + random chapter', async ({
+    page,
+    testInfo,
+  }) => {
+    // CASE 2: Authenticated B attempts completely random project + random chapter → NOT_FOUND
+
+    // First, authenticate as real owner B
+    const projectB = await seedPr4ChapterForCurrentUser({
+      page,
+      testInfo,
+      label: 'idor-random-random-attacker',
+    });
+
+    // Generate synthetic random IDs
     const randomProjectId = await createRandomUuid();
     const randomChapterId = await createRandomUuid();
 
-    await page.goto(`/app/proyek/${randomProjectId}/bab/${randomChapterId}/tulis`);
-    await expectBrandedNotFound(page);
-    const body1 = (await page.locator('body').innerText()).toLowerCase();
-    expect(body1).not.toContain(randomProjectId);
-    expect(body1).not.toContain(randomChapterId);
+    // Test all five routes with random IDs while authenticated as B
+    const routeSuffixes = ['tulis', 'cek', 'selesaikan', 'naskah', 'publish'] as const;
 
-    await page.goto(`/app/proyek/${randomProjectId}/bab/${randomChapterId}/cek`);
-    await expectBrandedNotFound(page);
-    const body2 = (await page.locator('body').innerText()).toLowerCase();
-    expect(body2).not.toContain(randomProjectId);
-    expect(body2).not.toContain(randomChapterId);
+    for (const suffix of routeSuffixes) {
+      const url = `/app/proyek/${randomProjectId}/bab/${randomChapterId}/${suffix}`;
+      await page.goto(url);
+      await expectBrandedNotFound(page);
 
-    await page.goto(`/app/proyek/${randomProjectId}/bab/${randomChapterId}/selesaikan`);
-    await expectBrandedNotFound(page);
-    const body3 = (await page.locator('body').innerText()).toLowerCase();
-    expect(body3).not.toContain(randomProjectId);
-    expect(body3).not.toContain(randomChapterId);
+      const body = (await page.locator('body').innerText()).toLowerCase();
 
-    await page.goto(`/app/proyek/${randomProjectId}/bab/${randomChapterId}/naskah`);
-    await expectBrandedNotFound(page);
-    const body4 = (await page.locator('body').innerText()).toLowerCase();
-    expect(body4).not.toContain(randomProjectId);
-    expect(body4).not.toContain(randomChapterId);
+      // Denied body must not expose random IDs
+      expect(body).not.toContain(randomProjectId.toLowerCase());
+      expect(body).not.toContain(randomChapterId.toLowerCase());
 
-    await page.goto(`/app/proyek/${randomProjectId}/bab/${randomChapterId}/publish`);
-    await expectBrandedNotFound(page);
-    const body5 = (await page.locator('body').innerText()).toLowerCase();
-    expect(body5).not.toContain(randomProjectId);
-    expect(body5).not.toContain(randomChapterId);
+      // Crucially: denied body must NOT expose authenticated owner B's context
+      expect(body).not.toContain(projectB.projectTitle.toLowerCase());
+      expect(body).not.toContain(projectB.chapterTitle.toLowerCase());
+    }
   });
 
-  test('owned project + ACTUAL foreign chapter fails correctly', async ({ page, browser }, testInfo) => {
+  test('owned project + ACTUAL foreign chapter fails correctly', async ({
+    page,
+    browser,
+  }, testInfo) => {
     // Create victim A with Project A + Chapter A
     const projectA = await createVictimContext(browser, testInfo, 'idor-foreign-chapter-victim');
 
@@ -181,6 +185,35 @@ test.describe('Unauthorized Access Scenarios', () => {
     await expectBrandedNotFound(page);
     deniedBody = (await page.locator('body').innerText()).toLowerCase();
     expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
+  });
+
+  test('owned project B cannot access random chapter ID', async ({ page, testInfo }) => {
+    // CASE 4: Owned project (B) + completely random chapter ID → NOT_FOUND
+
+    const projectB = await seedPr4ChapterForCurrentUser({
+      page,
+      testInfo,
+      label: 'idor-owned-project-random-chapter',
+    });
+
+    const randomChapterId = await createRandomUuid();
+
+    const routeSuffixes = ['tulis', 'cek', 'selesaikan', 'naskah', 'publish'] as const;
+
+    for (const suffix of routeSuffixes) {
+      const url = `/app/proyek/${projectB.projectId}/bab/${randomChapterId}/${suffix}`;
+      await page.goto(url);
+      await expectBrandedNotFound(page);
+
+      const body = (await page.locator('body').innerText()).toLowerCase();
+
+      // Denied body must not expose random chapter ID
+      expect(body).not.toContain(randomChapterId.toLowerCase());
+
+      // Denied body must not expose authenticated owner B's context
+      expect(body).not.toContain(projectB.projectTitle.toLowerCase());
+      expect(body).not.toContain(projectB.chapterTitle.toLowerCase());
+    }
   });
 
   test('no data leakage on denied access', async ({ page }, testInfo) => {

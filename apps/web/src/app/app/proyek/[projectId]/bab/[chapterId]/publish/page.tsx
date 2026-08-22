@@ -19,7 +19,7 @@ export default async function ChapterPublishPage({
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       <header className="mb-8 border-b border-border-default pb-4">
-        <p className="text-xs font-extrabold tracking-[0.14em] text-text-muted">PUBLISH BAB</p>
+        <p className="text-xs font-extrabold tracking-[0.14em] text-text-muted">TERBITKAN BAB</p>
         <h1 className="mt-2 font-serif text-3xl font-semibold text-text-primary sm:text-4xl">
           {chapterTitle}
         </h1>
@@ -35,21 +35,21 @@ export default async function ChapterPublishPage({
           <div className="rounded-2xl border border-border-default bg-surface p-6">
             <h2 className="mb-4 text-xl font-semibold text-text-primary">Paket Terbit</h2>
             <p className="mb-4 text-base leading-7 text-text-secondary">
-              Preview paket terbit dan opsi ekspor akan ditampilkan di sini ketika kemampuan aktif
+              Pratinjau paket terbit dan opsi ekspor akan ditampilkan di sini ketika kemampuan aktif
               tersedia.
             </p>
 
             <div className="rounded-xl border border-border-default bg-status-info-soft p-4">
-              <p className="text-sm font-semibold text-text-primary">Preview tidak tersedia</p>
+              <p className="text-sm font-semibold text-text-primary">Pratinjau belum tersedia</p>
               <p className="mt-1 text-sm leading-6 text-text-secondary">
-                Paket terbit akan muncul setelah proses penerimaan selesai.
+                Paket terbit belum tersedia untuk bab ini.
               </p>
             </div>
 
             <section className="mt-6" data-testid="capability-notice">
-              <p className="text-sm font-semibold text-text-primary">Publish bab belum tersedia</p>
+              <p className="text-sm font-semibold text-text-primary">Paket terbit belum tersedia</p>
               <p className="mt-1 text-sm leading-6 text-text-secondary">
-                Kemampuan publish aktif akan diaktifkan pada tahap selanjutnya.
+                Paket terbit belum tersedia untuk bab ini.
               </p>
             </section>
           </div>

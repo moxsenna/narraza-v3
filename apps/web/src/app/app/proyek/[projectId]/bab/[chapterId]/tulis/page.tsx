@@ -49,7 +49,7 @@ export default async function ChapterTulisPage({
           <section className="mt-4" data-testid="capability-notice">
             <p className="text-sm font-semibold text-text-primary">Penulisan bab belum tersedia</p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Kemampuan penulisan aktif akan diaktifkan pada tahap selanjutnya.
+              Penulisan dari halaman ini belum tersedia.
             </p>
           </section>
         </div>
@@ -72,7 +72,7 @@ export default async function ChapterTulisPage({
           <div className="rounded-xl border border-border-default bg-status-warning-soft p-4">
             <p className="text-sm font-semibold text-text-primary">Penulisan bab belum tersedia</p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Kemampuan penulisan aktif akan diaktifkan pada tahap selanjutnya.
+              Penulisan dari halaman ini belum tersedia.
             </p>
           </div>
         </aside>

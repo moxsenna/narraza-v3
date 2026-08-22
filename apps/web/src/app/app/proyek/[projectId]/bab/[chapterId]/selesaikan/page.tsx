@@ -47,7 +47,7 @@ export default async function ChapterSelesaikanPage({
         <section className="mt-6" data-testid="capability-notice">
           <p className="text-sm font-semibold text-text-primary">Penyelesaian bab belum tersedia</p>
           <p className="mt-1 text-sm leading-6 text-text-secondary">
-            Kemampuan penyelesaian aktif akan diaktifkan pada tahap selanjutnya.
+            Status penyelesaian bab belum dapat ditentukan saat ini.
           </p>
         </section>
       </section>

@@ -41,14 +41,14 @@ export default async function ChapterCekPage({
           <div className="rounded-xl border border-border-default bg-surface-soft p-4">
             <p className="text-sm font-semibold text-text-primary">Temuan tidak tersedia</p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Temuan validasi akan muncul setelah proses pemeriksaan selesai.
+              Pemeriksaan otomatis untuk bab ini belum tersedia.
             </p>
           </div>
 
           <section className="mt-4" data-testid="capability-notice">
             <p className="text-sm font-semibold text-text-primary">Validasi bab belum tersedia</p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Kemampuan validasi aktif akan diaktifkan pada tahap selanjutnya.
+              Pemeriksaan otomatis untuk bab ini belum tersedia.
             </p>
           </section>
         </div>
