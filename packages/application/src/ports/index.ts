@@ -68,6 +68,10 @@ export type { SnapshotAppendInput, SnapshotPort } from './snapshot-port.js';
 export type {
   ReleaseQueuedCancellationInput,
   ReleaseQueuedCancellationResult,
+  AppendReservationSettlementInput,
+  ReservationSettlementAppendResult,
+  AppendReservationReleaseInput,
+  ReservationReleaseAppendResult,
   LedgerPort,
 } from './ledger-port.js';
 export type {
@@ -120,5 +124,7 @@ export type {
   CreditReservationPort,
   CreateReservationInput,
   CreateReservationResult,
+  ApplyReconciliationTargetInput,
+  ReconciliationApplyResult,
 } from './credit-reservation-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';

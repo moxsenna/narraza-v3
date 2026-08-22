@@ -27,7 +27,8 @@ export interface TargetComputationResult {
 }
 
 export type TerminalReservationReason = 'settled' | 'released' | 'cancelled' | 'expired';
-export type DerivedReservationStatus = 'open' | 'closing' | 'settled' | 'released' | 'cancelled' | 'expired';
+export type DerivedReservationStatus =
+  'open' | 'closing' | 'settled' | 'released' | 'cancelled' | 'expired';
 
 /**
  * Computes target amounts for a credit reservation based on inputs.
@@ -57,12 +58,12 @@ export function computeReservationTargets(input: TargetComputationInput): Target
   // Monotone check: targets must not be less than current amounts
   if (S_target < S_current) {
     throw new Error(
-      `Monotone settlement violation: S_target (${S_target}) < currentSettledMicroIdr (${S_current})`
+      `Monotone settlement violation: S_target (${S_target}) < currentSettledMicroIdr (${S_current})`,
     );
   }
   if (L_target < L_current) {
     throw new Error(
-      `Monotone release violation: L_target (${L_target}) < currentReleasedMicroIdr (${L_current})`
+      `Monotone release violation: L_target (${L_target}) < currentReleasedMicroIdr (${L_current})`,
     );
   }
 
@@ -81,7 +82,7 @@ export function computeReservationTargets(input: TargetComputationInput): Target
 
 /**
  * Derives the database-accepted reservation status from computed target tuple.
- * Rule:
+ * Rule per PM Blocker 3:
  * - if E_target > 0 -> 'closing' (requires exposure > 0 in DB)
  * - if E_target == 0 and S_target > 0 -> 'settled'
  * - if E_target == 0 and S_target == 0 -> terminalReason ?? 'released'

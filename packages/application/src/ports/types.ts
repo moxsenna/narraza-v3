@@ -225,7 +225,7 @@ export interface CreditReservationRecord {
   readonly projectId: string;
   readonly jobId: string | null;
   readonly projectJobId: string | null;
-  readonly status: 'open' | 'closing' | 'settled' | 'released';
+  readonly status: 'open' | 'closing' | 'settled' | 'released' | 'cancelled' | 'expired';
   readonly fundingModel: 'user_paid' | 'system_funded' | null;
   readonly reservedMicroIdr: bigint;
   readonly settledMicroIdr: bigint;

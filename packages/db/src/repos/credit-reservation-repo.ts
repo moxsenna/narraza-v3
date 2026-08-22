@@ -3,6 +3,8 @@ import type {
   CreditReservationPort,
   CreateReservationInput,
   CreateReservationResult,
+  ApplyReconciliationTargetInput,
+  ReconciliationApplyResult,
 } from '@narraza/application';
 import type { TxClient } from './tx-client.js';
 
@@ -34,7 +36,7 @@ function toReservationRecord(row: RawReservationRow): CreditReservationRecord {
     projectId: row.project_id,
     jobId: row.job_id,
     projectJobId: row.job_project_id,
-    status: row.status as 'open' | 'closing' | 'settled' | 'released',
+    status: row.status as 'open' | 'closing' | 'settled' | 'released' | 'cancelled' | 'expired',
     fundingModel: row.funding_model as 'user_paid' | 'system_funded' | null,
     reservedMicroIdr: BigInt(row.reserved_micro_idr),
     settledMicroIdr: BigInt(row.settled_micro_idr),
@@ -47,6 +49,25 @@ function toReservationRecord(row: RawReservationRow): CreditReservationRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/**
+ * Derives reservation status from target tuple (reusing Task 2 pure function pattern)
+ * Rule: E > 0 → 'closing', S > 0 → 'settled', else terminalReason ?? 'released'
+ */
+function deriveStatus(input: {
+  settledTargetMicroIdr: bigint;
+  releasedTargetMicroIdr: bigint;
+  exposureTargetMicroIdr: bigint;
+  terminalReason?: 'cancelled' | 'expired' | 'released';
+}): 'open' | 'closing' | 'settled' | 'released' | 'cancelled' | 'expired' {
+  if (input.exposureTargetMicroIdr > 0n) {
+    return 'closing';
+  }
+  if (input.settledTargetMicroIdr > 0n) {
+    return 'settled';
+  }
+  return input.terminalReason ?? 'released';
 }
 
 export function createCreditReservationRepo(tx: TxClient): CreditReservationPort {
@@ -104,6 +125,137 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
       }
 
       return { kind: 'conflict' };
+    },
+
+    // Blocker 2 & 3 & 4: Apply reconciliation targets using ABSOLUTE TARGETS + status derivation + exact binding validation
+    async applyReconciliationTarget(
+      input: ApplyReconciliationTargetInput,
+    ): Promise<ReconciliationApplyResult> {
+      const {
+        reservationId,
+        userId,
+        projectId,
+        jobProjectId,
+        jobId,
+        settledTargetMicroIdr: S_target,
+        releasedTargetMicroIdr: L_target,
+        exposureTargetMicroIdr: E_target,
+        terminalReason,
+      } = input;
+
+      // Step 1: Lock exact binding (Blocker 4 - project/job/user/reservation all match FOR UPDATE)
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT id,user_id,project_id,job_project_id,job_id,status,
+                 reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,closing_at
+           FROM credit_reservations
+          WHERE id = $1
+            AND user_id = $2
+            AND project_id = $3
+            AND job_project_id = $4
+            AND job_id = $5
+          FOR UPDATE`,
+        reservationId,
+        userId,
+        projectId,
+        jobProjectId,
+        jobId,
+      )) as Array<{
+        id: string;
+        user_id: string;
+        project_id: string;
+        job_project_id: string | null;
+        job_id: string | null;
+        status: string;
+        reserved_micro_idr: bigint;
+        settled_micro_idr: bigint;
+        released_micro_idr: bigint;
+        exposure_micro_idr: bigint;
+        closing_at: Date | null;
+      }>;
+
+      if (rows.length === 0) {
+        return { kind: 'not_found' };
+      }
+
+      const reservation = rows[0]!;
+
+      // Validate binding (all four fields must match provided values - Blocker 4)
+      if (
+        reservation.user_id !== userId ||
+        reservation.project_id !== projectId ||
+        reservation.job_project_id !== jobProjectId ||
+        reservation.job_id !== jobId
+      ) {
+        return { kind: 'binding_invalid' };
+      }
+
+      const S_current = reservation.settled_micro_idr;
+      const L_current = reservation.released_micro_idr;
+
+      // Monotonicity checks (consistency law enforcement)
+      if (S_target < S_current) {
+        return { kind: 'monotonicity_violation', reason: 'settled' };
+      }
+      if (L_target < L_current) {
+        return { kind: 'monotonicity_violation', reason: 'released' };
+      }
+
+      // Conservation law check (R = S + L + E always holds)
+      const R = reservation.reserved_micro_idr;
+      const newSum = S_target + L_target + E_target;
+      if (newSum !== R) {
+        return {
+          kind: 'conservation_violation',
+          reason: `sum ${S_target} + ${L_target} + ${E_target} = ${newSum} ≠ R=${R}`,
+        };
+      }
+
+      // Exact replay check: compare proposed vs current (no-op if already at target)
+      if (
+        S_target === S_current &&
+        L_target === L_current &&
+        E_target === reservation.exposure_micro_idr
+      ) {
+        return { kind: 'already_reconciled' };
+      }
+
+      // Blocker 3: Derive status from tuple using same logic as Task 2 pure functions
+      const derivedStatus = deriveStatus({
+        settledTargetMicroIdr: S_target,
+        releasedTargetMicroIdr: L_target,
+        exposureTargetMicroIdr: E_target,
+        ...(terminalReason !== undefined && { terminalReason }),
+      });
+
+      // Lifecycle coherence guard: never write status=open with closing_at non-null
+      if (derivedStatus === 'open' && E_target === 0n) {
+        return {
+          kind: 'conservation_violation',
+          reason: 'status=open requires E=R and closing_at=NULL',
+        };
+      }
+
+      // Critical fix: COALESCE closing_at (only set once, preserve historical value)
+      const closingAtClause = `COALESCE(closing_at, now())`;
+
+      // Update ALL target fields AND status in ONE atomic operation (Blocker 3)
+      await tx.$queryRawUnsafe(
+        `UPDATE credit_reservations
+           SET settled_micro_idr = $1,
+               released_micro_idr = $2,
+               exposure_micro_idr = $3,
+               status = $4,
+               closing_at = ${closingAtClause},
+               updated_at = now()
+         WHERE id = $5`,
+        S_target,
+        L_target,
+        E_target,
+        derivedStatus,
+        reservationId,
+      );
+
+      return { kind: 'reconciled' };
     },
   };
 }
