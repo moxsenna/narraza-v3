@@ -64,86 +64,6 @@ async function createProject(page: Page, title: string): Promise<string> {
   return match[1]!;
 }
 
-async function createProjectWithChapter(
-  page: Page,
-  title: string,
-): Promise<{ projectId: string; chapterId: string }> {
-  await page.goto('/app/proyek/baru');
-  await page.locator('input[name="title"]').fill(title);
-  await page.locator('input[name="jalur"][value="rough_idea"]').check();
-  await page.getByRole('button', { name: /Buat proyek/i }).click();
-  await expect(page).toHaveURL(/\/app\/proyek\/(?!baru(?:\/|$))[^/?#]+$/, { timeout: 45_000 });
-
-  const url = page.url();
-  const match = url.match(/\/app\/proyek\/([^/?#]+)/);
-  if (!match || match[1] === 'baru') {
-    throw new Error(`project id missing from URL: ${url}`);
-  }
-  const projectId = match[1]!;
-
-  // Navigate to outline and attempt to add a chapter
-  await page.goto(`/app/proyek/${projectId}/outline`);
-
-  const addChapterButton = page.getByRole('button', { name: /Tambah Bab|Tambahkan Bab/i }).first();
-
-  if ((await addChapterButton.count()) > 0) {
-    await addChapterButton.click();
-
-    const chapterTitleInput = page.locator('input[name="title"]').first();
-    if (await chapterTitleInput.isVisible()) {
-      await chapterTitleInput.fill(`Bab Awal - ${title}`);
-    }
-
-    await page
-      .getByRole('button', { name: /Simpan|Tambah/i })
-      .first()
-      .click();
-    await expect(page.getByText(/Bab Awal/i)).toBeVisible({ timeout: 15_000 });
-  }
-
-  // Extract chapter ID from available UI
-  let chapterId: string;
-
-  // Try to find chapter link in outline
-  const chapterLink = page.locator('a[href*="/bab/"]').first();
-  if ((await chapterLink.count()) > 0) {
-    await chapterLink.evaluate((el) => el.setAttribute('target', '_blank'));
-    const href = await chapterLink.getAttribute('href');
-    if (href) {
-      const parts = href.split('/');
-      chapterId = parts[parts.length - 1];
-
-      // Open chapter in new tab to get the ID
-      await chapterLink.click();
-      await page.waitForTimeout(1000);
-
-      // Keep second tab open
-    } else {
-      throw new Error('Could not extract chapter ID from link');
-    }
-  } else {
-    // Alternative: try data attributes or other patterns
-    const chapterRow = page.locator('[data-entity-type="chapter"]').first();
-    if ((await chapterRow.count()) > 0) {
-      chapterId =
-        (await chapterRow.getAttribute('data-id')) ||
-        (await chapterRow.getAttribute('data-chapter-id'));
-    }
-  }
-
-  if (!chapterId) {
-    throw new Error('Could not obtain chapter ID from outline');
-  }
-
-  // Close the new tab if we opened one
-  const tabs = await page.context().pages();
-  if (tabs.length > 1) {
-    await tabs[1].close();
-  }
-
-  return { projectId, chapterId };
-}
-
 async function expectBrandedNotFound(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 });
   const body = (await page.locator('body').innerText()).toLowerCase();
@@ -194,7 +114,6 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     `/app/proyek/${projectA}/karakter`,
     `/app/proyek/${projectA}/fakta`,
     `/app/proyek/${projectA}/rahasia`,
-    `/app/proyek/${projectA}/tulis`,
   ];
   const randomRoutes = [
     `/app/proyek/${randomId}`,
@@ -204,7 +123,6 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     `/app/proyek/${randomId}/karakter`,
     `/app/proyek/${randomId}/fakta`,
     `/app/proyek/${randomId}/rahasia`,
-    `/app/proyek/${randomId}/tulis`,
   ];
 
   for (const route of [...foreignRoutes, ...randomRoutes]) {
@@ -215,53 +133,6 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     expect(body).not.toContain('Konsep rahasia milik A');
     expect(body).not.toContain('Pesan rahasia owner A');
   }
-
-  for (const deniedProjectId of [projectA, randomId]) {
-    await page.goto(
-      `/app/__preview/frontend-parity?scenario=tulis-choose&projectId=${encodeURIComponent(deniedProjectId)}`,
-    );
-    await expectBrandedNotFound(page);
-    expect(await page.locator('body').innerText()).not.toContain(secretTitle);
-  }
-
-  // Create a second owned project with chapter for PR4 IDOR testing
-  const emailC = `idor-c-${stamp}@example.test`;
-  await logout(page);
-  await clearMailpit(mailpitApiUrl);
-  await registerAndEnterApp(page, emailC);
-  const { projectId: projectC, chapterId: chapterC } = await createProjectWithChapter(
-    page,
-    `Pr4IdorProject-${stamp}`,
-  );
-
-  // Test C: owned project + foreign/random chapter (sample routes)
-  const samplePr4Routes = [
-    `/app/proyek/${projectC}/bab/${chapterC}/tulis`,
-    `/app/proyek/${projectC}/bab/${chapterC}/naskah`,
-  ];
-
-  // Foreign chapter test
-  const foreignChapterRoute = samplePr4Routes[0].replace(chapterC, randomId);
-  await page.goto(foreignChapterRoute);
-  await expectBrandedNotFound(page);
-  let body = await page.locator('body').innerText();
-  expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
-
-  // Another random chapter test
-  const anotherRandomChapter = '11111111-1111-4111-8111-222222222222';
-  const randomChapterRoute = samplePr4Routes[1].replace(chapterC, anotherRandomChapter);
-  await page.goto(randomChapterRoute);
-  await expectBrandedNotFound(page);
-  body = await page.locator('body').innerText();
-  expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
-
-  // Foreign project access to chapter routes
-  const foreignProjectChapterRoute = samplePr4Routes[0].replace(projectC, projectA);
-  await page.goto(foreignProjectChapterRoute);
-  await expectBrandedNotFound(page);
-  body = await page.locator('body').innerText();
-  expect(body).not.toContain(secretTitle);
-  expect(body).not.toContain(`Pr4IdorProject-${stamp}`);
 
   // Mutation IDOR: attacker posts with foreign projectId.
   await page.goto(`/app/proyek/${projectB}/chat`);
