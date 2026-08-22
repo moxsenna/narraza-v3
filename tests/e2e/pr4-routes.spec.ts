@@ -30,14 +30,17 @@ async function registerAndEnterApp(page: Page, email: string): Promise<void> {
   await expect(page).toHaveURL(/\/app$/);
 }
 
-async function createProjectWithChapter(page: Page, title: string): Promise<{ projectId: string; chapterId: string }> {
+async function createProjectWithChapter(
+  page: Page,
+  title: string,
+): Promise<{ projectId: string; chapterId: string }> {
   // Create project
   await page.goto('/app/proyek/baru');
   await page.locator('input[name="title"]').fill(title);
   await page.locator('input[name="jalur"][value="rough_idea"]').check();
   await page.getByRole('button', { name: /Buat proyek/i }).click();
   await expect(page).toHaveURL(/\/app\/proyek\/(?!baru(?:\/|$))[^/?#]+$/, { timeout: 45_000 });
-  
+
   const url = page.url();
   const match = url.match(/\/app\/proyek\/([^/?#]+)/);
   if (!match || match[1] === 'baru') {
@@ -47,23 +50,26 @@ async function createProjectWithChapter(page: Page, title: string): Promise<{ pr
 
   // Navigate to outline and add first chapter
   await page.goto(`/app/proyek/${projectId}/outline`);
-  
+
   // Add a chapter
   const addChapterButton = page.getByRole('button', { name: /Tambah Bab|Tambahkan Bab/i }).first();
-  if (await addChapterButton.count() > 0) {
+  if ((await addChapterButton.count()) > 0) {
     await addChapterButton.click();
-    
+
     const chapterTitleInput = page.locator('input[name="title"]').first();
     if (await chapterTitleInput.isVisible()) {
       await chapterTitleInput.fill(`Bab 1 - ${title.split(' ')[0]}`);
     }
-    
-    await page.getByRole('button', { name: /Simpan|Tambah/i }).first().click();
+
+    await page
+      .getByRole('button', { name: /Simpan|Tambah/i })
+      .first()
+      .click();
   }
 
   // Extract chapter ID by clicking on any available chapter link
   const chapterLink = page.locator('a[href*="/bab/"]').first();
-  if (await chapterLink.count() > 0) {
+  if ((await chapterLink.count()) > 0) {
     await chapterLink.click();
     await expect(page).toHaveURL(/\/app\/proyek\/[^/]+\/bab\/[^?]+/, { timeout: 15_000 });
     const newUrl = page.url();
@@ -144,7 +150,10 @@ test.describe('PR4 Chapter Routes - Owner Context Verification', () => {
     await clearMailpit(mailpitApiUrl);
     await registerAndEnterApp(page, email);
 
-    const { projectId, chapterId } = await createProjectWithChapter(page, `Responsive Test ${stamp}`);
+    const { projectId, chapterId } = await createProjectWithChapter(
+      page,
+      `Responsive Test ${stamp}`,
+    );
 
     const routes = [
       `/app/proyek/${projectId}/bab/${chapterId}/tulis`,
