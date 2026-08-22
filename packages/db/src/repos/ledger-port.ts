@@ -99,7 +99,7 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
     async releaseQueuedCancellation(
       input: ReleaseQueuedCancellationInput,
     ): Promise<ReleaseQueuedCancellationResult> {
-      // Lock exact binding: projectId, jobProjectId, jobId, reservationId all match
+      // CRITICAL FIX: Lock exact binding BEFORE checking for replay (binding-before-replay)
       const rows = (await tx.$queryRawUnsafe(
         `SELECT id,user_id,project_id,job_project_id,job_id,status,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,closing_at
            FROM credit_reservations
@@ -120,12 +120,19 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
 
       const reservation = rows[0]!;
 
-      // Validate binding
+      // Validate exact binding after lock
       if (
         reservation.project_id !== input.projectId ||
         reservation.job_project_id !== input.projectId ||
         reservation.job_id !== input.jobId
       ) {
+        return { kind: 'binding_invalid' };
+      }
+
+      // Runtime dedupe key format validation - EXACT FORMAT CHECK
+      // Format: release:{reservationId}:queued-cancel
+      const expectedDedupeKey = `release:${input.reservationId}:queued-cancel`;
+      if (input.dedupeKey !== expectedDedupeKey) {
         return { kind: 'binding_invalid' };
       }
 
@@ -191,7 +198,50 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
     async appendReservationSettlement(
       input: AppendReservationSettlementInput,
     ): Promise<ReservationSettlementAppendResult> {
-      // Check for exact semantic replay first (ALL fields, not just dedupe_key)
+      // CRITICAL FIX: Lock exact binding BEFORE checking for replay (binding-before-replay)
+      // This prevents accepting durable replay without validating reservation/job binding
+      const reservationRows = (await tx.$queryRawUnsafe(
+        `SELECT reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,status,closing_at
+           FROM credit_reservations
+          WHERE id = $1
+            AND project_id = $2
+            AND job_project_id = $3
+            AND user_id = $4
+            AND job_id = $5
+          FOR UPDATE`,
+        input.reservationId,
+        input.projectId,
+        input.projectId,
+        input.userId,
+        input.jobId,
+      )) as Array<{
+        reserved_micro_idr: bigint;
+        settled_micro_idr: bigint;
+        released_micro_idr: bigint;
+        exposure_micro_idr: bigint;
+        status: string;
+        closing_at: Date | null;
+      }>;
+
+      if (reservationRows.length === 0) {
+        return { kind: 'binding_invalid' };
+      }
+
+      const reservation = reservationRows[0]!;
+
+      // Runtime dedupe key format validation - EXACT FORMAT CHECK
+      // Format: settle:{reservationId}:{allocationId}
+      const expectedDedupeKey = `settle:${input.reservationId}:${input.allocationId}`;
+      if (input.dedupeKey !== expectedDedupeKey) {
+        return { kind: 'binding_invalid' };
+      }
+
+      // Delta validation: negative amounts must be rejected BEFORE any DB write
+      if (input.amountMicroIdr < 0n) {
+        return { kind: 'dedupe_rejected' };
+      }
+
+      // Check for exact semantic replay AFTER locking (Blocker 6 - EXACT REPLAY)
       const existingRows = (await tx.$queryRawUnsafe(
         `SELECT id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key
            FROM credit_ledger
@@ -231,44 +281,11 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
         return { kind: 'binding_invalid' };
       }
 
-      // Lock exact binding: projectId, jobProjectId, jobId, userId, reservationId (Blocker 4)
-      const reservationRows = (await tx.$queryRawUnsafe(
-        `SELECT reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,status,closing_at
-           FROM credit_reservations
-          WHERE id = $1
-            AND project_id = $2
-            AND job_project_id = $3
-            AND user_id = $4
-            AND job_id = $5
-          FOR UPDATE`,
-        input.reservationId,
-        input.projectId,
-        input.projectId,
-        input.userId,
-        input.jobId,
-      )) as Array<{
-        reserved_micro_idr: bigint;
-        settled_micro_idr: bigint;
-        released_micro_idr: bigint;
-        exposure_micro_idr: bigint;
-        status: string;
-        closing_at: Date | null;
-      }>;
-
-      if (reservationRows.length === 0) {
-        return { kind: 'binding_invalid' };
-      }
-
-      const reservation = reservationRows[0]!;
-
       // Zero-delta handling: skip insert, return no-op success (Blocker 3 - delta semantics)
       if (input.amountMicroIdr === 0n) {
         return { kind: 'settled' };
       }
 
-      // Validate conservation law only applies to delta (not absolute comparison)
-      // Reservation monotonicity belongs to applyReconciliationTarget with absolute targets
-      // Here we validate: delta > 0 is allowed regardless of current cumulative S/L
       const inserted = (await tx.$queryRawUnsafe(
         `INSERT INTO credit_ledger
            (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,
@@ -299,7 +316,57 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
     async appendReservationRelease(
       input: AppendReservationReleaseInput,
     ): Promise<ReservationReleaseAppendResult> {
-      // Check for exact semantic replay first (all fields, Blocker 6)
+      // CRITICAL FIX: Lock exact binding BEFORE checking for replay (binding-before-replay)
+      // This prevents accepting durable replay without validating reservation/job binding
+      const reservationRows = (await tx.$queryRawUnsafe(
+        `SELECT reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,status,closing_at
+           FROM credit_reservations
+          WHERE id = $1
+            AND project_id = $2
+            AND job_project_id = $3
+            AND user_id = $4
+            AND job_id = $5
+          FOR UPDATE`,
+        input.reservationId,
+        input.projectId,
+        input.projectId,
+        input.userId,
+        input.jobId,
+      )) as Array<{
+        reserved_micro_idr: bigint;
+        settled_micro_idr: bigint;
+        released_micro_idr: bigint;
+        exposure_micro_idr: bigint;
+        status: string;
+        closing_at: Date | null;
+      }>;
+
+      if (reservationRows.length === 0) {
+        return { kind: 'binding_invalid' };
+      }
+
+      const reservation = reservationRows[0]!;
+
+      // Runtime dedupe key format validation - EXACT FORMAT CHECK
+      // Format varies by reason:
+      //   - invocation_completed or cancellation_refund: release:{reservationId}:{reason}:{allocationId}
+      //   - final-close: release:{reservationId}:final-close (no allocationId)
+      const expectedDedupeKeyBase = `release:${input.reservationId}:${input.reason}`;
+      const hasAllocation = input.allocationId !== null && input.reason !== 'final-close';
+      const expectedDedupeKey = hasAllocation
+        ? `${expectedDedupeKeyBase}:${input.allocationId}`
+        : expectedDedupeKeyBase;
+      
+      if (input.dedupeKey !== expectedDedupeKey) {
+        return { kind: 'binding_invalid' };
+      }
+
+      // Delta validation: negative amounts must be rejected BEFORE any DB write
+      if (input.amountMicroIdr < 0n) {
+        return { kind: 'dedupe_rejected' };
+      }
+
+      // Check for exact semantic replay AFTER locking (Blocker 6)
       const existingRows = (await tx.$queryRawUnsafe(
         `SELECT id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key
            FROM credit_ledger
@@ -339,43 +406,11 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
         return { kind: 'binding_invalid' };
       }
 
-      // Lock exact binding (Blocker 4)
-      const reservationRows = (await tx.$queryRawUnsafe(
-        `SELECT reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,status,closing_at
-           FROM credit_reservations
-          WHERE id = $1
-            AND project_id = $2
-            AND job_project_id = $3
-            AND user_id = $4
-            AND job_id = $5
-          FOR UPDATE`,
-        input.reservationId,
-        input.projectId,
-        input.projectId,
-        input.userId,
-        input.jobId,
-      )) as Array<{
-        reserved_micro_idr: bigint;
-        settled_micro_idr: bigint;
-        released_micro_idr: bigint;
-        exposure_micro_idr: bigint;
-        status: string;
-        closing_at: Date | null;
-      }>;
-
-      if (reservationRows.length === 0) {
-        return { kind: 'binding_invalid' };
-      }
-
-      const reservation = reservationRows[0]!;
-
       // Zero-delta handling: skip insert (Blocker 3 - delta semantics)
       if (input.amountMicroIdr === 0n) {
         return { kind: 'released' };
       }
 
-      // Reservation monotonicity belongs to applyReconciliationTarget with absolute targets
-      // Here we validate only positive delta is allowed
       const inserted = (await tx.$queryRawUnsafe(
         `INSERT INTO credit_ledger
            (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,
