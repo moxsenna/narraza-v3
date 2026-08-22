@@ -139,6 +139,7 @@ test.describe('Responsive Chapter Workspace', () => {
 
             // Core visibility checks
             await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+            await expect(page.getByTestId('project-shell')).toBeVisible({ timeout: 15_000 });
             await expect(page.locator('body')).toContainText(projectTitle, { timeout: 10_000 });
             await expect(page.locator('body')).toContainText(chapterTitle, { timeout: 10_000 });
             await expect(page.locator('body')).toContainText(routeExpectation.unavailableText, {
@@ -172,6 +173,28 @@ test.describe('Responsive Chapter Workspace', () => {
 
             // Verify no accumulated console errors
             expect(errors).toEqual([]);
+
+            // === RESPONSIVE SHELL ASSERTIONS ===
+            const mobileNav = page.getByLabel('Navigasi aplikasi mobile');
+            const projectSidebar = page.getByTestId('project-sidebar');
+            const menuProyekButton = page.getByRole('button', { name: 'Menu proyek' });
+
+            if (viewport.width === 375) {
+              // MOBILE: bottom nav visible, sidebar hidden, drawer button not shown
+              await expect(mobileNav).toBeVisible({ timeout: 10_000 });
+              await expect(projectSidebar).not.toBeVisible({ timeout: 10_000 });
+              await expect(menuProyekButton).not.toBeVisible({ timeout: 10_000 });
+            } else if (viewport.width === 768) {
+              // TABLET: bottom nav visible, sidebar hidden, drawer button shown
+              await expect(mobileNav).toBeVisible({ timeout: 10_000 });
+              await expect(projectSidebar).not.toBeVisible({ timeout: 10_000 });
+              await expect(menuProyekButton).toBeVisible({ timeout: 10_000 });
+            } else if (viewport.width === 1280 || viewport.width === 1440) {
+              // DESKTOP: bottom nav hidden, sidebar visible, drawer button not shown
+              await expect(mobileNav).not.toBeVisible({ timeout: 10_000 });
+              await expect(projectSidebar).toBeVisible({ timeout: 10_000 });
+              await expect(menuProyekButton).not.toBeVisible({ timeout: 10_000 });
+            }
           } finally {
             page.off('console', onConsole);
           }
