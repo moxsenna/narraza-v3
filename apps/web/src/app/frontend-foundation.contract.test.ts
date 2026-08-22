@@ -17,9 +17,19 @@ describe('frontend foundation contracts', () => {
     expect(() => source('components/__missing-required-source__.tsx')).toThrow();
   });
 
-  test('PR3 project writing entry exists while PR4 chapter writing route remains deferred', () => {
+  test('PR3 project writing and PR4 chapter workspace both exist as presentation-only disabled states', () => {
+    // PR3 project-level writing entry still exists for backward compatibility
     expect(sourceExists('app/app/proyek/[projectId]/tulis/page.tsx')).toBe(true);
-    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx')).toBe(false);
+    // PR4 chapter workspace is now implemented as five presentation-only routes with honest unavailable states
+    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx')).toBe(true);
+    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/cek/page.tsx')).toBe(true);
+    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/selesaikan/page.tsx')).toBe(
+      true,
+    );
+    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/naskah/page.tsx')).toBe(true);
+    expect(sourceExists('app/app/proyek/[projectId]/bab/[chapterId]/publish/page.tsx')).toBe(true);
+    // Shared resolver provides security properties without exposing raw IDs
+    expect(sourceExists('lib/server/capability-resolvers/chapter-context.ts')).toBe(true);
   });
 
   test('capability notice uses user-facing status copy', () => {
