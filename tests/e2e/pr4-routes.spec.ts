@@ -8,6 +8,29 @@ import { seedPr4ChapterForCurrentUser } from './support/pr4-fixture';
 
 test.describe.configure({ timeout: 120_000 });
 
+const routeExpectations = [
+  {
+    suffix: 'tulis',
+    unavailableText: 'Penulisan bab belum tersedia',
+  },
+  {
+    suffix: 'cek',
+    unavailableText: 'Validasi bab belum tersedia',
+  },
+  {
+    suffix: 'selesaikan',
+    unavailableText: 'Penyelesaian bab belum tersedia',
+  },
+  {
+    suffix: 'naskah',
+    unavailableText: 'Tidak ada naskah yang tersedia',
+  },
+  {
+    suffix: 'publish',
+    unavailableText: 'Publish bab belum tersedia',
+  },
+] as const;
+
 test('five chapter routes resolve with valid owner context', async ({ page }, testInfo) => {
   const { projectId, chapterId, projectTitle, chapterTitle } = await seedPr4ChapterForCurrentUser({
     page,
@@ -15,16 +38,8 @@ test('five chapter routes resolve with valid owner context', async ({ page }, te
     label: 'owner-routes',
   });
 
-  const routes = [
-    `/app/proyek/${projectId}/bab/${chapterId}/tulis`,
-    `/app/proyek/${projectId}/bab/${chapterId}/cek`,
-    `/app/proyek/${projectId}/bab/${chapterId}/selesaikan`,
-    `/app/proyek/${projectId}/bab/${chapterId}/naskah`,
-    `/app/proyek/${projectId}/bab/${chapterId}/publish`,
-  ];
-
-  for (const route of routes) {
-    await page.goto(route);
+  for (const routeExpectation of routeExpectations) {
+    await page.goto(`/app/proyek/${projectId}/bab/${chapterId}/${routeExpectation.suffix}`);
 
     // Route should not be 404
     const body = await page.locator('body').innerText();
@@ -33,6 +48,9 @@ test('five chapter routes resolve with valid owner context', async ({ page }, te
     // Project and chapter context must actually be rendered
     expect(body).toContain(projectTitle);
     expect(body).toContain(chapterTitle);
+
+    // Route-specific honest state must be visible
+    expect(body).toContain(routeExpectation.unavailableText);
 
     // No raw UUIDs exposed in body
     const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -43,9 +61,6 @@ test('five chapter routes resolve with valid owner context', async ({ page }, te
     for (const term of forbiddenTerms) {
       expect(body.toLowerCase()).not.toContain(term);
     }
-
-    // Honest unavailable state visible
-    expect(body.toLowerCase()).toMatch(/belum tersedia|capabilit/i);
   }
 });
 

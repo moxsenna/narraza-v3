@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 
 import { resolveChapterContext } from '../../../../../../../lib/server/capability-resolvers/chapter-context';
 
@@ -48,12 +49,12 @@ export default async function ChapterNaskahPage({
         </div>
 
         <nav className="mt-8 flex items-center gap-3">
-          <a
+          <Link
             href={`/app/proyek/${projectId}/bab/${chapterId}/tulis`}
             className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border-default bg-surface-soft px-5 text-sm font-bold text-text-primary hover:bg-surface focus:border-brand-focus focus:outline-none focus:ring-2 focus:ring-brand-focus/20"
           >
             Kembali ke penulisan
-          </a>
+          </Link>
         </nav>
       </section>
     </main>
