@@ -2,18 +2,16 @@
  * PR4 IDOR (Insecure Direct Object Reference) Matrix
  */
 import { randomUUID } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page, type TestInfo } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createVerifiedSession } from './support/auth-session';
 
 test.describe.configure({ timeout: 180_000 });
 
 async function createPr4Fixture(
   page: Page,
-  testInfo: unknown,
-): Promise<{
-  projectId: string;
-  chapterId: string;
-}> {
+  testInfo: TestInfo,
+): Promise<{ projectId: string; chapterId: string }> {
   const [application, db] = await Promise.all([
     import('../../packages/application/dist/index.js'),
     import('../../packages/db/dist/index.js'),
@@ -23,7 +21,7 @@ async function createPr4Fixture(
   if (!databaseUrl) throw new Error('DATABASE_URL required');
 
   const prisma = db.createPrismaClient(databaseUrl);
-  const { email } = await createVerifiedSession(page, testInfo as any);
+  const { email } = await createVerifiedSession(page, testInfo);
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user) throw new Error(`User not found: ${email}`);
@@ -132,40 +130,36 @@ test.describeParallel('Unauthorized Access Scenarios', () => {
 
     for (const route of foreignRoutes) {
       await page.goto(route);
-      const body = await page.locator('body').innerText();
-      expect(body.toLowerCase()).toContain('not found') ||
-        expect(body.toLowerCase()).toContain('tidak ditemukan');
+      const lowerBody = (await page.locator('body').innerText()).toLowerCase();
+      expect(lowerBody).toContain('not found');
+      expect(lowerBody).toContain('tidak ditemukan');
     }
   });
 
   test('owner B cannot access random project IDs', async ({ page }, testInfo) => {
-    const projectA = await createPr4Fixture(page, {
+    const projectARandom = await createPr4Fixture(page, {
       ...testInfo,
       project: { name: 'idor-random-1' },
     });
     const randomProjectId = await getRandomUuid();
 
     const routes = [
-      `/app/proyek/${randomProjectId}/bab/${projectA.chapterId}/tulis`,
-      `/app/proyek/${randomProjectId}/bab/${projectA.chapterId}/cek`,
-      `/app/proyek/${randomProjectId}/bab/${projectA.chapterId}/selesaikan`,
-      `/app/proyek/${randomProjectId}/bab/${projectA.chapterId}/naskah`,
-      `/app/proyek/${randomProjectId}/bab/${projectA.chapterId}/publish`,
+      `/app/proyek/${randomProjectId}/bab/${projectARandom.chapterId}/tulis`,
+      `/app/proyek/${randomProjectId}/bab/${projectARandom.chapterId}/cek`,
+      `/app/proyek/${randomProjectId}/bab/${projectARandom.chapterId}/selesaikan`,
+      `/app/proyek/${randomProjectId}/bab/${projectARandom.chapterId}/naskah`,
+      `/app/proyek/${randomProjectId}/bab/${projectARandom.chapterId}/publish`,
     ];
 
     for (const route of routes) {
       await page.goto(route);
-      const body = await page.locator('body').innerText();
-      expect(body.toLowerCase()).toContain('not found') ||
-        expect(body.toLowerCase()).toContain('tidak ditemukan');
+      const lowerBody = (await page.locator('body').innerText()).toLowerCase();
+      expect(lowerBody).toContain('not found');
+      expect(lowerBody).toContain('tidak ditemukan');
     }
   });
 
   test('foreign chapter in valid project fails identically', async ({ page }, testInfo) => {
-    const projectA = await createPr4Fixture(page, {
-      ...testInfo,
-      project: { name: 'idor-fgch-1' },
-    });
     const projectB = await createPr4Fixture(page, {
       ...testInfo,
       project: { name: 'idor-fgch-2' },
@@ -182,14 +176,14 @@ test.describeParallel('Unauthorized Access Scenarios', () => {
 
     for (const route of routes) {
       await page.goto(route);
-      const body = await page.locator('body').innerText();
-      expect(body.toLowerCase()).toContain('not found') ||
-        expect(body.toLowerCase()).toContain('tidak ditemukan');
+      const lowerBody = (await page.locator('body').innerText()).toLowerCase();
+      expect(lowerBody).toContain('not found');
+      expect(lowerBody).toContain('tidak ditemukan');
     }
   });
 
   test('no data leakage on denied access', async ({ page }, testInfo) => {
-    const projectA = await createPr4Fixture(page, {
+    const projectANoLeak = await createPr4Fixture(page, {
       ...testInfo,
       project: { name: 'idor-noleak' },
     });
@@ -201,14 +195,14 @@ test.describeParallel('Unauthorized Access Scenarios', () => {
 
     const body = await page.locator('body').innerText();
 
-    expect(body).not.toContain(projectA.projectTitle);
-    expect(body).not.toContain(projectA.chapterTitle);
+    expect(body).not.toContain(projectANoLeak.projectTitle);
+    expect(body).not.toContain(projectANoLeak.chapterTitle);
 
     const uuidPattern = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
     const matches = body.match(uuidPattern) || [];
     for (const match of matches) {
-      expect(match).not.toContain(projectA.projectId);
-      expect(match).not.toContain(projectA.chapterId);
+      expect(match).not.toContain(projectANoLeak.projectId);
+      expect(match).not.toContain(projectANoLeak.chapterId);
     }
   });
 });
