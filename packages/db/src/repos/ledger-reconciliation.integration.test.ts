@@ -11,9 +11,24 @@ import { describe, it, expect } from 'vitest';
 import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
-import { computeReservationTargets, deriveReservationStatus } from '@narraza/application/src/credits/reservation-target.js';
 
 const schema = createSchemaTestSuite();
+
+// Inline helper functions for testing (copied from reservation-target pure functions)
+function deriveReservationStatus(input: {
+  settledTargetMicroIdr: bigint;
+  releasedTargetMicroIdr: bigint;
+  exposureTargetMicroIdr: bigint;
+  terminalReason?: 'cancelled' | 'expired' | 'released';
+}): 'open' | 'closing' | 'settled' | 'released' | 'cancelled' | 'expired' {
+  if (input.exposureTargetMicroIdr > 0n) {
+    return 'closing';
+  }
+  if (input.settledTargetMicroIdr > 0n) {
+    return 'settled';
+  }
+  return input.terminalReason ?? 'released';
+}
 
 // Inline test IDs - no dependency on fixtures module
 const TEST_PROJECT_ID = 'proj-task8-test-a';

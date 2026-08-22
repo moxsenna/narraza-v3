@@ -73,6 +73,10 @@ export type {
   SnapshotPort,
   ReleaseQueuedCancellationInput,
   ReleaseQueuedCancellationResult,
+  AppendReservationSettlementInput,
+  ReservationSettlementAppendResult,
+  AppendReservationReleaseInput,
+  ReservationReleaseAppendResult,
   LedgerPort,
   JobInsertInput,
   JobInsertResult,
@@ -122,6 +126,8 @@ export type {
   CreditReservationPort,
   CreateReservationInput,
   CreateReservationResult,
+  ApplyReconciliationTargetInput,
+  ReconciliationApplyResult,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
@@ -201,6 +207,8 @@ export type {
   CreateConfirmationInput,
   ConfirmQuoteResult,
 } from './credits/confirmation-contract.js';
+// Re-export Task 2 pure functions for integration testing
+export { computeReservationTargets, deriveReservationStatus } from './credits/reservation-target.js';
 export {
   createAuthService,
   type AuthService,
