@@ -49,11 +49,10 @@ async function seedCreditReservation(
     data: {
       id: `res-task8-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       userId: TEST_USER_ID,
-      projectId: TEST_PROJECT_ID,
-      jobProjectId: TEST_PROJECT_ID,
+      projectId: TEST_PROJECT_ID ?? null,
+      jobProjectId: TEST_PROJECT_ID ?? null,
       jobId: `job-task8-${Date.now()}`,
       status,
-      fundingModel: 'user_paid',
       reservedMicroIdr,
       settledMicroIdr,
       releasedMicroIdr,
