@@ -47,8 +47,8 @@ async function seedCreditReservation(
 
   const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
     `INSERT INTO credit_reservations 
-       (id, user_id, project_id, job_project_id, job_id, status, reserved_micro_idr, settled_micro_idr, released_micro_idr, exposure_micro_idr)
-     VALUES (gen_random_uuid()::text, $1, $2, $2, gen_random_uuid()::text, $3, $4, $5, $6, $7)
+       (id, user_id, project_id, job_project_id, job_id, status, reserved_micro_idr, settled_micro_idr, released_micro_idr, exposure_micro_idr, created_at, updated_at)
+     VALUES (gen_random_uuid()::text, $1, $2, $2, gen_random_uuid()::text, $3, $4, $5, $6, $7, now(), now())
      RETURNING id`,
     TEST_USER_ID,
     TEST_PROJECT_ID,
@@ -547,25 +547,26 @@ schema.test(
     try {
       const entryId = `entry-immutable-21`;
 
-      await prisma.creditLedger.create({
-        data: {
-          id: entryId,
-          userId: TEST_USER_ID,
-          projectId: TEST_PROJECT_ID,
-          reservationId: `imm-res-21`,
-          attemptId: null,
-          entryType: 'reservation_settlement',
-          direction: 'debit',
-          amountMicroIdr: 500000n,
-          dedupeKey: 'settle:test-21:alloc',
-        },
-      });
+      await prisma.$queryRawUnsafe(
+        `INSERT INTO credit_ledger 
+           (id, user_id, project_id, reservation_id, attempt_id, entry_type, direction, amount_micro_idr, dedupe_key, created_at)
+         VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, now())`,
+        entryId,
+        TEST_USER_ID,
+        TEST_PROJECT_ID,
+        `imm-res-21`,
+        'reservation_settlement',
+        'debit',
+        BigInt(500000),
+        'settle:test-21:alloc',
+      );
 
       try {
-        await prisma.creditLedger.update({
-          where: { id: entryId },
-          data: { amountMicroIdr: 999999n },
-        });
+        await prisma.$queryRawUnsafe(
+          `UPDATE credit_ledger SET amount_micro_idr = $1 WHERE id = $2`,
+          BigInt(999999),
+          entryId,
+        );
 
         throw new Error('UPDATE should have been rejected by immutability trigger');
       } catch (error: unknown) {
