@@ -6,7 +6,6 @@ import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
 import { createJobService } from '@narraza/application';
-import { Pool } from 'pg';
 
 // Vitest schema harness registration (required for database test discovery)
 const _schema = createSchemaTestSuite();
@@ -167,7 +166,7 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
 
   schema.test(
     '04. reservation mutation + divergent settlement => full UoW rollback',
-    async ({ databaseUrl }) => {
+    async ({ client, databaseUrl }) => {
       const prisma = createPrismaClient(databaseUrl);
       try {
         const { userId, projectId, jobId, reservationId } = await seedTask8Fixtures(prisma);
@@ -189,38 +188,31 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const before = beforeRows[0]!;
 
-        // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using POOL directly
-        // CRITICAL FIX: Use Pool API (same as harness) for guaranteed autocommit behavior
+        // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using HARNESS CLIENT
         const dedupeKey = `settle:${reservationId}:divergent`;
         
-        console.log('Case 04 - Using Pool API for guaranteed commit');
+        // Direct seeding via harness-provided pool
+        await client.query(
+          `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
+           VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now())`,
+          [`entry-seed-${reservationId}`, userId, projectId, reservationId, BigInt(300000), dedupeKey],
+        );
         
-        const pgPool = new Pool({ connectionString: databaseUrl });
-        let insertedId: string | null = null;
+        // Immediate verification via HARNESS CLIENT (must see count == 1)
+        const harnessPostInsert = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
+          [dedupeKey],
+        );
+        expect(parseInt(harnessPostInsert.rows[0]?.cnt ?? '0')).toBe(1);
         
-        try {
-          // Direct pool query with explicit RETURNING for verification
-          const seedResult = await pgPool.query(
-            `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
-             VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) RETURNING id`,
-            [`entry-seed-${reservationId}`, userId, projectId, reservationId, BigInt(300000), dedupeKey],
-          );
-          
-          insertedId = seedResult.rows[0]?.id || null;
-          console.log('Case 04 - Inserted ID:', insertedId);
-          
-          // Verify immediately on SAME pool connection
-          const verifyCount = await pgPool.query<{ cnt: string }>(
-            `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-            [dedupeKey],
-          );
-          console.log('Case 04 - Post-insert same-conn count:', parseInt(verifyCount.rows[0]?.cnt ?? '0'));
-        } finally {
-          await pgPool.end();
-          console.log('Case 04 - Pool ended, should have committed');
-        }
+        // CRITICAL PRECONDITION: Verify SAME row visible via HARNESS CLIENT (NOT Prisma)
+        const preUowHarnessCount = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
+          [dedupeKey],
+        );
+        expect(parseInt(preUowHarnessCount.rows[0]?.cnt ?? '0')).toBe(1); // HARD ASSERTION
         
-        // NOW enter UoW - seeded data MUST exist here
+        // Enter UoW
         let threwRollback = false;
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
@@ -261,7 +253,7 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           expect(threwRollback).toBe(true);
         }
 
-        // STEP 4: AFTER UoW - verify reservation reverted AND seeded row STILL EXISTS
+        // After UoW - verify reservation reverted AND seeded row STILL EXISTS
         const afterRows = (await prisma.$queryRawUnsafe<{
           status: string;
           settled_micro_idr: bigint;
@@ -283,22 +275,24 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         expect(after.released_micro_idr).toBe(before.released_micro_idr);
         expect(after.exposure_micro_idr).toBe(before.exposure_micro_idr);
 
-        // CRITICAL ASSERTION: Seeded row survived UoW rollback (count=1)
-        const ledgerRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
-          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-          dedupeKey,
-        )) as Array<{ cnt: string }>;
+        // Verify via harness client that exactly ONE row exists (the seeded one)
+        const postUowHarness = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
+          [dedupeKey],
+        );
+        console.log(`Case 04 - Post-UoW count via harness: ${JSON.stringify(postUowHarness.rows[0])}`);
+        expect(parseInt(postUowHarness.rows[0]?.cnt ?? '0')).toBe(1); // Seeded row survived!
         
-        console.log('Case 04 - Post-UoW count:', parseInt(ledgerRows[0]?.cnt ?? '0'));
-        
-        // NOTE: This assertion is ENVIRONMENT BLOCKED - Vitest schema harness PostgreSQL 
-        // isolation prevents visibility of committed rows from separate Pool connections.
-        // All reservation state assertions above ARE verified correctly (full UoW rollback),
-        // but proving seeded row survives requires external PostgreSQL connectivity test.
-        // expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(1); // Seeded row survived!
-        
-        // SKIPPED: Environment limitation in Vitest schema harness
-        // To verify: Run PostgreSQL manually with explicit COMMIT before entering UoW
+        // Verify exact tuple unchanged
+        const tupleCheck = await client.query(
+          `SELECT id, amount_micro_idr, entry_type, direction FROM credit_ledger WHERE dedupe_key = $1`,
+          [dedupeKey],
+        );
+        const row = tupleCheck.rows[0];
+        expect(row.id).toBe(`entry-seed-${reservationId}`);
+        expect(BigInt(row.amount_micro_idr)).toBe(BigInt(300000));
+        expect(row.entry_type).toBe('reservation_settlement');
+        expect(row.direction).toBe('debit');
       } finally {
         await prisma.$disconnect();
       }
@@ -398,7 +392,7 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
 
   schema.test(
     '07. reservation mutation + divergent release => full UoW rollback',
-    async ({ databaseUrl }) => {
+    async ({ client, databaseUrl }) => {
       const prisma = createPrismaClient(databaseUrl);
       try {
         const { userId, projectId, jobId, reservationId } = await seedTask8Fixtures(prisma);
@@ -420,36 +414,31 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const before = beforeRows[0]!;
 
-        // STEP 2: Seed conflicting release row OUTSIDE any UoW using POOL directly
-        // CRITICAL FIX: Use Pool API (same as harness) for guaranteed autocommit behavior
+        // STEP 2: Seed conflicting release row OUTSIDE any UoW using HARNESS CLIENT
         const seedDedupeKey = `release:${reservationId}:invocation_completed:a07-divergent`;
         
-        console.log('Case 07 - Using Pool API for guaranteed commit');
+        // Direct seeding via harness-provided pool
+        await client.query(
+          `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
+           VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now())`,
+          [`entry-seed-07`, userId, projectId, reservationId, BigInt(200000), seedDedupeKey],
+        );
         
-        const pgPool = new Pool({ connectionString: databaseUrl });
+        // Immediate verification via HARNESS CLIENT (must see count == 1)
+        const harnessPostInsert = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
+          [seedDedupeKey],
+        );
+        expect(parseInt(harnessPostInsert.rows[0]?.cnt ?? '0')).toBe(1);
         
-        try {
-          // Direct pool query with explicit RETURNING for verification
-          const seedResult = await pgPool.query(
-            `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
-             VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now()) RETURNING id`,
-            [`entry-seed-07`, userId, projectId, reservationId, BigInt(200000), seedDedupeKey],
-          );
-          
-          console.log('Case 07 - Inserted ID:', seedResult.rows[0]?.id);
-          
-          // Verify immediately on SAME pool connection
-          const verifyCount = await pgPool.query<{ cnt: string }>(
-            `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-            [seedDedupeKey],
-          );
-          console.log('Case 07 - Post-insert same-conn count:', parseInt(verifyCount.rows[0]?.cnt ?? '0'));
-        } finally {
-          await pgPool.end();
-          console.log('Case 07 - Pool ended, should have committed');
-        }
+        // CRITICAL PRECONDITION: Verify SAME row visible via HARNESS CLIENT (NOT Prisma)
+        const preUowHarnessCount = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
+          [seedDedupeKey],
+        );
+        expect(parseInt(preUowHarnessCount.rows[0]?.cnt ?? '0')).toBe(1); // HARD ASSERTION
         
-        // NOW enter UoW
+        // Enter UoW
         let threwRollback = false;
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
@@ -491,7 +480,7 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           expect(threwRollback).toBe(true);
         }
 
-        // STEP 4: AFTER UoW - verify reservation reverted AND seeded row STILL EXISTS
+        // After UoW - verify reservation reverted AND seeded row STILL EXISTS
         const afterRows = (await prisma.$queryRawUnsafe<{
           status: string;
           settled_micro_idr: bigint;
@@ -513,22 +502,23 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         expect(after.released_micro_idr).toBe(before.released_micro_idr);
         expect(after.exposure_micro_idr).toBe(before.exposure_micro_idr);
 
-        // CRITICAL ASSERTION: Seeded row survived UoW rollback (count=1)
-        const ledgerRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
-          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-          seedDedupeKey,
-        )) as Array<{ cnt: string }>;
+        // Verify via harness client that exactly ONE row exists (the seeded one)
+        const postUowHarness = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
+          [seedDedupeKey],
+        );
+        expect(parseInt(postUowHarness.rows[0]?.cnt ?? '0')).toBe(1); // Seeded row survived!
         
-        console.log('Case 07 - Post-UoW count:', parseInt(ledgerRows[0]?.cnt ?? '0'));
-        
-        // NOTE: This assertion is ENVIRONMENT BLOCKED - Vitest schema harness PostgreSQL 
-        // isolation prevents visibility of committed rows from separate Pool connections.
-        // All reservation state assertions above ARE verified correctly (full UoW rollback),
-        // but proving seeded row survives requires external PostgreSQL connectivity test.
-        // expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(1); // Seeded row survived!
-        
-        // SKIPPED: Environment limitation in Vitest schema harness
-        // To verify: Run PostgreSQL manually with explicit COMMIT before entering UoW
+        // Verify exact tuple unchanged
+        const tupleCheck = await client.query(
+          `SELECT id, amount_micro_idr, entry_type, direction FROM credit_ledger WHERE dedupe_key = $1`,
+          [seedDedupeKey],
+        );
+        const row = tupleCheck.rows[0];
+        expect(row.id).toBe('entry-seed-07');
+        expect(BigInt(row.amount_micro_idr)).toBe(BigInt(200000));
+        expect(row.entry_type).toBe('release');
+        expect(row.direction).toBe('credit');
       } finally {
         await prisma.$disconnect();
       }
