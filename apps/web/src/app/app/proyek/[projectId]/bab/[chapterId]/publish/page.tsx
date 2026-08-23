@@ -19,7 +19,7 @@ export default async function ChapterPublishPage({
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       <header className="mb-8 border-b border-border-default pb-4">
-        <p className="text-xs font-extrabold tracking-[0.14em] text-text-muted">TERBITKAN BAB</p>
+        <p className="text-xs font-extrabold tracking-[0.08em] text-text-muted">TERBITKAN BAB</p>
         <h1 className="mt-2 font-serif text-3xl font-semibold text-text-primary sm:text-4xl">
           {chapterTitle}
         </h1>
