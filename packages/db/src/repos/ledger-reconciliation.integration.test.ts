@@ -221,15 +221,14 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         
         console.log('Case 04 - Seed result:', seedResult);
         
-        // Verify seed persisted BEFORE entering UoW (on fresh connection, will see committed data)
-        const _preUowCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+        // CRITICAL: Verify immediately on same logical session (must be committed)
+        const immediateCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
           `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
           dedupeKey,
         )) as Array<{ cnt: string }>;
+        console.log('Case 04 - Immediate post-seed count:', parseInt(immediateCount[0]?.cnt ?? '0'));
         
-        console.log('Case 04 - Pre-UoW count:', parseInt(_preUowCount[0]?.cnt ?? '0'));
-        
-        // STEP 3: Enter UoW with mutation + divergent replay attempt
+        // Now enter UoW
         let threwRollback = false;
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
