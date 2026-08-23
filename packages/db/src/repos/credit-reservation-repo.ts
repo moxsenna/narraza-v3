@@ -201,9 +201,6 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
       );
 
       if (isTerminalCurrent) {
-        // Exact same legal terminal state may replay (already handled later)
-        // But reopening to closing/open is explicitly rejected
-        // Transition to another terminal disposition is also rejected
         const desiredStatus = deriveReservationStatus({
           settledTargetMicroIdr: S_target,
           releasedTargetMicroIdr: L_target,
@@ -211,15 +208,36 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
           ...(terminalReason !== undefined && { terminalReason }),
         });
 
+        // CRITICAL FIX per PM Directive Option 1:
+        // Same S/L/E tuple but different disposition → terminal_disposition_mismatch
+        // Different tuple from terminal → terminal_lifecycle_violation
+
+        // Check for identical tuple with different disposition FIRST
+        const isSameTuple =
+          S_target === S_current &&
+          L_target === L_current &&
+          E_target === reservation.exposure_micro_idr;
+
+        if (isSameTuple) {
+          // Exact same tuple, but desired status differs => terminal disposition mismatch
+          if (desiredStatus !== currentStatus) {
+            return {
+              kind: 'conflict',
+              reason: 'terminal_disposition_mismatch' as const,
+            };
+          }
+          // Otherwise will fall through to already_reconciled later
+        }
+
+        // Only for non-identical tuples (different S/L/E values):
+        // Reopening to closing/open is rejected
+        // Transition to another terminal disposition from different tuple is also rejected
         const isDesiredOpenOrClosing = desiredStatus === 'open' || desiredStatus === 'closing';
         const isAnotherTerminal = ['settled', 'released', 'cancelled', 'expired'].includes(
           desiredStatus,
         );
 
-        if (
-          isDesiredOpenOrClosing ||
-          (isTerminalCurrent && isAnotherTerminal && desiredStatus !== currentStatus)
-        ) {
+        if (isDesiredOpenOrClosing || (isTerminalCurrent && isAnotherTerminal)) {
           return {
             kind: 'conflict',
             reason: 'terminal_lifecycle_violation' as const,

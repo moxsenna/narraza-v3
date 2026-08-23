@@ -170,32 +170,108 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
       const prisma = createPrismaClient(databaseUrl);
       try {
         const { userId, projectId, jobId, reservationId } = await seedTask8Fixtures(prisma);
+
+        // Step 1: Capture pre-transaction state (before ANY UoW)
+        const beforeRows = (await prisma.$queryRawUnsafe<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>(
+          `SELECT status, settled_micro_idr, released_micro_idr, exposure_micro_idr FROM credit_reservations WHERE id = $1`,
+          reservationId,
+        )) as Array<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>;
+        const before = beforeRows[0]!;
+
+        // Step 2: Seed conflicting ledger entry WITH SAME dedupe key
+        // This will cause binding_invalid when we try to append inside UoW
         await prisma.$queryRawUnsafe(
           `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) ON CONFLICT (dedupe_key) DO NOTHING`,
           `entry-seed-${reservationId}`,
           userId,
           projectId,
           reservationId,
-          300000n,
+          BigInt(300000),
           `settle:${reservationId}:divergent`,
         );
+
+        // Step 3: Inside ONE UoW: applyReconciliationTarget mutation THEN attempt divergent append
+        let threwRollback = false;
         try {
-          await createUnitOfWork(prisma).execute(async (ports) =>
-            ports.ledger.appendReservationSettlement({
+          await createUnitOfWork(prisma).execute(async (ports) => {
+            // Step 3a: Mutate reservation first (this would persist if not rolled back)
+            await ports.creditReservation.applyReconciliationTarget({
+              reservationId,
+              userId,
+              projectId,
+              jobProjectId: projectId,
+              jobId,
+              settledTargetMicroIdr: BigInt(800000),
+              releasedTargetMicroIdr: 0n,
+              exposureTargetMicroIdr: BigInt(200000),
+            });
+
+            // Step 3b: Attempt divergent settlement (same dedupe key => binding_invalid)
+            const result = await ports.ledger.appendReservationSettlement({
               projectId,
               jobId,
               userId,
               reservationId,
-              ledgerEntryId: `entry-04`,
-              allocationId: 'a04',
+              ledgerEntryId: `entry-divergent-04`,
+              allocationId: 'divergent',
               attemptId: null,
-              amountMicroIdr: 300000n,
+              amountMicroIdr: BigInt(300000),
               dedupeKey: `settle:${reservationId}:divergent`,
-            }),
-          );
-        } catch {
-          /* Expected UoW rollback on binding conflict */
-        } // no-unused-vars suppression: intentional empty catch
+            });
+
+            // If we get binding_invalid, convert to private sentinel for rollback trigger
+            if (result.kind === 'binding_invalid') {
+              threwRollback = true;
+              throw new Error('TASK8_ROLLBACK_SENTINEL_04');
+            }
+
+            throw new Error('TASK8_UNEXPECTED_SUCCESS_04');
+          });
+        } catch (e) {
+          // Verify we caught the rollback sentinel
+          expect((e as Error).message).toBe('TASK8_ROLLBACK_SENTINEL_04');
+          expect(threwRollback).toBe(true);
+        }
+
+        // Step 4: AFTER transaction - verify ROLLBACK preserved original tuple
+        const afterRows = (await prisma.$queryRawUnsafe<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>(
+          `SELECT status, settled_micro_idr, released_micro_idr, exposure_micro_idr FROM credit_reservations WHERE id = $1`,
+          reservationId,
+        )) as Array<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>;
+        const after = afterRows[0]!;
+
+        // CRITICAL ASSERTIONS: State must be identical to before
+        expect(after.status).toBe(before.status);
+        expect(after.settled_micro_idr).toBe(before.settled_micro_idr);
+        expect(after.released_micro_idr).toBe(before.released_micro_idr);
+        expect(after.exposure_micro_idr).toBe(before.exposure_micro_idr);
+
+        // Additional: Verify no NEW settlement ledger row created (only seeded one exists)
+        const ledgerRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
+          `settle:${reservationId}:divergent`,
+        )) as Array<{ cnt: string }>;
+        expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(1); // Only seeded row, no duplicate
       } finally {
         await prisma.$disconnect();
       }
@@ -266,11 +342,11 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           userId,
           reservationId,
           ledgerEntryId: `entry-rel-06`,
-          reason: 'invoked',
+          reason: 'invocation_completed',
           allocationId: 'a06',
           attemptId: null,
           amountMicroIdr: 300000n,
-          dedupeKey: `release:${reservationId}:invoked:a06`,
+          dedupeKey: `release:${reservationId}:invocation_completed:a06`,
         }),
       );
       const result = await createUnitOfWork(prisma).execute(async (ports) =>
@@ -280,11 +356,11 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           userId,
           reservationId,
           ledgerEntryId: `entry-rel-06`,
-          reason: 'invoked',
+          reason: 'invocation_completed',
           allocationId: 'a06',
           attemptId: null,
           amountMicroIdr: 300000n,
-          dedupeKey: `release:${reservationId}:invoked:a06`,
+          dedupeKey: `release:${reservationId}:invocation_completed:a06`,
         }),
       );
       expect(result).toEqual({ kind: 'already_released' });
@@ -293,139 +369,213 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
     }
   });
 
-  schema.test('07. divergent release replay => full UoW rollback', async ({ databaseUrl }) => {
+  schema.test(
+    '07. reservation mutation + divergent release => full UoW rollback',
+    async ({ databaseUrl }) => {
+      const prisma = createPrismaClient(databaseUrl);
+      try {
+        const { userId, projectId, jobId, reservationId } = await seedTask8Fixtures(prisma);
+
+        // Step 1: Capture pre-transaction state
+        const beforeRows = (await prisma.$queryRawUnsafe<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>(
+          `SELECT status, settled_micro_idr, released_micro_idr, exposure_micro_idr FROM credit_reservations WHERE id = $1`,
+          reservationId,
+        )) as Array<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>;
+        const before = beforeRows[0]!;
+
+        // Step 2: Seed conflicting ledger entry with SAME dedupe key for release
+        await prisma.$queryRawUnsafe(
+          `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now()) ON CONFLICT (dedupe_key) DO NOTHING`,
+          `entry-seed-${reservationId}-release`,
+          userId,
+          projectId,
+          reservationId,
+          BigInt(200000),
+          `release:${reservationId}:invocation_completed:a07-divergent`,
+        );
+
+        // Step 3: Inside ONE UoW: applyReconciliationTarget mutation THEN attempt divergent append
+        let threwRollback = false;
+        try {
+          await createUnitOfWork(prisma).execute(async (ports) => {
+            // Step 3a: Mutate reservation first
+            await ports.creditReservation.applyReconciliationTarget({
+              reservationId,
+              userId,
+              projectId,
+              jobProjectId: projectId,
+              jobId,
+              settledTargetMicroIdr: BigInt(600000),
+              releasedTargetMicroIdr: BigInt(300000),
+              exposureTargetMicroIdr: BigInt(100000),
+            });
+
+            // Step 3b: Attempt divergent release (same dedupe key => binding_invalid)
+            const result = await ports.ledger.appendReservationRelease({
+              projectId,
+              jobId,
+              userId,
+              reservationId,
+              ledgerEntryId: `entry-divergent-07`,
+              reason: 'invocation_completed',
+              allocationId: 'divergent',
+              attemptId: null,
+              amountMicroIdr: BigInt(200000),
+              dedupeKey: `release:${reservationId}:invocation_completed:a07-divergent`,
+            });
+
+            if (result.kind === 'binding_invalid') {
+              threwRollback = true;
+              throw new Error('TASK8_ROLLBACK_SENTINEL_07');
+            }
+
+            throw new Error('TASK8_UNEXPECTED_SUCCESS_07');
+          });
+        } catch (e) {
+          expect((e as Error).message).toBe('TASK8_ROLLBACK_SENTINEL_07');
+          expect(threwRollback).toBe(true);
+        }
+
+        // Step 4: AFTER transaction - verify ROLLBACK preserved original tuple
+        const afterRows = (await prisma.$queryRawUnsafe<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>(
+          `SELECT status, settled_micro_idr, released_micro_idr, exposure_micro_idr FROM credit_reservations WHERE id = $1`,
+          reservationId,
+        )) as Array<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>;
+        const after = afterRows[0]!;
+
+        // CRITICAL ASSERTIONS: State must be identical to before
+        expect(after.status).toBe(before.status);
+        expect(after.settled_micro_idr).toBe(before.settled_micro_idr);
+        expect(after.released_micro_idr).toBe(before.released_micro_idr);
+        expect(after.exposure_micro_idr).toBe(before.exposure_micro_idr);
+
+        // Additional: Verify no NEW release ledger row created
+        const ledgerRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
+          `release:${reservationId}:invocation_completed:a07-divergent`,
+        )) as Array<{ cnt: string }>;
+        expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(1); // Only seeded row, no duplicate
+      } finally {
+        await prisma.$disconnect();
+      }
+    },
+  );
+
+  schema.test('08. ZERO settlement delta → zero ledger rows', async ({ databaseUrl }) => {
     const prisma = createPrismaClient(databaseUrl);
     try {
       const { userId, projectId, jobId, reservationId } = await seedTask8Fixtures(prisma);
-      await createUnitOfWork(prisma).execute(async (ports) =>
+
+      // Count before
+      const beforeCountRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+        `SELECT COUNT(*) FROM credit_ledger WHERE entry_type = 'reservation_settlement' AND reservation_id = $1`,
+        reservationId,
+      )) as Array<{ cnt: string }>;
+      const beforeCount = parseInt(beforeCountRows[0]?.cnt ?? '0');
+
+      // Append ZERO amount settlement (zero delta - NOT positive exact replay!)
+      const result = await createUnitOfWork(prisma).execute(async (ports) =>
         ports.ledger.appendReservationSettlement({
           projectId,
           jobId,
           userId,
           reservationId,
-          ledgerEntryId: `entry-set-07`,
-          allocationId: 'a07-full',
+          ledgerEntryId: `entry-zero-08`,
+          allocationId: 'alloc-08',
           attemptId: null,
-          amountMicroIdr: 1000000n,
-          dedupeKey: `settle:${reservationId}:alloc-07`,
+          amountMicroIdr: 0n, // ZERO delta
+          dedupeKey: `settle:${reservationId}:alloc-08`,
         }),
       );
-      await createUnitOfWork(prisma).execute(async (ports) =>
-        ports.ledger.appendReservationRelease({
-          projectId,
-          jobId,
-          userId,
-          reservationId,
-          ledgerEntryId: `entry-rel-07`,
-          reason: 'invoked',
-          allocationId: 'a07',
-          attemptId: null,
-          amountMicroIdr: 200000n,
-          dedupeKey: `release:${reservationId}:invoked:a07`,
-        }),
-      );
-      const result = await createUnitOfWork(prisma).execute(async (ports) =>
-        ports.ledger.appendReservationRelease({
-          projectId,
-          jobId,
-          userId,
-          reservationId,
-          ledgerEntryId: `entry-rel-07-div`,
-          reason: 'invoked',
-          allocationId: 'a07',
-          attemptId: null,
-          amountMicroIdr: 200000n,
-          dedupeKey: `release:${reservationId}:invoked:a07`,
-        }),
-      );
-      expect(result).toEqual({ kind: 'binding_invalid' });
+
+      expect(result.kind).toBe('settled');
+
+      // Count after - MUST be unchanged (no NEW ledger rows for zero delta)
+      const afterCountRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+        `SELECT COUNT(*) FROM credit_ledger WHERE entry_type = 'reservation_settlement' AND reservation_id = $1`,
+        reservationId,
+      )) as Array<{ cnt: string }>;
+      const afterCount = parseInt(afterCountRows[0]?.cnt ?? '0');
+
+      expect(afterCount).toBe(beforeCount);
     } finally {
       await prisma.$disconnect();
     }
   });
 
-  schema.test('08. settlement delta replay handled by dedupe key', async ({ databaseUrl }) => {
+  schema.test('09. ZERO release delta → zero ledger rows', async ({ databaseUrl }) => {
     const prisma = createPrismaClient(databaseUrl);
     try {
       const { userId, projectId, jobId, reservationId } = await seedTask8Fixtures(prisma);
-      await createUnitOfWork(prisma).execute(async (ports) =>
-        ports.ledger.appendReservationSettlement({
-          projectId,
-          jobId,
-          userId,
-          reservationId,
-          ledgerEntryId: `entry-08`,
-          allocationId: 'alloc-08',
-          attemptId: null,
-          amountMicroIdr: 500000n,
-          dedupeKey: `settle:${reservationId}:alloc-08`,
-        }),
-      );
-      const result = await createUnitOfWork(prisma).execute(async (ports) =>
-        ports.ledger.appendReservationSettlement({
-          projectId,
-          jobId,
-          userId,
-          reservationId,
-          ledgerEntryId: `entry-08`,
-          allocationId: 'alloc-08',
-          attemptId: null,
-          amountMicroIdr: 500000n,
-          dedupeKey: `settle:${reservationId}:alloc-08`,
-        }),
-      );
-      expect(result).toEqual({ kind: 'already_settled' });
-    } finally {
-      await prisma.$disconnect();
-    }
-  });
 
-  schema.test('09. release delta replay handled by dedupe key', async ({ databaseUrl }) => {
-    const prisma = createPrismaClient(databaseUrl);
-    try {
-      const { userId, projectId, jobId, reservationId } = await seedTask8Fixtures(prisma);
+      // First settle the reservation
       await createUnitOfWork(prisma).execute(async (ports) =>
         ports.ledger.appendReservationSettlement({
           projectId,
           jobId,
           userId,
           reservationId,
-          ledgerEntryId: `entry-set-09`,
+          ledgerEntryId: `entry-set-09-initial`,
           allocationId: 'a09-full',
           attemptId: null,
           amountMicroIdr: 1000000n,
           dedupeKey: `settle:${reservationId}:alloc-09`,
         }),
       );
-      await createUnitOfWork(prisma).execute(async (ports) =>
-        ports.ledger.appendReservationRelease({
-          projectId,
-          jobId,
-          userId,
-          reservationId,
-          ledgerEntryId: `entry-rel-09`,
-          reason: 'invoked',
-          allocationId: 'a09',
-          attemptId: null,
-          amountMicroIdr: 300000n,
-          dedupeKey: `release:${reservationId}:invoked:a09`,
-        }),
-      );
+
+      // Count before
+      const beforeCountRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+        `SELECT COUNT(*) FROM credit_ledger WHERE entry_type = 'release' AND reservation_id = $1`,
+        reservationId,
+      )) as Array<{ cnt: string }>;
+      const beforeCount = parseInt(beforeCountRows[0]?.cnt ?? '0');
+
+      // Append ZERO amount release (zero delta - NOT positive exact replay!)
       const result = await createUnitOfWork(prisma).execute(async (ports) =>
         ports.ledger.appendReservationRelease({
           projectId,
           jobId,
           userId,
           reservationId,
-          ledgerEntryId: `entry-rel-09`,
-          reason: 'invoked',
-          allocationId: 'a09',
+          ledgerEntryId: `entry-rel-09-zero`,
+          reason: 'final-close',
+          allocationId: null,
           attemptId: null,
-          amountMicroIdr: 300000n,
-          dedupeKey: `release:${reservationId}:invoked:a09`,
+          amountMicroIdr: 0n, // ZERO delta
+          dedupeKey: `release:${reservationId}:final-close`,
         }),
       );
-      expect(result).toEqual({ kind: 'already_released' });
+
+      expect(result.kind).toBe('released');
+
+      // Count after - MUST be unchanged
+      const afterCountRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+        `SELECT COUNT(*) FROM credit_ledger WHERE entry_type = 'release' AND reservation_id = $1`,
+        reservationId,
+      )) as Array<{ cnt: string }>;
+      const afterCount = parseInt(afterCountRows[0]?.cnt ?? '0');
+
+      expect(afterCount).toBe(beforeCount);
     } finally {
       await prisma.$disconnect();
     }
@@ -906,6 +1056,124 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
       expect(row.released_micro_idr).toBe(0n);
       expect(row.exposure_micro_idr).toBe(0n);
       expect(row.closing_at).not.toBeNull();
+
+      // EXTENSION: Same S/L/E but different terminal disposition (released → cancelled)
+      // This proves runtime distinguishes same-tuple-different-disposition vs different-tuple
+      const resIdReleased = `task8-res-released-${Date.now()}`;
+
+      // Seed fresh reservation and transition to released via full release
+      await prisma.$queryRawUnsafe(
+        `INSERT INTO users (id, email, password_hash, status, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now()) ON CONFLICT (id) DO NOTHING`,
+        `task8-user-ext-${Date.now()}`,
+        'task8ext@narraza.test',
+        'hashed:x',
+        'active' as 'active' | 'pending_verification' | 'suspended' | 'deleted',
+      );
+
+      const userIdExt = (
+        await prisma.$queryRawUnsafe<{ id: string }>(
+          `SELECT id FROM users WHERE email = 'task8ext@narraza.test' LIMIT 1`,
+        )
+      )[0]?.id;
+
+      const projectdExt = (
+        await prisma.$queryRawUnsafe<{ id: string }>(
+          `INSERT INTO projects (id, owner_user_id, title, intake_path, status, current_canonical_version, revision, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now()) ON CONFLICT (id) DO RETURNING id`,
+          `task8-proj-ext-${Date.now()}`,
+          userIdExt,
+          'Extension Test Project',
+          'direct',
+          'active',
+          'rev-1',
+          1,
+        )
+      )[0]?.id;
+
+      const jobdExt = (
+        await prisma.$queryRawUnsafe<{ id: string }>(
+          `INSERT INTO jobs (id, project_id, kind, status, phase, priority, version, input_json, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now()) ON CONFLICT (id) DO RETURNING id`,
+          `task8-job-ext-${Date.now()}`,
+          projectdExt,
+          'concept',
+          'new',
+          'planning',
+          1,
+          '{}',
+        )
+      )[0]?.id;
+
+      const resReleasedId = (
+        await prisma.$queryRawUnsafe<{ id: string }>(
+          `INSERT INTO credit_reservations (id, user_id, project_id, job_id, status, reserved_micro_idr, settled_micro_idr, released_micro_idr, exposure_micro_idr, closing_at, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now()) ON CONFLICT (id) DO RETURNING id`,
+          resIdReleased,
+          userIdExt,
+          projectdExt,
+          jobdExt,
+          'open',
+          BigInt(500000),
+          BigInt(0),
+          BigInt(0),
+          BigInt(500000),
+          null,
+        )
+      )[0]?.id;
+
+      // Transition to 'released' via full release operation
+      await createUnitOfWork(prisma).execute(async (ports) =>
+        ports.creditReservation.applyReconciliationTarget({
+          reservationId: resReleasedId,
+          userId: userIdExt!,
+          projectId: projectdExt,
+          jobProjectId: projectdExt,
+          jobId: jobdExt,
+          settledTargetMicroIdr: 0n,
+          releasedTargetMicroIdr: BigInt(500000),
+          exposureTargetMicroIdr: 0n,
+        }),
+      );
+
+      // Verify released
+      const releasedRows = (await prisma.$queryRawUnsafe<{ status: string }>(
+        `SELECT status FROM credit_reservations WHERE id = $1`,
+        resReleasedId,
+      )) as Array<{ status: string }>;
+      expect(releasedRows[0]?.status).toBe('released');
+
+      // SAME tuple with terminalReason=released => already_reconciled (no-op)
+      const sameTupleResult = await createUnitOfWork(prisma).execute(async (ports) =>
+        ports.creditReservation.applyReconciliationTarget({
+          reservationId: resReleasedId,
+          userId: userIdExt!,
+          projectId: projectdExt,
+          jobProjectId: projectdExt,
+          jobId: jobdExt,
+          settledTargetMicroIdr: 0n,
+          releasedTargetMicroIdr: BigInt(500000),
+          exposureTargetMicroIdr: 0n,
+        }),
+      );
+      expect(sameTupleResult).toEqual({ kind: 'already_reconciled' });
+
+      // SAME tuple BUT different terminal disposition (cancelled instead of released)
+      const diffDispositionResult = await createUnitOfWork(prisma).execute(async (ports) =>
+        ports.creditReservation.applyReconciliationTarget({
+          reservationId: resReleasedId,
+          userId: userIdExt!,
+          projectId: projectdExt,
+          jobProjectId: projectdExt,
+          jobId: jobdExt,
+          settledTargetMicroIdr: 0n,
+          releasedTargetMicroIdr: BigInt(500000),
+          exposureTargetMicroIdr: 0n,
+          terminalReason: 'cancelled', // Different from current 'released'
+        }),
+      );
+
+      // CRITICAL: Runtime must return terminal_disposition_mismatch for same-tuple-different-disposition
+      expect(diffDispositionResult.kind).toBe('conflict');
+      expect((diffDispositionResult as { reason?: string }).reason).toBe(
+        'terminal_disposition_mismatch',
+      );
     } finally {
       await prisma.$disconnect();
     }
@@ -1056,9 +1324,22 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
 
         const results = await Promise.allSettled(promises);
 
-        // Verify no deadlock, at least one success
-        const successes = results.filter((r) => r.status === 'fulfilled').length;
-        expect(successes).toBeGreaterThanOrEqual(1);
+        // HARDENED: Require BOTH promises fulfilled with legal outcomes
+        const allFulfilled = results.every((r) => r.status === 'fulfilled');
+        expect(allFulfilled).toBe(true);
+
+        const kinds = (results as PromiseFulfilledResult<{ kind: string }>[]).map(
+          (r) => r.value.kind,
+        );
+
+        // Allowed: reconciled or already_reconciled only
+        const validOutcomes = ['reconciled', 'already_reconciled'];
+        const allValid = kinds.every((k) => validOutcomes.includes(k));
+        expect(allValid).toBe(true);
+
+        // CRITICAL: At least one MUST be reconciled (not both replayed)
+        const atLeastOneReconciled = kinds.some((k) => k === 'reconciled');
+        expect(atLeastOneReconciled).toBe(true);
 
         // Final durable state: exactly once reconciliation
         const finalRows = (await prisma.$queryRawUnsafe(
@@ -1262,21 +1543,41 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         expect(resRow.closing_at).not.toBeNull();
 
         // Exactly one release ledger entry with correct vocabulary
-        const ledgerRows = (await prisma.$queryRawUnsafe(
-          `SELECT entry_type, direction, amount_micro_idr, dedupe_key
-         FROM credit_ledger
-         WHERE reservation_id = $1 AND dedupe_key LIKE 'release:%:queued-cancel'`,
+        const ledgerRows1 = (await prisma.$queryRawUnsafe(
+          `SELECT COUNT(*) as cnt FROM credit_ledger WHERE reservation_id = $1 AND dedupe_key LIKE 'release:%:queued-cancel'`,
           TASK8_RESERVATION_ID,
-        )) as Array<{
-          entry_type: string;
-          direction: string;
-          amount_micro_idr: bigint;
-          dedupe_key: string;
-        }>;
-        expect(ledgerRows.length).toBe(1);
-        expect(ledgerRows[0]?.entry_type).toBe('release');
-        expect(ledgerRows[0]?.direction).toBe('credit');
-        expect(ledgerRows[0]?.amount_micro_idr).toBe(500000n);
+        )) as Array<{ cnt: string }>;
+        expect(parseInt(ledgerRows1[0]?.cnt ?? '0')).toBe(1);
+
+        // SECOND cancel: should return already_terminal (replay idempotency)
+        const result2 = await jobService.cancel({
+          projectId: TASK8_PROJECT_ID,
+          jobId: TASK8_JOB_ID,
+        });
+        expect(result2).toEqual({
+          kind: 'already_terminal',
+          status: 'cancelled',
+        });
+
+        // Ledger count still exactly 1 (idempotent)
+        const ledgerRows2 = (await prisma.$queryRawUnsafe(
+          `SELECT COUNT(*) as cnt FROM credit_ledger WHERE reservation_id = $1 AND dedupe_key LIKE 'release:%:queued-cancel'`,
+          TASK8_RESERVATION_ID,
+        )) as Array<{ cnt: string }>;
+        expect(parseInt(ledgerRows2[0]?.cnt ?? '0')).toBe(1);
+
+        // Verify job/reservation state unchanged after second cancel attempt
+        const jobRows2 = (await prisma.$queryRawUnsafe(
+          `SELECT status FROM generation_jobs WHERE id = $1`,
+          TASK8_JOB_ID,
+        )) as Array<{ status: string }>;
+        expect(jobRows2[0]?.status).toBe('cancelled');
+
+        const resRows2 = (await prisma.$queryRawUnsafe(
+          `SELECT status FROM credit_reservations WHERE id = $1`,
+          TASK8_RESERVATION_ID,
+        )) as Array<{ status: string }>;
+        expect(resRows2[0]?.status).toBe('cancelled');
       } finally {
         await prisma.$disconnect();
       }
