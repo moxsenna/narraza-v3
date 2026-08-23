@@ -188,8 +188,8 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const before = beforeRows[0]!;
 
-        // Step 2: Seed conflicting ledger entry WITH SAME dedupe key
-        // This will cause binding_invalid when we try to append inside UoW
+        // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using raw SQL
+        // Per PM Directive: This row exists before UoW, so it survives UoW rollback
         await prisma.$queryRawUnsafe(
           `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) ON CONFLICT (dedupe_key) DO NOTHING`,
           `entry-seed-${reservationId}`,
@@ -199,12 +199,19 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           BigInt(300000),
           `settle:${reservationId}:divergent`,
         );
+        
+        // Verify seed persisted - might be 0 if duplicate from previous run
+        const _seedVerify = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
+          `settle:${reservationId}:divergent`,
+        )) as Array<{ cnt: string }>;
+        // Count should be 1 (fresh insert) or we continue anyway and verify at end
 
-        // Step 3: Inside ONE UoW: applyReconciliationTarget mutation THEN attempt divergent append
+        // STEP 3: Enter UoW with mutation + divergent replay attempt
         let threwRollback = false;
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
-            // Step 3a: Mutate reservation first (this would persist if not rolled back)
+            // Mutate reservation (part of UoW transaction)
             await ports.creditReservation.applyReconciliationTarget({
               reservationId,
               userId,
@@ -216,7 +223,7 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
               exposureTargetMicroIdr: BigInt(200000),
             });
 
-            // Step 3b: Attempt divergent settlement (same dedupe key => binding_invalid)
+            // Attempt divergent settlement (same dedupe key => binding_invalid)
             const result = await ports.ledger.appendReservationSettlement({
               projectId,
               jobId,
@@ -229,7 +236,6 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
               dedupeKey: `settle:${reservationId}:divergent`,
             });
 
-            // If we get binding_invalid, convert to private sentinel for rollback trigger
             if (result.kind === 'binding_invalid') {
               threwRollback = true;
               throw new Error('TASK8_ROLLBACK_SENTINEL_04');
@@ -238,12 +244,11 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
             throw new Error('TASK8_UNEXPECTED_SUCCESS_04');
           });
         } catch (e) {
-          // Verify we caught the rollback sentinel
           expect((e as Error).message).toBe('TASK8_ROLLBACK_SENTINEL_04');
           expect(threwRollback).toBe(true);
         }
 
-        // Step 4: AFTER transaction - verify ROLLBACK preserved original tuple
+        // STEP 4: AFTER UoW - verify reservation reverted AND seeded row STILL EXISTS
         const afterRows = (await prisma.$queryRawUnsafe<{
           status: string;
           settled_micro_idr: bigint;
@@ -260,19 +265,18 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const after = afterRows[0]!;
 
-        // CRITICAL ASSERTIONS: State must be identical to before
         expect(after.status).toBe(before.status);
         expect(after.settled_micro_idr).toBe(before.settled_micro_idr);
         expect(after.released_micro_idr).toBe(before.released_micro_idr);
         expect(after.exposure_micro_idr).toBe(before.exposure_micro_idr);
 
-        // Additional: Verify no NEW settlement ledger row created
-        // (Pre-seeding state is clean - this proves UoW didn't append on conflict)
+        // CRITICAL ASSERTION: Seeded row survived UoW rollback (count=1)
         const ledgerRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
-          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key LIKE 'settle:%:divergent%'`,
+          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
+          `settle:${reservationId}:divergent`,
         )) as Array<{ cnt: string }>;
-        // Zero rows with divergent suffix proves no new writes occurred
-        expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(0);
+        
+        expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(1); // Seeded row survived!
       } finally {
         await prisma.$disconnect();
       }
@@ -394,24 +398,33 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const before = beforeRows[0]!;
 
-        // Step 2: Seed conflicting ledger entry with UNIQUE dedupe key for release
-        // Use timestamp to ensure unique key across test runs
-        const seedDedupeKey = `release:${reservationId}:invocation_completed:a07-divergent-seed-${Date.now()}`;
+        // STEP 2: Seed conflicting release row OUTSIDE any UoW using raw SQL
+        // Per PM Directive: This row exists before UoW, so it survives UoW rollback
+        const seedDedupeKey = `release:${reservationId}:invocation_completed:a07-divergent`;
+        
         await prisma.$queryRawUnsafe(
           `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now()) ON CONFLICT (dedupe_key) DO NOTHING`,
-          `entry-seed-${reservationId}-release-${Date.now()}`,
+          `entry-seed-07`,
           userId,
           projectId,
           reservationId,
           BigInt(200000),
           seedDedupeKey,
         );
+        
+        // Verify seed persisted - might be 0 if duplicate from previous run
+        const _seedVerify = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
+          seedDedupeKey,
+        )) as Array<{ cnt: string }>;
+        
+        // Count should be 1 (fresh insert) or we continue anyway and verify at end
 
-        // Step 3: Inside ONE UoW: applyReconciliationTarget mutation THEN attempt divergent append
+        // STEP 3: Enter UoW with mutation + divergent replay attempt
         let threwRollback = false;
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
-            // Step 3a: Mutate reservation first
+            // Mutate reservation first (part of UoW transaction)
             await ports.creditReservation.applyReconciliationTarget({
               reservationId,
               userId,
@@ -423,8 +436,7 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
               exposureTargetMicroIdr: BigInt(100000),
             });
 
-            // Step 3b: Attempt divergent release with same dedupe key => binding_invalid
-            // allocationId matches dedupe key, divergent via ledgerEntryId field
+            // Attempt divergent release with EXACT same dedupe key => binding_invalid
             const result = await ports.ledger.appendReservationRelease({
               projectId,
               jobId,
@@ -450,7 +462,7 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           expect(threwRollback).toBe(true);
         }
 
-        // Step 4: AFTER transaction - verify ROLLBACK preserved original tuple
+        // STEP 4: AFTER UoW - verify reservation reverted AND seeded row STILL EXISTS
         const afterRows = (await prisma.$queryRawUnsafe<{
           status: string;
           settled_micro_idr: bigint;
@@ -467,18 +479,18 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const after = afterRows[0]!;
 
-        // CRITICAL ASSERTIONS: State must be identical to before
         expect(after.status).toBe(before.status);
         expect(after.settled_micro_idr).toBe(before.settled_micro_idr);
         expect(after.released_micro_idr).toBe(before.released_micro_idr);
         expect(after.exposure_micro_idr).toBe(before.exposure_micro_idr);
 
-        // Additional: Verify no NEW release ledger row created (divergent append failed)
+        // CRITICAL ASSERTION: Seeded row survived UoW rollback (count=1)
         const ledgerRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
-          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key LIKE 'release:%:a07-divergent%'`,
+          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
+          seedDedupeKey,
         )) as Array<{ cnt: string }>;
-        // Zero rows proves UoW rollback prevented any writes
-        expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(0);
+        
+        expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(1); // Seeded row survived!
       } finally {
         await prisma.$disconnect();
       }
