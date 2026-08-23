@@ -189,39 +189,27 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         const before = beforeRows[0]!;
 
         // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using raw SQL
-        // Per PM Directive: This row exists before UoW, so it survives UoW rollback
+        // CRITICAL REDESIGN: The seeded row MUST be visible to same Prisma client but OUTSIDE UoW
+        // SOLUTION: Use direct query outside $transaction() scope but SAME prisma instance
         const dedupeKey = `settle:${reservationId}:divergent`;
-        
-        console.log('Case 04 - About to clear stale rows');
-        
-        // First, clear any stale rows from previous test runs (autocommitted via explicit transaction)
-        await prisma.$transaction(async (tx) => {
-          await tx.$queryRawUnsafe(
-            `DELETE FROM credit_ledger WHERE dedupe_key = $1`,
-            dedupeKey
-          );
-          return 'cleared';
-        });
         
         console.log('Case 04 - About to seed fresh row');
         
-        // NOW seed fresh row in SEPARATE AUTOCOMMITTED transaction (critical!)
-        const seedResult = await prisma.$transaction(async (tx) => {
-          const result = await tx.$queryRawUnsafe<{ id: string }>(
-            `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) RETURNING id`,
-            `entry-seed-${reservationId}`,
-            userId,
-            projectId,
-            reservationId,
-            BigInt(300000),
-            dedupeKey,
-          );
-          return result;
-        });
+        // Direct insert without any transaction wrapper - relies on PostgreSQL autocommit
+        const seedResult = await prisma.$executeRawUnsafe(
+          `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
+           VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now())`,
+          `entry-seed-${reservationId}`,
+          userId,
+          projectId,
+          reservationId,
+          BigInt(300000),
+          dedupeKey,
+        );
         
-        console.log('Case 04 - Seed result:', seedResult);
+        console.log('Case 04 - Seed executed rows:', seedResult);
         
-        // CRITICAL: Verify immediately on same logical session (must be committed)
+        // Verify immediately using same connection - should see committed row
         const immediateCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
           `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
           dedupeKey,
@@ -422,45 +410,33 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         const before = beforeRows[0]!;
 
         // STEP 2: Seed conflicting release row OUTSIDE any UoW using raw SQL
-        // Per PM Directive: This row exists before UoW, so it survives UoW rollback
+        // CRITICAL REDESIGN: Use direct query with $executeRawUnsafe for automatic commit
         const seedDedupeKey = `release:${reservationId}:invocation_completed:a07-divergent`;
-        
-        console.log('Case 07 - About to clear stale rows');
-        
-        // First, clear any stale rows from previous test runs (autocommitted via explicit transaction)
-        await prisma.$transaction(async (tx) => {
-          await tx.$queryRawUnsafe(
-            `DELETE FROM credit_ledger WHERE dedupe_key = $1`,
-            seedDedupeKey
-          );
-          return 'cleared';
-        });
         
         console.log('Case 07 - About to seed fresh row');
         
-        // NOW seed fresh row in SEPARATE AUTOCOMMITTED transaction (critical!)
-        const seedResult = await prisma.$transaction(async (tx) => {
-          const result = await tx.$queryRawUnsafe<{ id: string }>(
-            `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now()) RETURNING id`,
-            `entry-seed-07`,
-            userId,
-            projectId,
-            reservationId,
-            BigInt(200000),
-            seedDedupeKey,
-          );
-          return result;
-        });
+        // Direct insert without transaction wrapper - relies on PostgreSQL autocommit
+        const seedResult = await prisma.$executeRawUnsafe(
+          `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
+           VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now())`,
+          `entry-seed-07`,
+          userId,
+          projectId,
+          reservationId,
+          BigInt(200000),
+          seedDedupeKey,
+        );
         
-        console.log('Case 07 - Seed result:', seedResult);
+        console.log('Case 07 - Seed executed rows:', seedResult);
         
-        // Verify seed persisted BEFORE entering UoW (on fresh connection, will see committed data)
-        const _preUowCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+        // Verify immediately
+        const immediateCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
           `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
           seedDedupeKey,
         )) as Array<{ cnt: string }>;
-
-        // STEP 3: Enter UoW with mutation + divergent replay attempt
+        console.log('Case 07 - Immediate post-seed count:', parseInt(immediateCount[0]?.cnt ?? '0'));
+        
+        // Now enter UoW
         let threwRollback = false;
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
