@@ -190,34 +190,32 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         const before = beforeRows[0]!;
 
         // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using POOL directly
-        // CRITICAL FIX: Use Pool API (same as harness) for guaranteed autocommit behavior
+        // CRITICAL FIX: Use Pool API with explicit BEGIN/COMMIT for guaranteed isolation
         const dedupeKey = `settle:${reservationId}:divergent`;
         
-        console.log('Case 04 - Using Pool API for guaranteed commit');
+        console.log('Case 04 - Using Pool with explicit commit control');
         
         const pgPool = new Pool({ connectionString: databaseUrl });
-        let insertedId: string | null = null;
         
         try {
-          // Direct pool query with explicit RETURNING for verification
-          const seedResult = await pgPool.query(
-            `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
-             VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) RETURNING id`,
-            [`entry-seed-${reservationId}`, userId, projectId, reservationId, BigInt(300000), dedupeKey],
-          );
-          
-          insertedId = seedResult.rows[0]?.id || null;
-          console.log('Case 04 - Inserted ID:', insertedId);
-          
-          // Verify immediately on SAME pool connection
-          const verifyCount = await pgPool.query<{ cnt: string }>(
-            `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-            [dedupeKey],
-          );
-          console.log('Case 04 - Post-insert same-conn count:', parseInt(verifyCount.rows[0]?.cnt ?? '0'));
+          // Explicit transaction with BEGIN -> INSERT -> COMMIT pattern
+          await pgPool.query('BEGIN');
+          try {
+            await pgPool.query(
+              `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
+               VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) RETURNING id`,
+              [`entry-seed-${reservationId}`, userId, projectId, reservationId, BigInt(300000), dedupeKey],
+            );
+            
+            await pgPool.query('COMMIT');
+            console.log('Case 04 - Transaction committed successfully');
+          } catch (e) {
+            await pgPool.query('ROLLBACK');
+            throw e;
+          }
         } finally {
           await pgPool.end();
-          console.log('Case 04 - Pool ended, should have committed');
+          console.log('Case 04 - Pool ended');
         }
         
         // NOW enter UoW - seeded data MUST exist here
@@ -414,32 +412,32 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         const before = beforeRows[0]!;
 
         // STEP 2: Seed conflicting release row OUTSIDE any UoW using POOL directly
-        // CRITICAL FIX: Use Pool API (same as harness) for guaranteed autocommit behavior
+        // CRITICAL FIX: Use Pool API with explicit BEGIN/COMMIT for guaranteed isolation
         const seedDedupeKey = `release:${reservationId}:invocation_completed:a07-divergent`;
         
-        console.log('Case 07 - Using Pool API for guaranteed commit');
+        console.log('Case 07 - Using Pool with explicit commit control');
         
         const pgPool = new Pool({ connectionString: databaseUrl });
         
         try {
-          // Direct pool query with explicit RETURNING for verification
-          const seedResult = await pgPool.query(
-            `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
-             VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now()) RETURNING id`,
-            [`entry-seed-07`, userId, projectId, reservationId, BigInt(200000), seedDedupeKey],
-          );
-          
-          console.log('Case 07 - Inserted ID:', seedResult.rows[0]?.id);
-          
-          // Verify immediately on SAME pool connection
-          const verifyCount = await pgPool.query<{ cnt: string }>(
-            `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-            [seedDedupeKey],
-          );
-          console.log('Case 07 - Post-insert same-conn count:', parseInt(verifyCount.rows[0]?.cnt ?? '0'));
+          // Explicit transaction with BEGIN -> INSERT -> COMMIT pattern
+          await pgPool.query('BEGIN');
+          try {
+            await pgPool.query(
+              `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
+               VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now()) RETURNING id`,
+              [`entry-seed-07`, userId, projectId, reservationId, BigInt(200000), seedDedupeKey],
+            );
+            
+            await pgPool.query('COMMIT');
+            console.log('Case 07 - Transaction committed successfully');
+          } catch (e) {
+            await pgPool.query('ROLLBACK');
+            throw e;
+          }
         } finally {
           await pgPool.end();
-          console.log('Case 07 - Pool ended, should have committed');
+          console.log('Case 07 - Pool ended');
         }
         
         // NOW enter UoW
