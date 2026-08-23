@@ -6,7 +6,7 @@ import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
 import { createJobService } from '@narraza/application';
-import { seedTask8Fixtures } from './fixtures.js';
+import { seedTask8Fixtures } from '../schema-test/fixtures.js';
 
 // Vitest schema harness registration (required for database test discovery)
 const _schema = createSchemaTestSuite();
