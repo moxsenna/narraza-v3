@@ -201,47 +201,74 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
       );
 
       if (isTerminalCurrent) {
-        const desiredStatus = deriveReservationStatus({
-          settledTargetMicroIdr: S_target,
-          releasedTargetMicroIdr: L_target,
-          exposureTargetMicroIdr: E_target,
-          ...(terminalReason !== undefined && { terminalReason }),
-        });
-
         // CRITICAL FIX per PM Directive Option 1:
         // Same S/L/E tuple but different disposition → terminal_disposition_mismatch
         // Different tuple from terminal → terminal_lifecycle_violation
 
-        // Check for identical tuple with different disposition FIRST
+        // Check for NO-OP first: exact same tuple with no terminalReason => allow as no-op
         const isSameTuple =
           S_target === S_current &&
           L_target === L_current &&
           E_target === reservation.exposure_micro_idr;
 
-        if (isSameTuple) {
-          // Exact same tuple, but desired status differs => terminal disposition mismatch
-          if (desiredStatus !== currentStatus) {
+        if (terminalReason === undefined && isSameTuple) {
+          // Exact no-op on terminal state => fall through to already_reconciled check later
+          // No mutation needed, no conflict - let it proceed to Blocker H detection
+        } else if (terminalReason !== undefined) {
+          // terminalReason IS provided => compute desired status and check disposition mismatch
+          const desiredStatus = deriveReservationStatus({
+            settledTargetMicroIdr: S_target,
+            releasedTargetMicroIdr: L_target,
+            exposureTargetMicroIdr: E_target,
+            terminalReason,
+          });
+
+          if (isSameTuple) {
+            // Exact same tuple, but desired status differs => terminal disposition mismatch
+            if (desiredStatus !== currentStatus) {
+              return {
+                kind: 'conflict',
+                reason: 'terminal_disposition_mismatch' as const,
+              };
+            }
+            // If desiredStatus === currentStatus, allow as no-op
+          } else {
+            // Non-identical tuple: check for lifecycle violations
+            // Reopening to closing/open is rejected
+            // Transition to another terminal disposition from different tuple is also rejected
+            const isDesiredOpenOrClosing = desiredStatus === 'open' || desiredStatus === 'closing';
+            const isAnotherTerminal = ['settled', 'released', 'cancelled', 'expired'].includes(
+              desiredStatus,
+            );
+
+            if (isDesiredOpenOrClosing || (isTerminalCurrent && isAnotherTerminal)) {
+              return {
+                kind: 'conflict',
+                reason: 'terminal_lifecycle_violation' as const,
+              };
+            }
+          }
+        } else {
+          // No terminalReason but different tuple => check lifecycle
+          const desiredStatus = deriveReservationStatus({
+            settledTargetMicroIdr: S_target,
+            releasedTargetMicroIdr: L_target,
+            exposureTargetMicroIdr: E_target,
+          });
+
+          // Reopening to closing/open is rejected
+          // Transition to another terminal disposition from different tuple is also rejected
+          const isDesiredOpenOrClosing = desiredStatus === 'open' || desiredStatus === 'closing';
+          const isAnotherTerminal = ['settled', 'released', 'cancelled', 'expired'].includes(
+            desiredStatus,
+          );
+
+          if (isDesiredOpenOrClosing || (isTerminalCurrent && isAnotherTerminal)) {
             return {
               kind: 'conflict',
-              reason: 'terminal_disposition_mismatch' as const,
+              reason: 'terminal_lifecycle_violation' as const,
             };
           }
-          // Otherwise will fall through to already_reconciled later
-        }
-
-        // Only for non-identical tuples (different S/L/E values):
-        // Reopening to closing/open is rejected
-        // Transition to another terminal disposition from different tuple is also rejected
-        const isDesiredOpenOrClosing = desiredStatus === 'open' || desiredStatus === 'closing';
-        const isAnotherTerminal = ['settled', 'released', 'cancelled', 'expired'].includes(
-          desiredStatus,
-        );
-
-        if (isDesiredOpenOrClosing || (isTerminalCurrent && isAnotherTerminal)) {
-          return {
-            kind: 'conflict',
-            reason: 'terminal_lifecycle_violation' as const,
-          };
         }
       }
 
