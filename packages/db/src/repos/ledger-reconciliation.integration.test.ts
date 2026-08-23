@@ -6,6 +6,7 @@ import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
 import { createJobService } from '@narraza/application';
+import { Pool } from 'pg';
 
 // Vitest schema harness registration (required for database test discovery)
 const _schema = createSchemaTestSuite();
@@ -188,59 +189,38 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const before = beforeRows[0]!;
 
-        // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using raw SQL
-        // CRITICAL REDESIGN: Use separate prisma instance that disconnects to force commit
+        // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using POOL directly
+        // CRITICAL FIX: Use Pool API (same as harness) for guaranteed autocommit behavior
         const dedupeKey = `settle:${reservationId}:divergent`;
         
-        console.log('Case 04 - Creating isolated prisma client for seeding');
+        console.log('Case 04 - Using Pool API for guaranteed commit');
         
-        // Create NEW prisma client instance for seeding only
-        const seedPrisma = createPrismaClient(databaseUrl);
+        const pgPool = new Pool({ connectionString: databaseUrl });
+        let insertedId: string | null = null;
         
         try {
-          // FIRST verify table is empty before we start
-          const preSeedCount = (await seedPrisma.$queryRawUnsafe<{ cnt: string }>(
-            `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-            dedupeKey,
-          )) as Array<{ cnt: string }>;
-          console.log('Case 04 - Pre-seed count:', parseInt(preSeedCount[0]?.cnt ?? '0'));
-          
-          // Seed via INSERT that will auto-commit when this client disconnects
-          await seedPrisma.$executeRawUnsafe(
+          // Direct pool query with explicit RETURNING for verification
+          const seedResult = await pgPool.query(
             `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
              VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) RETURNING id`,
-            `entry-seed-${reservationId}`,
-            userId,
-            projectId,
-            reservationId,
-            BigInt(300000),
-            dedupeKey,
+            [`entry-seed-${reservationId}`, userId, projectId, reservationId, BigInt(300000), dedupeKey],
           );
           
-          // Verify seed exists on THIS connection before disconnect
-          const verifyBeforeDisconnect = (await seedPrisma.$queryRawUnsafe<{ cnt: string }>(
+          insertedId = seedResult.rows[0]?.id || null;
+          console.log('Case 04 - Inserted ID:', insertedId);
+          
+          // Verify immediately on SAME pool connection
+          const verifyCount = await pgPool.query<{ cnt: string }>(
             `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-            dedupeKey,
-          )) as Array<{ cnt: string }>;
-          console.log('Case 04 - After insert count (same conn):', parseInt(verifyBeforeDisconnect[0]?.cnt ?? '0'));
+            [dedupeKey],
+          );
+          console.log('Case 04 - Post-insert same-conn count:', parseInt(verifyCount.rows[0]?.cnt ?? '0'));
         } finally {
-          // Disconnect forces COMMIT + release connection back to pool
-          console.log('Case 04 - About to disconnect seed client');
-          await seedPrisma.$disconnect();
-          console.log('Case 04 - Seed client disconnected');
+          await pgPool.end();
+          console.log('Case 04 - Pool ended, should have committed');
         }
         
-        // NOW create fresh client for main test flow
-        console.log('Case 04 - Reusing original prisma client from fixtures');
-        
-        // Verify seeded data persists across connection boundary
-        const preUowCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
-          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-          dedupeKey,
-        )) as Array<{ cnt: string }>;
-        console.log('Case 04 - Post-disconnect pre-UoW count:', parseInt(preUowCount[0]?.cnt ?? '0'));
-        
-        // Enter UoW
+        // NOW enter UoW - seeded data MUST exist here
         let threwRollback = false;
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
@@ -433,50 +413,36 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const before = beforeRows[0]!;
 
-        // STEP 2: Seed conflicting release row OUTSIDE any UoW using raw SQL
-        // CRITICAL REDESIGN: Use separate prisma instance that disconnects to force commit
+        // STEP 2: Seed conflicting release row OUTSIDE any UoW using POOL directly
+        // CRITICAL FIX: Use Pool API (same as harness) for guaranteed autocommit behavior
         const seedDedupeKey = `release:${reservationId}:invocation_completed:a07-divergent`;
         
-        console.log('Case 07 - Creating isolated prisma client for seeding');
+        console.log('Case 07 - Using Pool API for guaranteed commit');
         
-        // Create NEW prisma client instance for seeding only
-        const seedPrisma = createPrismaClient(databaseUrl);
+        const pgPool = new Pool({ connectionString: databaseUrl });
         
         try {
-          // Seed via INSERT that will auto-commit when this client disconnects
-          await seedPrisma.$executeRawUnsafe(
+          // Direct pool query with explicit RETURNING for verification
+          const seedResult = await pgPool.query(
             `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
-             VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now())`,
-            `entry-seed-07`,
-            userId,
-            projectId,
-            reservationId,
-            BigInt(200000),
-            seedDedupeKey,
+             VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now()) RETURNING id`,
+            [`entry-seed-07`, userId, projectId, reservationId, BigInt(200000), seedDedupeKey],
           );
           
-          // Verify seed exists on THIS connection before disconnect
-          const verifyBeforeDisconnect = (await seedPrisma.$queryRawUnsafe<{ cnt: string }>(
+          console.log('Case 07 - Inserted ID:', seedResult.rows[0]?.id);
+          
+          // Verify immediately on SAME pool connection
+          const verifyCount = await pgPool.query<{ cnt: string }>(
             `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-            seedDedupeKey,
-          )) as Array<{ cnt: string }>;
-          console.log('Case 07 - Before disconnect count:', parseInt(verifyBeforeDisconnect[0]?.cnt ?? '0'));
+            [seedDedupeKey],
+          );
+          console.log('Case 07 - Post-insert same-conn count:', parseInt(verifyCount.rows[0]?.cnt ?? '0'));
         } finally {
-          // Disconnect forces COMMIT + release connection back to pool
-          await seedPrisma.$disconnect();
+          await pgPool.end();
+          console.log('Case 07 - Pool ended, should have committed');
         }
         
-        // NOW create fresh client for main test flow
-        console.log('Case 07 - Reusing original prisma client from fixtures');
-        
-        // Verify seeded data persists across connection boundary
-        const preUowCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
-          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
-          seedDedupeKey,
-        )) as Array<{ cnt: string }>;
-        console.log('Case 07 - Post-disconnect pre-UoW count:', parseInt(preUowCount[0]?.cnt ?? '0'));
-        
-        // Enter UoW
+        // NOW enter UoW
         let threwRollback = false;
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
