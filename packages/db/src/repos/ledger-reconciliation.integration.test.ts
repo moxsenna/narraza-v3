@@ -192,15 +192,19 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         // Per PM Directive: This row exists before UoW, so it survives UoW rollback
         const dedupeKey = `settle:${reservationId}:divergent`;
         
+        console.log('Case 04 - About to clear stale rows');
+        
         // First, clear any stale rows from previous test runs (autocommitted)
         await prisma.$queryRawUnsafe(
           `DELETE FROM credit_ledger WHERE dedupe_key = $1`,
           dedupeKey
         );
         
+        console.log('Case 04 - About to seed fresh row');
+        
         // Now seed fresh row (will succeed because we cleared above)
-        await prisma.$queryRawUnsafe(
-          `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now())`,
+        const seedResult = await prisma.$queryRawUnsafe<{ id: string }>(
+          `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) RETURNING id`,
           `entry-seed-${reservationId}`,
           userId,
           projectId,
@@ -208,6 +212,8 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           BigInt(300000),
           dedupeKey,
         );
+        
+        console.log('Case 04 - Seed result:', seedResult);
         
         // Verify seed persisted BEFORE entering UoW
         const _preUowCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
