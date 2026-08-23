@@ -33,7 +33,11 @@ export type ReconciliationApplyResult =
   | { readonly kind: 'monotonicity_violation'; readonly reason: 'settled' | 'released' }
   | { readonly kind: 'conservation_violation'; readonly reason: string }
   | { readonly kind: 'binding_invalid' }
-  | { readonly kind: 'not_found' };
+  | { readonly kind: 'not_found' }
+  | {
+      readonly kind: 'conflict';
+      readonly reason: 'terminal_disposition_mismatch' | 'terminal_lifecycle_violation';
+    };
 
 export interface CreditReservationPort {
   // Task 6: Find replay by confirmation request ID (unique constraint ensures single record)

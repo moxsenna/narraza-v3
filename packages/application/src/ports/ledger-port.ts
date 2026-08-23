@@ -31,7 +31,8 @@ export type ReservationSettlementAppendResult =
   | { readonly kind: 'already_settled' }
   | { readonly kind: 'monotonicity_violation'; readonly current: bigint; readonly proposed: bigint }
   | { readonly kind: 'conservation_violation'; readonly reason: string }
-  | { readonly kind: 'binding_invalid' };
+  | { readonly kind: 'binding_invalid' }
+  | { readonly kind: 'dedupe_rejected' };
 
 // Release append input - narrow semantic contract
 export interface AppendReservationReleaseInput {
@@ -55,7 +56,8 @@ export type ReservationReleaseAppendResult =
   | { readonly kind: 'already_released' }
   | { readonly kind: 'monotonicity_violation'; readonly current: bigint; readonly proposed: bigint }
   | { readonly kind: 'conservation_violation'; readonly reason: string }
-  | { readonly kind: 'binding_invalid' };
+  | { readonly kind: 'binding_invalid' }
+  | { readonly kind: 'dedupe_rejected' };
 
 export interface LedgerPort {
   releaseQueuedCancellation(

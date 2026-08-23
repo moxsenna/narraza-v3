@@ -7,6 +7,7 @@ import type {
   ReconciliationApplyResult,
 } from '@narraza/application';
 import type { TxClient } from './tx-client.js';
+import { deriveReservationStatus } from '@narraza/application';
 
 const COLUMN_LIST = `id,user_id,project_id,job_project_id,job_id,status,funding_model,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,closing_at,quote_id,confirmation_request_id,created_at,updated_at`;
 
@@ -49,25 +50,6 @@ function toReservationRecord(row: RawReservationRow): CreditReservationRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
-}
-
-/**
- * Derives reservation status from target tuple (reusing Task 2 pure function pattern)
- * Rule: E > 0 → 'closing', S > 0 → 'settled', else terminalReason ?? 'released'
- */
-function deriveStatus(input: {
-  settledTargetMicroIdr: bigint;
-  releasedTargetMicroIdr: bigint;
-  exposureTargetMicroIdr: bigint;
-  terminalReason?: 'cancelled' | 'expired' | 'released';
-}): 'open' | 'closing' | 'settled' | 'released' | 'cancelled' | 'expired' {
-  if (input.exposureTargetMicroIdr > 0n) {
-    return 'closing';
-  }
-  if (input.settledTargetMicroIdr > 0n) {
-    return 'settled';
-  }
-  return input.terminalReason ?? 'released';
 }
 
 export function createCreditReservationRepo(tx: TxClient): CreditReservationPort {
@@ -143,6 +125,26 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
         terminalReason,
       } = input;
 
+      // Blocker I: Explicit negative target guards (must precede all SQL)
+      if (S_target < 0n) {
+        return {
+          kind: 'conservation_violation',
+          reason: 'settledTargetMicroIdr must be non-negative',
+        };
+      }
+      if (L_target < 0n) {
+        return {
+          kind: 'conservation_violation',
+          reason: 'releasedTargetMicroIdr must be non-negative',
+        };
+      }
+      if (E_target < 0n) {
+        return {
+          kind: 'conservation_violation',
+          reason: 'exposureTargetMicroIdr must be non-negative',
+        };
+      }
+
       // Step 1: Lock exact binding (Blocker 4 - project/job/user/reservation all match FOR UPDATE)
       const rows = (await tx.$queryRawUnsafe(
         `SELECT id,user_id,project_id,job_project_id,job_id,status,
@@ -192,6 +194,39 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
       const S_current = reservation.settled_micro_idr;
       const L_current = reservation.released_micro_idr;
 
+      // Blocker J: Explicit terminal lifecycle guard (must precede monotonicity)
+      const currentStatus = reservation.status;
+      const isTerminalCurrent = ['settled', 'released', 'cancelled', 'expired'].includes(
+        currentStatus,
+      );
+
+      if (isTerminalCurrent) {
+        // Exact same legal terminal state may replay (already handled later)
+        // But reopening to closing/open is explicitly rejected
+        // Transition to another terminal disposition is also rejected
+        const desiredStatus = deriveReservationStatus({
+          settledTargetMicroIdr: S_target,
+          releasedTargetMicroIdr: L_target,
+          exposureTargetMicroIdr: E_target,
+          ...(terminalReason !== undefined && { terminalReason }),
+        });
+
+        const isDesiredOpenOrClosing = desiredStatus === 'open' || desiredStatus === 'closing';
+        const isAnotherTerminal = ['settled', 'released', 'cancelled', 'expired'].includes(
+          desiredStatus,
+        );
+
+        if (
+          isDesiredOpenOrClosing ||
+          (isTerminalCurrent && isAnotherTerminal && desiredStatus !== currentStatus)
+        ) {
+          return {
+            kind: 'conflict',
+            reason: 'terminal_lifecycle_violation' as const,
+          };
+        }
+      }
+
       // Monotonicity checks (consistency law enforcement)
       if (S_target < S_current) {
         return { kind: 'monotonicity_violation', reason: 'settled' };
@@ -210,22 +245,38 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
         };
       }
 
+      // Blocker 3: Derive status from tuple using production function (not duplicated)
+      const derivedStatus =
+        /*重用 earlier computation if needed, but recompute for exactness*/ deriveReservationStatus(
+          {
+            settledTargetMicroIdr: S_target,
+            releasedTargetMicroIdr: L_target,
+            exposureTargetMicroIdr: E_target,
+            ...(terminalReason !== undefined && { terminalReason }),
+          },
+        );
+
       // Exact replay check: compare proposed vs current (no-op if already at target)
-      if (
+      // Blocker H: For terminal tuples, also verify matching disposition
+      const isSameTuple =
         S_target === S_current &&
         L_target === L_current &&
-        E_target === reservation.exposure_micro_idr
-      ) {
+        E_target === reservation.exposure_micro_idr;
+      if (isSameTuple) {
+        // If current state is terminal and desired status differs, this is a terminal disposition mismatch
+        const isTerminalCurrent = ['settled', 'released', 'cancelled', 'expired'].includes(
+          reservation.status,
+        );
+        const isTerminalDesired = ['settled', 'released', 'cancelled', 'expired'].includes(
+          derivedStatus,
+        );
+
+        if (isTerminalCurrent && isTerminalDesired && derivedStatus !== reservation.status) {
+          // Same S/L/E but different terminal disposition => conflict (cannot change disposition without moving off tuple)
+          return { kind: 'conflict', reason: 'terminal_disposition_mismatch' as const };
+        }
         return { kind: 'already_reconciled' };
       }
-
-      // Blocker 3: Derive status from tuple using same logic as Task 2 pure functions
-      const derivedStatus = deriveStatus({
-        settledTargetMicroIdr: S_target,
-        releasedTargetMicroIdr: L_target,
-        exposureTargetMicroIdr: E_target,
-        ...(terminalReason !== undefined && { terminalReason }),
-      });
 
       // Lifecycle coherence guard: never write status=open with closing_at non-null
       if (derivedStatus === 'open' && E_target === 0n) {

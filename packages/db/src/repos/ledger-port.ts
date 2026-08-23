@@ -160,7 +160,7 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
         return { kind: 'binding_invalid' };
       }
 
-      // Update reservation to cancelled terminal state
+      // Update reservation to cancelled terminal state with release semantics
       await tx.$queryRawUnsafe(
         `UPDATE credit_reservations
             SET status = 'cancelled', settled_micro_idr = 0,
@@ -277,7 +277,8 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
           return { kind: 'already_settled' };
         }
 
-        // Divergent duplicate - conflict
+        // Divergent replay (same dedupe key, different tuple) => binding_invalid
+        // Note: this includes both larger and smaller proposed amounts compared to existing
         return { kind: 'binding_invalid' };
       }
 
@@ -356,7 +357,7 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
       const expectedDedupeKey = hasAllocation
         ? `${expectedDedupeKeyBase}:${input.allocationId}`
         : expectedDedupeKeyBase;
-      
+
       if (input.dedupeKey !== expectedDedupeKey) {
         return { kind: 'binding_invalid' };
       }
@@ -402,7 +403,8 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
           return { kind: 'already_released' };
         }
 
-        // Divergent duplicate - conflict
+        // Divergent replay (same dedupe key, different tuple) => binding_invalid
+        // Note: this includes both larger and smaller proposed amounts compared to existing
         return { kind: 'binding_invalid' };
       }
 
