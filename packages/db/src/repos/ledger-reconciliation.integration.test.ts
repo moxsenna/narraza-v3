@@ -6,7 +6,7 @@ import { createPrismaClient, type PrismaClient } from '../client.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
 import { createJobService } from '@narraza/application';
-import { Pool } from 'pg';
+import { seedTask8Fixtures } from './fixtures.js';
 
 // Vitest schema harness registration (required for database test discovery)
 const _schema = createSchemaTestSuite();
@@ -189,37 +189,99 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const before = beforeRows[0]!;
 
-        // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using POOL directly
-        // CRITICAL FIX: Use Pool API with explicit BEGIN/COMMIT for guaranteed isolation
-        const dedupeKey = `settle:${reservationId}:divergent`;
-        
-        console.log('Case 04 - Using Pool with explicit commit control');
-        
-        const pgPool = new Pool({ connectionString: databaseUrl });
-        
-        try {
-          // Explicit transaction with BEGIN -> INSERT -> COMMIT pattern
-          await pgPool.query('BEGIN');
-          try {
-            await pgPool.query(
-              `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
-               VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now()) RETURNING id`,
-              [`entry-seed-${reservationId}`, userId, projectId, reservationId, BigInt(300000), dedupeKey],
-            );
-            
-            await pgPool.query('COMMIT');
-            console.log('Case 04 - Transaction committed successfully');
-          } catch (e) {
-            await pgPool.query('ROLLBACK');
-            throw e;
-          }
-        } finally {
-          await pgPool.end();
-          console.log('Case 04 - Pool ended');
-        }
-        
-        // NOW enter UoW - seeded data MUST exist here
+        // STEP 2: Enter UoW and seed existing row (first append succeeds)
         let threwRollback = false;
+        try {
+          await createUnitOfWork(prisma).execute(async (ports) => {
+            // Seed initial settlement row
+            const seedResult = await ports.ledger.appendReservationSettlement({
+              projectId,
+              jobId,
+              userId,
+              reservationId,
+              ledgerEntryId: `entry-seed-${reservationId}`,
+              allocationId: 'divergent',
+              attemptId: null,
+              amountMicroIdr: BigInt(300000),
+              dedupeKey: `settle:${reservationId}:divergent`,
+            });
+            
+            expect(seedResult).toEqual({ kind: 'settled' });
+            
+            // Mutate reservation first (sets up state for rollback verification)
+            await ports.creditReservation.applyReconciliationTarget({
+              reservationId,
+              userId,
+              projectId,
+              jobProjectId: projectId,
+              jobId,
+              settledTargetMicroIdr: BigInt(800000),
+              releasedTargetMicroIdr: 0n,
+              exposureTargetMicroIdr: BigInt(200000),
+            });
+
+            // Attempt divergent settlement (same dedupe key => binding_invalid)
+            const result = await ports.ledger.appendReservationSettlement({
+              projectId,
+              jobId,
+              userId,
+              reservationId,
+              ledgerEntryId: `entry-divergent-04`,
+              allocationId: 'divergent',
+              attemptId: null,
+              amountMicroIdr: BigInt(300000),
+              dedupeKey: `settle:${reservationId}:divergent`,
+            });
+
+            // Convert binding_invalid to rollback trigger
+            if (result.kind === 'binding_invalid') {
+              threwRollback = true;
+              throw new Error('TASK8_ROLLBACK_SENTINEL_04');
+            }
+
+            throw new Error('TASK8_UNEXPECTED_SUCCESS_04');
+          });
+        } catch (e) {
+          expect((e as Error).message).toBe('TASK8_ROLLBACK_SENTINEL_04');
+          expect(threwRollback).toBe(true);
+        }
+
+        // STEP 3: AFTER transaction - verify ROLLBACK preserved ORIGINAL reservation state
+        const afterRows = (await prisma.$queryRawUnsafe<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>(
+          `SELECT status, settled_micro_idr, released_micro_idr, exposure_micro_idr FROM credit_reservations WHERE id = $1`,
+          reservationId,
+        )) as Array<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>;
+        const after = afterRows[0]!;
+
+        // CRITICAL ASSERTIONS: State must be identical to before (full UoW rollback verified)
+        expect(after.status).toBe(before.status);
+        expect(after.settled_micro_idr).toBe(before.settled_micro_idr);
+        expect(after.released_micro_idr).toBe(before.released_micro_idr);
+        expect(after.exposure_micro_idr).toBe(before.exposure_micro_idr);
+
+        // VERIFY: Exactly ONE ledger row exists (the seeded one, not divergent duplicate)
+        // This proves binding conflict prevented second write
+        const ledgerRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
+          `settle:${reservationId}:divergent`,
+        )) as Array<{ cnt: string }>;
+        
+        expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(1); // Seeded row persisted, no duplicate
+      } finally {
+        await prisma.$disconnect();
+      }
+    },
+  );
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
             // Mutate reservation (part of UoW transaction)
@@ -411,37 +473,101 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
         }>;
         const before = beforeRows[0]!;
 
-        // STEP 2: Seed conflicting release row OUTSIDE any UoW using POOL directly
-        // CRITICAL FIX: Use Pool API with explicit BEGIN/COMMIT for guaranteed isolation
-        const seedDedupeKey = `release:${reservationId}:invocation_completed:a07-divergent`;
-        
-        console.log('Case 07 - Using Pool with explicit commit control');
-        
-        const pgPool = new Pool({ connectionString: databaseUrl });
-        
-        try {
-          // Explicit transaction with BEGIN -> INSERT -> COMMIT pattern
-          await pgPool.query('BEGIN');
-          try {
-            await pgPool.query(
-              `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
-               VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now()) RETURNING id`,
-              [`entry-seed-07`, userId, projectId, reservationId, BigInt(200000), seedDedupeKey],
-            );
-            
-            await pgPool.query('COMMIT');
-            console.log('Case 07 - Transaction committed successfully');
-          } catch (e) {
-            await pgPool.query('ROLLBACK');
-            throw e;
-          }
-        } finally {
-          await pgPool.end();
-          console.log('Case 07 - Pool ended');
-        }
-        
-        // NOW enter UoW
+        // STEP 2: Enter UoW and seed existing release row (first append succeeds)
         let threwRollback = false;
+        try {
+          await createUnitOfWork(prisma).execute(async (ports) => {
+            // Seed initial release row
+            const seedResult = await ports.ledger.appendReservationRelease({
+              projectId,
+              jobId,
+              userId,
+              reservationId,
+              ledgerEntryId: `entry-seed-07`,
+              reason: 'invocation_completed',
+              allocationId: 'a07-divergent',
+              attemptId: null,
+              amountMicroIdr: BigInt(200000),
+              dedupeKey: `release:${reservationId}:invocation_completed:a07-divergent`,
+            });
+            
+            expect(seedResult).toEqual({ kind: 'released' });
+            
+            // Mutate reservation first (sets up state for rollback verification)
+            await ports.creditReservation.applyReconciliationTarget({
+              reservationId,
+              userId,
+              projectId,
+              jobProjectId: projectId,
+              jobId,
+              settledTargetMicroIdr: BigInt(600000),
+              releasedTargetMicroIdr: BigInt(300000),
+              exposureTargetMicroIdr: BigInt(100000),
+            });
+
+            // Attempt divergent release with EXACT same dedupe key => binding_invalid
+            const result = await ports.ledger.appendReservationRelease({
+              projectId,
+              jobId,
+              userId,
+              reservationId,
+              ledgerEntryId: `entry-divergent-07`,
+              reason: 'invocation_completed',
+              allocationId: 'a07-divergent',
+              attemptId: null,
+              amountMicroIdr: BigInt(200000),
+              dedupeKey: `release:${reservationId}:invocation_completed:a07-divergent`,
+            });
+
+            // Convert binding_invalid to rollback trigger
+            if (result.kind === 'binding_invalid') {
+              threwRollback = true;
+              throw new Error('TASK8_ROLLBACK_SENTINEL_07');
+            }
+
+            throw new Error('TASK8_UNEXPECTED_SUCCESS_07');
+          });
+        } catch (e) {
+          expect((e as Error).message).toBe('TASK8_ROLLBACK_SENTINEL_07');
+          expect(threwRollback).toBe(true);
+        }
+
+        // STEP 3: AFTER transaction - verify ROLLBACK preserved ORIGINAL reservation state
+        const afterRows = (await prisma.$queryRawUnsafe<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>(
+          `SELECT status, settled_micro_idr, released_micro_idr, exposure_micro_idr FROM credit_reservations WHERE id = $1`,
+          reservationId,
+        )) as Array<{
+          status: string;
+          settled_micro_idr: bigint;
+          released_micro_idr: bigint;
+          exposure_micro_idr: bigint;
+        }>;
+        const after = afterRows[0]!;
+
+        // CRITICAL ASSERTIONS: State must be identical to before (full UoW rollback verified)
+        expect(after.status).toBe(before.status);
+        expect(after.settled_micro_idr).toBe(before.settled_micro_idr);
+        expect(after.released_micro_idr).toBe(before.released_micro_idr);
+        expect(after.exposure_micro_idr).toBe(before.exposure_micro_idr);
+
+        // VERIFY: Exactly ONE ledger row exists (the seeded one, not divergent duplicate)
+        // This proves binding conflict prevented second write
+        const ledgerRows = (await prisma.$queryRawUnsafe<{ cnt: string }>(
+          `SELECT COUNT(*) FROM credit_ledger WHERE dedupe_key = $1`,
+          `release:${reservationId}:invocation_completed:a07-divergent`,
+        )) as Array<{ cnt: string }>;
+        
+        expect(parseInt(ledgerRows[0]?.cnt ?? '0')).toBe(1); // Seeded row persisted, no duplicate
+      } finally {
+        await prisma.$disconnect();
+      }
+    },
+  );
         try {
           await createUnitOfWork(prisma).execute(async (ports) => {
             // Mutate reservation first (part of UoW transaction)
