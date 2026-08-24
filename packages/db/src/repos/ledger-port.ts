@@ -350,18 +350,21 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
 
       // Runtime dedupe key format validation - EXACT FORMAT CHECK BY REASON
       // Per PM directive: validate allocationId explicitly by reason (not just !== null)
-      
+
       let expectedDedupeKey: string;
       switch (input.reason) {
         case 'invocation_completed':
-        case 'cancellation_refund':
-          // These reasons MUST have allocationId as non-empty string
-          if (!input.allocationId || typeof input.allocationId !== 'string' || input.allocationId.trim() === '') {
+          // This reason MUST have allocationId as non-empty string
+          if (
+            !input.allocationId ||
+            typeof input.allocationId !== 'string' ||
+            input.allocationId.trim() === ''
+          ) {
             return { kind: 'binding_invalid' };
           }
           expectedDedupeKey = `release:${input.reservationId}:${input.reason}:${input.allocationId}`;
           break;
-        
+
         case 'final-close':
           // This reason MUST NOT have allocationId (must be null/absent)
           if (input.allocationId !== null && input.allocationId !== undefined) {
@@ -369,7 +372,7 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
           }
           expectedDedupeKey = `release:${input.reservationId}:final-close`;
           break;
-        
+
         case 'queued-cancel':
           // Frozen dedicated contract: no allocationId component, never create ":undefined"
           if (input.allocationId !== null && input.allocationId !== undefined) {
@@ -377,7 +380,7 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
           }
           expectedDedupeKey = `release:${input.reservationId}:queued-cancel`;
           break;
-        
+
         default:
           // Unknown reason => reject
           return { kind: 'binding_invalid' };

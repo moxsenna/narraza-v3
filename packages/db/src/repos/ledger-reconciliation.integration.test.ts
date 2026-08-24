@@ -7,8 +7,6 @@ import { createSchemaTestSuite } from '../schema-test/harness.js';
 import { createUnitOfWork } from '../unit-of-work.js';
 import { createJobService } from '@narraza/application';
 
-// Vitest schema harness registration (required for database test discovery)
-const _schema = createSchemaTestSuite();
 const TASK8_USER_ID = 'task8-user-a';
 const TASK8_PROJECT_ID = 'task8-project-a';
 const TASK8_JOB_ID = 'task8-job-a';
@@ -190,28 +188,35 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
 
         // STEP 2: Seed conflicting ledger row OUTSIDE any UoW using HARNESS CLIENT
         const dedupeKey = `settle:${reservationId}:divergent`;
-        
+
         // Direct seeding via harness-provided pool
         await client.query(
           `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
            VALUES ($1,$2,$3,$4,NULL,'reservation_settlement','debit',$5,$6,now())`,
-          [`entry-seed-${reservationId}`, userId, projectId, reservationId, BigInt(300000), dedupeKey],
+          [
+            `entry-seed-${reservationId}`,
+            userId,
+            projectId,
+            reservationId,
+            BigInt(300000),
+            dedupeKey,
+          ],
         );
-        
+
         // Immediate verification via HARNESS CLIENT (must see count == 1)
         const harnessPostInsert = await client.query<{ cnt: string }>(
           `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
           [dedupeKey],
         );
         expect(parseInt(harnessPostInsert.rows[0]?.cnt ?? '0')).toBe(1);
-        
-        // CRITICAL PRECONDITION: Verify SAME row visible via HARNESS CLIENT (NOT Prisma)
-        const preUowHarnessCount = await client.query<{ cnt: string }>(
+
+        // CRITICAL PRECONDITION: Verify SAME row visible via Prisma BEFORE entering UoW
+        const preUowPrismaCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
           `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
-          [dedupeKey],
-        );
-        expect(parseInt(preUowHarnessCount.rows[0]?.cnt ?? '0')).toBe(1); // HARD ASSERTION
-        
+          dedupeKey,
+        )) as Array<{ cnt: string }>;
+        expect(parseInt(preUowPrismaCount[0]?.cnt ?? '0')).toBe(1);
+
         // Enter UoW
         let threwRollback = false;
         try {
@@ -280,9 +285,8 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
           [dedupeKey],
         );
-        console.log(`Case 04 - Post-UoW count via harness: ${JSON.stringify(postUowHarness.rows[0])}`);
         expect(parseInt(postUowHarness.rows[0]?.cnt ?? '0')).toBe(1); // Seeded row survived!
-        
+
         // Verify exact tuple unchanged
         const tupleCheck = await client.query(
           `SELECT id, amount_micro_idr, entry_type, direction FROM credit_ledger WHERE dedupe_key = $1`,
@@ -416,28 +420,28 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
 
         // STEP 2: Seed conflicting release row OUTSIDE any UoW using HARNESS CLIENT
         const seedDedupeKey = `release:${reservationId}:invocation_completed:a07-divergent`;
-        
+
         // Direct seeding via harness-provided pool
         await client.query(
           `INSERT INTO credit_ledger (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at) 
            VALUES ($1,$2,$3,$4,NULL,'release','credit',$5,$6,now())`,
           [`entry-seed-07`, userId, projectId, reservationId, BigInt(200000), seedDedupeKey],
         );
-        
+
         // Immediate verification via HARNESS CLIENT (must see count == 1)
         const harnessPostInsert = await client.query<{ cnt: string }>(
           `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
           [seedDedupeKey],
         );
         expect(parseInt(harnessPostInsert.rows[0]?.cnt ?? '0')).toBe(1);
-        
-        // CRITICAL PRECONDITION: Verify SAME row visible via HARNESS CLIENT (NOT Prisma)
-        const preUowHarnessCount = await client.query<{ cnt: string }>(
+
+        // CRITICAL PRECONDITION: Verify SAME row visible via Prisma BEFORE entering UoW
+        const preUowPrismaCount = (await prisma.$queryRawUnsafe<{ cnt: string }>(
           `SELECT COUNT(*) as cnt FROM credit_ledger WHERE dedupe_key = $1`,
-          [seedDedupeKey],
-        );
-        expect(parseInt(preUowHarnessCount.rows[0]?.cnt ?? '0')).toBe(1); // HARD ASSERTION
-        
+          seedDedupeKey,
+        )) as Array<{ cnt: string }>;
+        expect(parseInt(preUowPrismaCount[0]?.cnt ?? '0')).toBe(1);
+
         // Enter UoW
         let threwRollback = false;
         try {
@@ -508,7 +512,7 @@ describe('Task 8 Ledger Reconciliation Gates', () => {
           [seedDedupeKey],
         );
         expect(parseInt(postUowHarness.rows[0]?.cnt ?? '0')).toBe(1); // Seeded row survived!
-        
+
         // Verify exact tuple unchanged
         const tupleCheck = await client.query(
           `SELECT id, amount_micro_idr, entry_type, direction FROM credit_ledger WHERE dedupe_key = $1`,
