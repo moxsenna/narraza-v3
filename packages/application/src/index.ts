@@ -68,6 +68,8 @@ export type {
   AuditAppendInput,
   AuditPort,
   OutboxAppendInput,
+  CreditOverageIncidentInput,
+  CreditOverageIncidentResult,
   OutboxPort,
   SnapshotAppendInput,
   SnapshotPort,

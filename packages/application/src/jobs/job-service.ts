@@ -101,7 +101,8 @@ export type FencedPublishResult =
   | { readonly kind: 'already_terminal'; readonly status: TerminalJobStatus }
   | { readonly kind: 'lost_ownership' }
   | { readonly kind: 'cancellation_required' }
-  | { readonly kind: 'cancellation_blocks_success' };
+  | { readonly kind: 'cancellation_blocks_success' }
+  | { readonly kind: 'funding_model_conflict' };
 
 export interface JobService {
   cancel(input: CancelInput): Promise<CancelResult>;
@@ -161,6 +162,38 @@ async function settleUsableOutput(
     throw new Error('usable-output settlement reservation binding invalid');
   }
 
+  if (fundingModel !== 'pre_d4_legacy' && reservation.fundingModel !== fundingModel) {
+    throw new FencedPublishRollback({ kind: 'funding_model_conflict' });
+  }
+  if (
+    fundingModel === 'pre_d4_legacy' &&
+    reservation.fundingModel !== null &&
+    reservation.fundingModel !== 'user_paid' &&
+    reservation.fundingModel !== 'system_funded'
+  ) {
+    throw new FencedPublishRollback({ kind: 'funding_model_conflict' });
+  }
+
+  const effectiveFundingModel =
+    fundingModel === 'pre_d4_legacy' ? reservation.fundingModel : fundingModel;
+  if (effectiveFundingModel === 'system_funded') {
+    const reconciled = await ports.creditReservation.applyReconciliationTarget({
+      reservationId: reservation.id,
+      userId,
+      projectId: job.projectId,
+      jobProjectId: job.projectId,
+      jobId: job.id,
+      settledTargetMicroIdr: 0n,
+      releasedTargetMicroIdr: reservation.reservedMicroIdr,
+      exposureTargetMicroIdr: 0n,
+      terminalReason: 'released',
+    });
+    if (reconciled.kind !== 'reconciled' && reconciled.kind !== 'already_reconciled') {
+      throw new Error(`usable-output reservation ${reconciled.kind}`);
+    }
+    return;
+  }
+
   const cost = await allocationPort.sumEligibleProviderCost({
     projectId: job.projectId,
     jobId: job.id,
@@ -172,11 +205,9 @@ async function settleUsableOutput(
 
   const intendedSettlement = cost.providerCostMicroIdr;
   const actualSettlement =
-    fundingModel === 'system_funded'
-      ? 0n
-      : intendedSettlement < reservation.reservedMicroIdr
-        ? intendedSettlement
-        : reservation.reservedMicroIdr;
+    intendedSettlement < reservation.reservedMicroIdr
+      ? intendedSettlement
+      : reservation.reservedMicroIdr;
   const subsidy = intendedSettlement - actualSettlement;
   const release = reservation.reservedMicroIdr - actualSettlement;
   const allocationDedupeKey =
@@ -249,23 +280,25 @@ async function settleUsableOutput(
     throw new Error(`usable-output reservation ${reconciled.kind}`);
   }
 
-  if (subsidy > 0n) {
-    const occurredAt = await ports.dbNow();
-    await ports.outbox.append({
-      id: ports.allocateId(),
-      aggregateType: 'credit_reservation',
-      aggregateId: reservation.id,
-      eventType: 'credit.overage_detected',
-      dedupeKey: `incident:credit-overage:${reservation.id}:${durableAllocationId}`,
-      occurredAt,
-      schemaVersion: 1,
-      payload: {
-        allocationId: durableAllocationId,
-        intendedSettlementMicroIdr: intendedSettlement.toString(),
-        actualSettlementMicroIdr: actualSettlement.toString(),
-        systemSubsidyMicroIdr: subsidy.toString(),
-      },
+  if (subsidy > 0n && fundingModel !== 'pre_d4_legacy') {
+    const appendIncident = ports.outbox.appendCreditOverageIncident;
+    if (appendIncident === undefined) {
+      throw new Error('credit-overage incident capability unavailable');
+    }
+    const incidentDedupeKey =
+      `incident:credit-overage:${reservation.id}:${durableAllocationId}` as const;
+    const incident = await appendIncident({
+      id: incidentDedupeKey,
+      reservationId: reservation.id,
+      allocationId: durableAllocationId,
+      intendedSettlementMicroIdr: intendedSettlement,
+      actualSettlementMicroIdr: actualSettlement,
+      systemSubsidyMicroIdr: subsidy,
+      dedupeKey: incidentDedupeKey,
     });
+    if (incident.kind === 'conflict') {
+      throw new Error('credit-overage incident conflict');
+    }
   }
 }
 

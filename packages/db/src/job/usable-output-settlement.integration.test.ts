@@ -188,7 +188,7 @@ schema.test(
 );
 
 schema.test(
-  'allocation exact duplicate replays and divergent duplicate conflicts',
+  'allocation committed replay requires deterministic ID and divergent new ID conflicts',
   async ({ client, databaseUrl }) => {
     await seedRunningSettlement(client, 600n, 1_000n);
     const prisma = createPrismaForUrl(databaseUrl);
@@ -208,27 +208,26 @@ schema.test(
       dedupeKey,
     } as const;
     try {
-      await expect(
+      const append = (value: typeof input | ({ readonly id: string } & Omit<typeof input, 'id'>)) =>
         unitOfWork.execute(async (ports) => {
           const allocation = ports.creditBillingAllocation;
           if (allocation === undefined) throw new Error('allocation port missing');
-          expect(await allocation.appendForUsableOutput(input)).toEqual({
-            kind: 'appended',
-            allocationId: dedupeKey,
-          });
-          expect(await allocation.appendForUsableOutput(input)).toEqual({
-            kind: 'replayed',
-            allocationId: dedupeKey,
-          });
-          expect(
-            await allocation.appendForUsableOutput({
-              ...input,
-              userSettlementMicroIdr: 500n,
-              systemSubsidyMicroIdr: 100n,
-            }),
-          ).toEqual({ kind: 'conflict' });
-        }),
-      ).resolves.toBeUndefined();
+          return allocation.appendForUsableOutput(value);
+        });
+      await expect(append(input)).resolves.toEqual({
+        kind: 'appended',
+        allocationId: dedupeKey,
+      });
+      await expect(append(input)).resolves.toEqual({
+        kind: 'replayed',
+        allocationId: dedupeKey,
+      });
+      await expect(append({ ...input, id: 'different-allocation-id' })).resolves.toEqual({
+        kind: 'conflict',
+      });
+      await expect(
+        append({ ...input, userSettlementMicroIdr: 500n, systemSubsidyMicroIdr: 100n }),
+      ).resolves.toEqual({ kind: 'conflict' });
       expect(
         (await client.query(`SELECT count(*)::int AS count FROM credit_billing_allocations`))
           .rows[0],
@@ -239,26 +238,287 @@ schema.test(
   },
 );
 
-schema.test('sentinel alone does not trigger settlement', async ({ client, databaseUrl }) => {
-  await seedPlanningGraph(client);
-  await insertQueuedJobRow(client, { id: JOB_ID, projectId: ids.projectA, kind: 'prose' });
-  const prisma = createPrismaForUrl(databaseUrl);
-  const service = createJobService(createUnitOfWork(prisma));
-  try {
-    const claim = await service.claim({ leaseToken: leaseTokens.bob, leaseDurationMs: 30_000 });
-    if (claim.kind !== 'claimed') throw new Error('job not claimed');
-    await expect(
-      service.withFencedPublish(claim.identity, ({ appendSentinel }) => appendSentinel(sentinel), {
-        settleUsableOutput: true,
-      }),
-    ).resolves.toMatchObject({ kind: 'published' });
-    expect(
-      (await client.query(`SELECT count(*)::int AS count FROM credit_billing_allocations`)).rows[0],
-    ).toEqual({ count: 0 });
-  } finally {
-    await prisma.$disconnect();
-  }
-});
+schema.test(
+  'paid sentinel zero-output leaves bound reservation open and uncharged',
+  async ({ client, databaseUrl }) => {
+    await seedPlanningGraph(client);
+    await insertQueuedJobRow(client, {
+      id: JOB_ID,
+      projectId: ids.projectA,
+      kind: 'scene_generation',
+    });
+    await insertReservationBinding(client, {
+      reservationId: RESERVATION_ID,
+      jobId: JOB_ID,
+      projectId: ids.projectA,
+      userId: ids.userA,
+      reservedMicroIdr: 1_000n,
+    });
+    await client.query(
+      `UPDATE credit_reservations SET job_project_id=$1,funding_model='user_paid' WHERE id=$2`,
+      [ids.projectA, RESERVATION_ID],
+    );
+    const prisma = createPrismaForUrl(databaseUrl);
+    const service = createJobService(createUnitOfWork(prisma));
+    try {
+      const claim = await service.claim({ leaseToken: leaseTokens.bob, leaseDurationMs: 30_000 });
+      if (claim.kind !== 'claimed') throw new Error('job not claimed');
+      await expect(
+        service.withFencedPublish(
+          claim.identity,
+          ({ appendSentinel }) => appendSentinel(sentinel),
+          {
+            settleUsableOutput: true,
+          },
+        ),
+      ).resolves.toMatchObject({ kind: 'published' });
+      expect(
+        (
+          await client.query(
+            `SELECT status,settled_micro_idr::text,released_micro_idr::text,exposure_micro_idr::text,
+                  (SELECT count(*)::int FROM credit_billing_allocations) allocations,
+                  (SELECT count(*)::int FROM credit_ledger) ledger
+             FROM credit_reservations WHERE id=$1`,
+            [RESERVATION_ID],
+          )
+        ).rows[0],
+      ).toEqual({
+        status: 'open',
+        settled_micro_idr: '0',
+        released_micro_idr: '0',
+        exposure_micro_idr: '1000',
+        allocations: 0,
+        ledger: 0,
+      });
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
+);
+
+schema.test(
+  'system-funded usable success closes reservation without ledger allocation or incident',
+  async ({ client, databaseUrl }) => {
+    await seedRunningSettlement(client, 1_400n, 1_000n);
+    await client.query(`UPDATE generation_jobs SET kind='chat_intake' WHERE id=$1`, [JOB_ID]);
+    await client.query(`UPDATE credit_reservations SET funding_model='system_funded' WHERE id=$1`, [
+      RESERVATION_ID,
+    ]);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const service = createJobService(createUnitOfWork(prisma));
+    try {
+      const claim = await service.claim({ leaseToken: leaseTokens.bob, leaseDurationMs: 30_000 });
+      if (claim.kind !== 'claimed') throw new Error('job not claimed');
+      await expect(
+        service.withFencedPublish(claim.identity, async () => undefined, {
+          settleUsableOutput: true,
+        }),
+      ).resolves.toMatchObject({ kind: 'published' });
+      expect(
+        (
+          await client.query(
+            `SELECT status,settled_micro_idr::text,released_micro_idr::text,exposure_micro_idr::text,
+                  (SELECT count(*)::int FROM credit_ledger) ledger,
+                  (SELECT count(*)::int FROM credit_billing_allocations) allocations,
+                  (SELECT count(*)::int FROM outbox_events WHERE dedupe_key LIKE 'incident:credit-overage:%') incidents
+             FROM credit_reservations WHERE id=$1`,
+            [RESERVATION_ID],
+          )
+        ).rows[0],
+      ).toEqual({
+        status: 'released',
+        settled_micro_idr: '0',
+        released_micro_idr: '1000',
+        exposure_micro_idr: '0',
+        ledger: 0,
+        allocations: 0,
+        incidents: 0,
+      });
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
+);
+
+schema.test(
+  'funding marker mismatch returns typed conflict and rolls back publication',
+  async ({ client, databaseUrl }) => {
+    await seedRunningSettlement(client, 600n, 1_000n);
+    await client.query(`UPDATE credit_reservations SET funding_model='system_funded' WHERE id=$1`, [
+      RESERVATION_ID,
+    ]);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const service = createJobService(createUnitOfWork(prisma));
+    try {
+      const claim = await service.claim({ leaseToken: leaseTokens.bob, leaseDurationMs: 30_000 });
+      if (claim.kind !== 'claimed') throw new Error('job not claimed');
+      await expect(
+        service.withFencedPublish(
+          claim.identity,
+          ({ appendSentinel }) => appendSentinel(sentinel),
+          { settleUsableOutput: true },
+        ),
+      ).resolves.toEqual({ kind: 'funding_model_conflict' });
+      expect(
+        (
+          await client.query(
+            `SELECT j.status,r.status AS reservation_status,
+                  (SELECT count(*)::int FROM credit_ledger) ledger,
+                  (SELECT count(*)::int FROM credit_billing_allocations) allocations,
+                  (SELECT count(*)::int FROM outbox_events) outbox
+             FROM generation_jobs j JOIN credit_reservations r ON r.id=j.reservation_id
+            WHERE j.id=$1`,
+            [JOB_ID],
+          )
+        ).rows[0],
+      ).toEqual({
+        status: 'running',
+        reservation_status: 'open',
+        ledger: 0,
+        allocations: 0,
+        outbox: 0,
+      });
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
+);
+
+schema.test(
+  'overage incident exact replay succeeds and divergent new ID conflicts',
+  async ({ client, databaseUrl }) => {
+    await seedRunningSettlement(client, 1_400n, 1_000n);
+    const prisma = createPrismaForUrl(databaseUrl);
+    const unitOfWork = createUnitOfWork(prisma);
+    const allocationId = `allocation:${RESERVATION_ID}:prose_version:${OUTPUT_REF}`;
+    const dedupeKey = `incident:credit-overage:${RESERVATION_ID}:${allocationId}` as const;
+    const input = {
+      id: dedupeKey,
+      reservationId: RESERVATION_ID,
+      allocationId,
+      intendedSettlementMicroIdr: 1_400n,
+      actualSettlementMicroIdr: 1_000n,
+      systemSubsidyMicroIdr: 400n,
+      dedupeKey,
+    } as const;
+    try {
+      const append = (value: typeof input | ({ readonly id: string } & Omit<typeof input, 'id'>)) =>
+        unitOfWork.execute(async (ports) => {
+          const appendIncident = ports.outbox.appendCreditOverageIncident;
+          if (appendIncident === undefined) throw new Error('incident port missing');
+          return appendIncident(value);
+        });
+      await expect(append(input)).resolves.toEqual({ kind: 'appended' });
+      await expect(append(input)).resolves.toEqual({ kind: 'replayed' });
+      await expect(append({ ...input, id: 'different-incident-id' })).resolves.toEqual({
+        kind: 'conflict',
+      });
+      await expect(append({ ...input, systemSubsidyMicroIdr: 401n })).resolves.toEqual({
+        kind: 'conflict',
+      });
+      expect(
+        (await client.query(`SELECT count(*)::int AS count FROM outbox_events`)).rows[0],
+      ).toEqual({ count: 1 });
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
+);
+
+schema.test(
+  'classifier failure rolls back callback publication through separate client',
+  async ({ client, databaseUrl }) => {
+    await seedRunningSettlement(client, 600n, 1_000n);
+    await client.query(
+      `UPDATE generated_candidates SET payload='{}'::jsonb WHERE id='task9-candidate'`,
+    );
+    const prisma = createPrismaForUrl(databaseUrl);
+    const service = createJobService(createUnitOfWork(prisma));
+    try {
+      const claim = await service.claim({ leaseToken: leaseTokens.bob, leaseDurationMs: 30_000 });
+      if (claim.kind !== 'claimed') throw new Error('job not claimed');
+      await expect(
+        service.withFencedPublish(
+          claim.identity,
+          ({ appendSentinel }) => appendSentinel(sentinel),
+          { settleUsableOutput: true },
+        ),
+      ).rejects.toThrow('usable-output classifier missing contributing attempt evidence');
+      expect(
+        (
+          await client.query(
+            `SELECT j.status,(SELECT count(*)::int FROM outbox_events) outbox,
+                  (SELECT count(*)::int FROM credit_billing_allocations) allocations
+             FROM generation_jobs j WHERE j.id=$1`,
+            [JOB_ID],
+          )
+        ).rows[0],
+      ).toEqual({ status: 'running', outbox: 0, allocations: 0 });
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
+);
+
+for (const [entryType, message] of [
+  ['reservation_settlement', 'task9 settlement rollback'],
+  ['release', 'task9 release rollback'],
+] as const) {
+  schema.test(
+    `${entryType} ledger failure rolls back full Tx P through separate client`,
+    async ({ client, databaseUrl }) => {
+      await seedRunningSettlement(client, 600n, 1_000n);
+      const suffix = entryType === 'reservation_settlement' ? 'settlement' : 'release';
+      await client.query(`
+    CREATE FUNCTION fail_task9_${suffix}() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NEW.entry_type = '${entryType}' THEN RAISE EXCEPTION '${message}'; END IF;
+      RETURN NEW;
+    END $$;
+    CREATE TRIGGER fail_task9_${suffix} BEFORE INSERT ON credit_ledger
+      FOR EACH ROW EXECUTE FUNCTION fail_task9_${suffix}();
+  `);
+      const prisma = createPrismaForUrl(databaseUrl);
+      const service = createJobService(createUnitOfWork(prisma));
+      try {
+        const claim = await service.claim({ leaseToken: leaseTokens.bob, leaseDurationMs: 30_000 });
+        if (claim.kind !== 'claimed') throw new Error('job not claimed');
+        await expect(
+          service.withFencedPublish(
+            claim.identity,
+            ({ appendSentinel }) => appendSentinel(sentinel),
+            { settleUsableOutput: true },
+          ),
+        ).rejects.toThrow(message);
+        expect(
+          (
+            await client.query(
+              `SELECT j.status,r.status AS reservation_status,r.settled_micro_idr::text,
+                  r.released_micro_idr::text,(SELECT count(*)::int FROM credit_ledger) ledger,
+                  (SELECT count(*)::int FROM credit_billing_allocations) allocations,
+                  (SELECT count(*)::int FROM outbox_events) outbox
+             FROM generation_jobs j JOIN credit_reservations r ON r.id=j.reservation_id
+            WHERE j.id=$1`,
+              [JOB_ID],
+            )
+          ).rows[0],
+        ).toEqual({
+          status: 'running',
+          reservation_status: 'open',
+          settled_micro_idr: '0',
+          released_micro_idr: '0',
+          ledger: 0,
+          allocations: 0,
+          outbox: 0,
+        });
+      } finally {
+        await prisma.$disconnect();
+        await client.query(`DROP TRIGGER IF EXISTS fail_task9_${suffix} ON credit_ledger`);
+        await client.query(`DROP FUNCTION IF EXISTS fail_task9_${suffix}()`);
+      }
+    },
+  );
+}
 
 schema.test(
   'job success failure rolls back allocation ledger reservation incident and publication',
@@ -306,6 +566,8 @@ schema.test(
       });
     } finally {
       await prisma.$disconnect();
+      await client.query('DROP TRIGGER IF EXISTS fail_task9_success ON generation_jobs');
+      await client.query('DROP FUNCTION IF EXISTS fail_task9_success()');
     }
   },
 );

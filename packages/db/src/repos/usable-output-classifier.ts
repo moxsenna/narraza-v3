@@ -4,6 +4,7 @@ import type { TxClient } from './tx-client.js';
 interface CandidateOutputRow {
   id: string;
   prose_version_id: string;
+  source_candidate_id: string;
   payload: unknown;
 }
 
@@ -15,12 +16,17 @@ export function createUsableOutputClassifier(tx: TxClient): UsableOutputClassifi
   return {
     async classifyPublishedOutput(input) {
       const rows = (await tx.$queryRawUnsafe(
-        `SELECT id,prose_version_id,payload
-           FROM generated_candidates
-          WHERE project_id = $1
-            AND job_id = $2
-            AND prose_version_id IS NOT NULL
-          ORDER BY id`,
+        `SELECT gc.id,gc.prose_version_id,pv.source_candidate_id,gc.payload
+           FROM generated_candidates gc
+           JOIN prose_versions pv
+             ON pv.project_id=gc.project_id
+            AND pv.id=gc.prose_version_id
+            AND pv.source_candidate_id=gc.id
+          WHERE gc.project_id = $1
+            AND gc.job_id = $2
+            AND gc.prose_version_id IS NOT NULL
+          ORDER BY gc.id
+          FOR UPDATE OF gc,pv`,
         input.projectId,
         input.jobId,
       )) as CandidateOutputRow[];

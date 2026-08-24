@@ -63,7 +63,12 @@ export type {
   ConceptRepo,
 } from './concept-repo.js';
 export type { AuditAppendInput, AuditPort } from './audit-port.js';
-export type { OutboxAppendInput, OutboxPort } from './outbox-port.js';
+export type {
+  OutboxAppendInput,
+  CreditOverageIncidentInput,
+  CreditOverageIncidentResult,
+  OutboxPort,
+} from './outbox-port.js';
 export type { SnapshotAppendInput, SnapshotPort } from './snapshot-port.js';
 export type {
   ReleaseQueuedCancellationInput,
