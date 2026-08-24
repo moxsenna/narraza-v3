@@ -140,6 +140,7 @@ export type {
   CreateReservationResult,
   ApplyReconciliationTargetInput,
   ReconciliationApplyResult,
+  StaleClosingReservationCandidate,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
@@ -169,6 +170,12 @@ export {
   type ReservationReconciliationResult,
   type ReservationSettlementEvidence,
 } from './credits/reservation-reconciliation-service.js';
+export {
+  createStaleClosingReservationService,
+  type StaleClosingReservationService,
+  type SweepStaleClosingReservationsInput,
+  type SweepStaleClosingReservationsResult,
+} from './credits/stale-closing-reservation-service.js';
 
 export {
   createJobService,

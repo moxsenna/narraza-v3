@@ -27,6 +27,12 @@ export interface ApplyReconciliationTargetInput {
   readonly terminalReason?: 'cancelled' | 'expired' | 'released';
 }
 
+export interface StaleClosingReservationCandidate {
+  readonly reservationId: string;
+  readonly projectId: string;
+  readonly jobId: string;
+}
+
 export type ReconciliationApplyResult =
   | { readonly kind: 'reconciled' }
   | { readonly kind: 'already_reconciled' }
@@ -48,12 +54,25 @@ export interface CreditReservationPort {
   // Task 6: Create open USER_PAID reservation
   create(input: CreateReservationInput): Promise<CreateReservationResult>;
 
+  /** Nonlocking deterministic discovery; callers must recheck eligibility after canonical locks. */
+  findStaleClosingCandidates?(input: {
+    readonly maxAgeHours: number;
+    readonly batchSize: number;
+  }): Promise<readonly StaleClosingReservationCandidate[]>;
+
   /** Locks exact job binding for settlement target computation. */
   lockBound(input: {
     readonly reservationId: string;
     readonly projectId: string;
     readonly jobId: string;
   }): Promise<CreditReservationRecord | null>;
+
+  /** Locks only a still-closing, genuinely stale binding after project and job locks. */
+  lockStaleClosingBound?(
+    input: StaleClosingReservationCandidate & {
+      readonly maxAgeHours: number;
+    },
+  ): Promise<CreditReservationRecord | null>;
 
   // Task 7/8: Apply reconciliation targets using ABSOLUTE TARGETS (Blocker 2)
   applyReconciliationTarget(

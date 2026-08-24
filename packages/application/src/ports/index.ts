@@ -145,5 +145,6 @@ export type {
   CreateReservationResult,
   ApplyReconciliationTargetInput,
   ReconciliationApplyResult,
+  StaleClosingReservationCandidate,
 } from './credit-reservation-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';

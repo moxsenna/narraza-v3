@@ -109,6 +109,22 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
       return { kind: 'conflict' };
     },
 
+    async findStaleClosingCandidates(input) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT id AS "reservationId", project_id AS "projectId", job_id AS "jobId"
+           FROM credit_reservations
+          WHERE status = 'closing'
+            AND closing_at IS NOT NULL
+            AND clock_timestamp() - closing_at > ($1::bigint * INTERVAL '1 hour')
+            AND job_id IS NOT NULL
+          ORDER BY closing_at ASC, id ASC
+          LIMIT $2`,
+        BigInt(input.maxAgeHours),
+        input.batchSize,
+      )) as Array<{ reservationId: string; projectId: string; jobId: string }>;
+      return rows;
+    },
+
     async lockBound(input) {
       const rows = (await tx.$queryRawUnsafe(
         `SELECT ${COLUMN_LIST}
@@ -118,6 +134,22 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
         input.reservationId,
         input.projectId,
         input.jobId,
+      )) as RawReservationRow[];
+      return rows[0] ? toReservationRecord(rows[0]) : null;
+    },
+
+    async lockStaleClosingBound(input) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST}
+           FROM credit_reservations
+          WHERE id=$1 AND project_id=$2 AND job_project_id=$2 AND job_id=$3
+            AND status='closing' AND closing_at IS NOT NULL
+            AND clock_timestamp() - closing_at > ($4::bigint * INTERVAL '1 hour')
+          FOR UPDATE`,
+        input.reservationId,
+        input.projectId,
+        input.jobId,
+        BigInt(input.maxAgeHours),
       )) as RawReservationRow[];
       return rows[0] ? toReservationRecord(rows[0]) : null;
     },

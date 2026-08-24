@@ -18,10 +18,13 @@ function harness(overrides: Partial<JobLoopDependencies> = {}) {
   const deps: JobLoopDependencies = {
     service,
     processor: vi.fn().mockResolvedValue(undefined),
+    sweepStaleClosing: vi.fn().mockResolvedValue({ discovered: 0, closed: 0 }),
     settings: {
       leaseMs: 60_000,
       heartbeatMs: 20_000,
       reclaimSweepMs: 30_000,
+      staleClosingSweepMs: 3_600_000,
+      staleClosingMaxAgeHours: 24,
       pollMs: 1_000,
       errorBackoffMs: 5_000,
       shutdownDrainMs: 30_000,
@@ -45,6 +48,57 @@ describe('job loop', () => {
     expect(service.claim).not.toHaveBeenCalled();
     expect(service.reclaimOne).toHaveBeenCalledOnce();
     expect(deps.schedule).toHaveBeenCalledWith(expect.any(Function), 30_000);
+  });
+
+  it('runs stale-closing maintenance without processor, avoids overlap, and schedules hourly', async () => {
+    let release!: () => void;
+    const pending = new Promise<{ discovered: number; closed: number }>((resolve) => {
+      release = () => resolve({ discovered: 1, closed: 1 });
+    });
+    const sweepStaleClosing = vi.fn().mockReturnValue(pending);
+    const { deps, loop } = harness({ processor: undefined, sweepStaleClosing });
+
+    const first = loop.sweepStaleClosingOnce();
+    const second = loop.sweepStaleClosingOnce();
+    expect(sweepStaleClosing).toHaveBeenCalledOnce();
+    expect(sweepStaleClosing).toHaveBeenCalledWith({ maxAgeHours: 24 });
+    release();
+    await Promise.all([first, second]);
+
+    expect(deps.schedule).toHaveBeenCalledWith(expect.any(Function), 3_600_000);
+    expect(deps.logger.info).toHaveBeenCalledWith({
+      event: 'credit_stale_closing_sweep',
+      discovered: 1,
+      closed: 1,
+    });
+  });
+
+  it('stops stale-closing scheduling and bounds an in-flight sweep during shutdown', async () => {
+    vi.useFakeTimers();
+    try {
+      const never = new Promise<never>(() => {});
+      const sweepStaleClosing = vi.fn().mockReturnValue(never);
+      const { deps, loop } = harness({
+        processor: undefined,
+        sweepStaleClosing,
+        schedule: (callback, ms) => setTimeout(callback, ms),
+        cancelTimer: clearTimeout,
+      });
+
+      loop.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sweepStaleClosing).toHaveBeenCalledOnce();
+
+      const shutdown = loop.shutdown();
+      await vi.advanceTimersByTimeAsync(30_000);
+      await shutdown;
+      await vi.advanceTimersByTimeAsync(3_600_000);
+
+      expect(sweepStaleClosing).toHaveBeenCalledOnce();
+      expect(deps.disconnect).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('claims and processes serially with exact lease and AbortSignal', async () => {

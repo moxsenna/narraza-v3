@@ -7,7 +7,7 @@ import type { GenerationJobRecord } from '../ports/types.js';
 export type ReservationReconciliationResult =
   | {
       readonly kind: 'reconciled';
-      readonly status: 'closing' | 'settled' | 'released' | 'cancelled';
+      readonly status: 'closing' | 'settled' | 'released' | 'cancelled' | 'expired';
     }
   | { readonly kind: 'not_bound' }
   | { readonly kind: 'not_terminal' };
@@ -25,6 +25,8 @@ export async function reconcileTerminalReservation(
     readonly terminalReason: 'released' | 'cancelled';
     readonly settlement?: ReservationSettlementEvidence;
     readonly releaseReason?: 'invocation_completed' | 'final-close';
+    /** Stale-closing timeout releases user exposure while unresolved attempts remain durable. */
+    readonly ignoreUnresolvedAttempts?: boolean;
   },
 ): Promise<ReservationReconciliationResult> {
   const { job } = input;
@@ -47,6 +49,13 @@ export async function reconcileTerminalReservation(
 
   if (fundingModel !== 'pre_d4_legacy' && reservation.fundingModel !== fundingModel) {
     throw new Error('terminal reconciliation funding model conflict');
+  }
+
+  if (['settled', 'released', 'cancelled', 'expired'].includes(reservation.status)) {
+    return {
+      kind: 'reconciled',
+      status: reservation.status as 'settled' | 'released' | 'cancelled' | 'expired',
+    };
   }
 
   const effectiveFundingModel =
@@ -77,10 +86,12 @@ export async function reconcileTerminalReservation(
 
   const commercialUserCharge =
     effectiveFundingModel === 'user_paid' ? (settlement?.userSettlementMicroIdr ?? 0n) : 0n;
-  const unresolvedRelevantAttempts = await ports.workflowInvocation.countUnresolvedAttempts({
-    projectId: job.projectId,
-    jobId: job.id,
-  });
+  const unresolvedRelevantAttempts = input.ignoreUnresolvedAttempts
+    ? 0
+    : await ports.workflowInvocation.countUnresolvedAttempts({
+        projectId: job.projectId,
+        jobId: job.id,
+      });
   const targets = computeReservationTargets({
     reservedMicroIdr: reservation.reservedMicroIdr,
     commercialUserCharge,
