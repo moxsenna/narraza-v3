@@ -67,6 +67,9 @@ export type {
   OutboxAppendInput,
   CreditOverageIncidentInput,
   CreditOverageIncidentResult,
+  ReservationReconciliationIncidentInput,
+  ReservationReconciliationIncidentReason,
+  ReservationReconciliationIncidentResult,
   OutboxPort,
 } from './outbox-port.js';
 export type { SnapshotAppendInput, SnapshotPort } from './snapshot-port.js';

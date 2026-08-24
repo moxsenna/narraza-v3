@@ -97,7 +97,27 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
       } catch (error) {
         if (error instanceof FinalizeRollback) return error.result;
         if (error instanceof ReservationReconciliationConflict) {
-          return { kind: 'reconciliation_conflict', reason: error.reason };
+          const { reservationId, jobId, allocationId } = error.context;
+          const allocationKey = allocationId ?? 'none';
+          const dedupeKey =
+            `incident:reservation-reconciliation:${reservationId}:${jobId}:${error.reason}:${allocationKey}` as const;
+          const incident = await unitOfWork.execute(async (ports) => {
+            const appendIncident = ports.outbox.appendReservationReconciliationIncident;
+            if (appendIncident === undefined) {
+              throw new Error('reservation reconciliation incident capability unavailable');
+            }
+            return appendIncident({
+              id: dedupeKey,
+              reservationId,
+              jobId,
+              reason: error.reason,
+              allocationId,
+              dedupeKey,
+            });
+          });
+          return incident.kind === 'conflict'
+            ? { kind: 'reconciliation_incident_conflict', reason: error.reason }
+            : { kind: 'reconciliation_conflict', reason: error.reason };
         }
         throw error;
       }

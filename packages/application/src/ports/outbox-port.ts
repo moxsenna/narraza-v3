@@ -24,10 +24,29 @@ export interface CreditOverageIncidentInput {
 export type CreditOverageIncidentResult =
   { readonly kind: 'appended' } | { readonly kind: 'replayed' } | { readonly kind: 'conflict' };
 
+export type ReservationReconciliationIncidentReason =
+  'allocation_conflict' | 'settlement_conflict' | 'release_conflict' | 'reservation_conflict';
+
+export interface ReservationReconciliationIncidentInput {
+  readonly id: string;
+  readonly reservationId: string;
+  readonly jobId: string;
+  readonly reason: ReservationReconciliationIncidentReason;
+  readonly allocationId: string | null;
+  readonly dedupeKey: `incident:reservation-reconciliation:${string}:${string}:${ReservationReconciliationIncidentReason}:${string}`;
+}
+
+export type ReservationReconciliationIncidentResult =
+  { readonly kind: 'appended' } | { readonly kind: 'replayed' } | { readonly kind: 'conflict' };
+
 export interface OutboxPort {
   append(input: OutboxAppendInput): Promise<void>;
   /** Optional only for backward-compatible legacy UnitOfWork test doubles. */
   appendCreditOverageIncident?(
     input: CreditOverageIncidentInput,
   ): Promise<CreditOverageIncidentResult>;
+  /** Optional only for backward-compatible legacy UnitOfWork test doubles. */
+  appendReservationReconciliationIncident?(
+    input: ReservationReconciliationIncidentInput,
+  ): Promise<ReservationReconciliationIncidentResult>;
 }

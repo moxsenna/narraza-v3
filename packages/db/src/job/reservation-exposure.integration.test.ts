@@ -305,35 +305,77 @@ suite.test(
         [ids.userA, ids.projectA, RESERVATION_ID, `release:${RESERVATION_ID}:final-close`],
       );
 
-      await expect(
-        invocations.finalizeAttempt({
-          ...claim.identity,
-          invocationId: INVOCATION_ID,
-          attemptId: ATTEMPT_B,
-          status: 'failed',
-          providerRequestId: 'provider-conflict',
-          resultHash: null,
-          schemaVersion: 1,
-          payload: { late: true },
-          usage,
-        }),
-      ).resolves.toEqual({ kind: 'reconciliation_conflict', reason: 'release_conflict' });
+      const reservationBefore = (
+        await client.query(`SELECT * FROM credit_reservations WHERE id=$1`, [RESERVATION_ID])
+      ).rows[0];
+      const conflictInput = {
+        ...claim.identity,
+        invocationId: INVOCATION_ID,
+        attemptId: ATTEMPT_B,
+        status: 'failed' as const,
+        providerRequestId: 'provider-conflict',
+        resultHash: null,
+        schemaVersion: 1,
+        payload: { late: true },
+        usage,
+      };
 
-      expect(
-        (
-          await client.query(
-            `SELECT status,released_micro_idr::text,exposure_micro_idr::text,
-                    (SELECT count(*)::int FROM ai_usage_events WHERE attempt_id=$2) AS usage_count
-               FROM credit_reservations WHERE id=$1`,
-            [RESERVATION_ID, ATTEMPT_B],
-          )
-        ).rows[0],
-      ).toMatchObject({
-        status: 'closing',
-        released_micro_idr: '0',
-        exposure_micro_idr: '1000',
-        usage_count: 1,
+      await expect(invocations.finalizeAttempt(conflictInput)).resolves.toEqual({
+        kind: 'reconciliation_conflict',
+        reason: 'release_conflict',
       });
+
+      const afterConflict = await client.query(
+        `SELECT r.*,
+                (SELECT count(*)::int FROM ai_usage_events WHERE attempt_id=$2) AS usage_count,
+                (SELECT count(*)::int FROM outbox_events
+                  WHERE dedupe_key=$3) AS incident_count,
+                (SELECT event_type FROM outbox_events WHERE dedupe_key=$3) AS incident_type,
+                (SELECT payload FROM outbox_events WHERE dedupe_key=$3) AS incident_payload
+           FROM credit_reservations r WHERE r.id=$1`,
+        [
+          RESERVATION_ID,
+          ATTEMPT_B,
+          `incident:reservation-reconciliation:${RESERVATION_ID}:${JOB_ID}:release_conflict:none`,
+        ],
+      );
+      const { usage_count, incident_count, incident_type, incident_payload, ...reservationAfter } =
+        afterConflict.rows[0];
+      expect(reservationAfter).toEqual(reservationBefore);
+      expect({ usage_count, incident_count, incident_type, incident_payload }).toEqual({
+        usage_count: 1,
+        incident_count: 1,
+        incident_type: 'credit.reservation_reconciliation_conflict',
+        incident_payload: {
+          jobId: JOB_ID,
+          reason: 'release_conflict',
+          allocationId: null,
+        },
+      });
+
+      await expect(invocations.finalizeAttempt(conflictInput)).resolves.toEqual({
+        kind: 'reconciliation_conflict',
+        reason: 'release_conflict',
+      });
+      const replayed = await client.query(
+        `SELECT r.*,
+                (SELECT count(*)::int FROM ai_usage_events WHERE attempt_id=$2) AS usage_count,
+                (SELECT count(*)::int FROM outbox_events
+                  WHERE dedupe_key=$3) AS incident_count
+           FROM credit_reservations r WHERE r.id=$1`,
+        [
+          RESERVATION_ID,
+          ATTEMPT_B,
+          `incident:reservation-reconciliation:${RESERVATION_ID}:${JOB_ID}:release_conflict:none`,
+        ],
+      );
+      const {
+        usage_count: replayUsage,
+        incident_count: replayIncidents,
+        ...reservationAfterReplay
+      } = replayed.rows[0];
+      expect(reservationAfterReplay).toEqual(reservationBefore);
+      expect({ replayUsage, replayIncidents }).toEqual({ replayUsage: 1, replayIncidents: 1 });
     } finally {
       await prisma.$disconnect();
     }

@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { ReservationReconciliationConflict } from '../credits/reservation-reconciliation-error.js';
 import type { AiUsagePort, UsageMetrics } from '../ports/ai-usage-port.js';
 import type { JobPort } from '../ports/job-port.js';
 import type { ProjectRepo } from '../ports/project-repo.js';
@@ -82,6 +83,8 @@ interface HarnessOptions {
     | 'conflict'
     | 'not_authorized';
   retryFinalizeOnce?: boolean;
+  reconciliationConflict?: boolean;
+  incident?: 'appended' | 'replayed' | 'conflict';
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -155,12 +158,21 @@ function harness(options: HarnessOptions = {}) {
       return options.project === undefined ? project : options.project;
     }),
   } as unknown as ProjectRepo;
+  const appendReservationReconciliationIncident = vi.fn(async () => {
+    calls.push('outbox.appendReservationReconciliationIncident');
+    return { kind: options.incident ?? 'appended' } as const;
+  });
   const ports = {
     project: projectRepo,
     job,
     workflowInvocation: workflow,
     generationAttempt,
     aiUsage,
+    outbox: { appendReservationReconciliationIncident },
+    ...(options.reconciliationConflict && {
+      creditReservation: {},
+      job: { ...job, lockForReconciliation: vi.fn() },
+    }),
   } as unknown as TxPorts;
   const unitOfWork: UnitOfWork = {
     async execute<T>(fn: (ports: TxPorts) => Promise<T>): Promise<T> {
@@ -168,6 +180,13 @@ function harness(options: HarnessOptions = {}) {
         transactionAttempt += 1;
         calls.push('begin');
         try {
+          if (options.reconciliationConflict && transactionAttempt === 2) {
+            throw new ReservationReconciliationConflict('release_conflict', {
+              reservationId: 'reservation-1',
+              jobId: 'job-1',
+              allocationId: null,
+            });
+          }
           const result = await fn(ports);
           calls.push('commit');
           return result;
@@ -192,6 +211,7 @@ function harness(options: HarnessOptions = {}) {
     aiUsage,
     job,
     projectRepo,
+    appendReservationReconciliationIncident,
     service: createWorkflowInvocationService(unitOfWork),
   };
 }
@@ -309,6 +329,53 @@ describe('workflow invocation service Tx B', () => {
       expect(input).toMatchObject({ invocationId: 'invocation-1', attemptId: 'attempt-1' });
     }
     expect(h.aiUsage.appendForAttempt).toHaveBeenCalledOnce();
+  });
+
+  it.each(['appended', 'replayed'] as const)(
+    'records reconciliation conflict in separate transaction with semantic %s result',
+    async (incident) => {
+      const h = harness({ reconciliationConflict: true, incident });
+      await expect(h.service.finalizeAttempt(finalizeInput)).resolves.toEqual({
+        kind: 'reconciliation_conflict',
+        reason: 'release_conflict',
+      });
+      expect(h.calls).toEqual([
+        'begin',
+        'project.lockForUpdate',
+        'job.lockForFinalization',
+        'workflow.lockForFinalization',
+        'attempt.finalize',
+        'usage.appendForAttempt',
+        'workflow.classifyWinner',
+        'commit',
+        'begin',
+        'rollback',
+        'begin',
+        'outbox.appendReservationReconciliationIncident',
+        'commit',
+      ]);
+      expect(h.appendReservationReconciliationIncident).toHaveBeenCalledWith({
+        id: 'incident:reservation-reconciliation:reservation-1:job-1:release_conflict:none',
+        reservationId: 'reservation-1',
+        jobId: 'job-1',
+        reason: 'release_conflict',
+        allocationId: null,
+        dedupeKey: 'incident:reservation-reconciliation:reservation-1:job-1:release_conflict:none',
+      });
+    },
+  );
+
+  it('surfaces controlled typed result when reconciliation incident semantics conflict', async () => {
+    const h = harness({ reconciliationConflict: true, incident: 'conflict' });
+    await expect(h.service.finalizeAttempt(finalizeInput)).resolves.toEqual({
+      kind: 'reconciliation_incident_conflict',
+      reason: 'release_conflict',
+    });
+    expect(h.calls.slice(-3)).toEqual([
+      'begin',
+      'outbox.appendReservationReconciliationIncident',
+      'commit',
+    ]);
   });
 
   it('keeps chargedParty out of caller-controlled metrics and commands', () => {

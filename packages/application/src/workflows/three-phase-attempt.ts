@@ -47,7 +47,11 @@ export type ThreePhaseAttemptResult =
   | Extract<ExecutorOutcome, { readonly kind: 'recoverable_no_response' }>
   | {
       readonly kind: 'finalize_denied';
-      readonly outcome: 'conflict' | 'not_authorized' | 'reconciliation_conflict';
+      readonly outcome:
+        | 'conflict'
+        | 'not_authorized'
+        | 'reconciliation_conflict'
+        | 'reconciliation_incident_conflict';
     }
   | {
       readonly kind: 'finalized_without_publish';
@@ -127,7 +131,8 @@ export function createThreePhaseAttemptHarness(
       if (
         finalized.kind === 'conflict' ||
         finalized.kind === 'not_authorized' ||
-        finalized.kind === 'reconciliation_conflict'
+        finalized.kind === 'reconciliation_conflict' ||
+        finalized.kind === 'reconciliation_incident_conflict'
       )
         return { kind: 'finalize_denied', outcome: finalized.kind };
       if (finalized.kind !== 'finalized' || finalized.winner !== 'selected')

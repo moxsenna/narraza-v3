@@ -68,6 +68,11 @@ export type FinalizeAttemptResult =
       readonly reason:
         'allocation_conflict' | 'settlement_conflict' | 'release_conflict' | 'reservation_conflict';
     }
+  | {
+      readonly kind: 'reconciliation_incident_conflict';
+      readonly reason:
+        'allocation_conflict' | 'settlement_conflict' | 'release_conflict' | 'reservation_conflict';
+    }
   | { readonly kind: 'not_authorized' };
 
 export type BeginAttemptPortResult = Exclude<

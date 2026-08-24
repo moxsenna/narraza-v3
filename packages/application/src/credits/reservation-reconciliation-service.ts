@@ -61,7 +61,11 @@ export async function reconcileTerminalReservation(
       reservationId: reservation.id,
     });
     if (durable.kind === 'conflict') {
-      throw new ReservationReconciliationConflict('allocation_conflict');
+      throw new ReservationReconciliationConflict('allocation_conflict', {
+        reservationId: reservation.id,
+        jobId: job.id,
+        allocationId: null,
+      });
     }
     if (durable.kind === 'found') {
       settlement = {
@@ -101,7 +105,11 @@ export async function reconcileTerminalReservation(
       dedupeKey,
     });
     if (appended.kind !== 'settled' && appended.kind !== 'already_settled') {
-      throw new ReservationReconciliationConflict('settlement_conflict');
+      throw new ReservationReconciliationConflict('settlement_conflict', {
+        reservationId: reservation.id,
+        jobId: job.id,
+        allocationId: settlement.allocationId,
+      });
     }
   }
 
@@ -129,7 +137,11 @@ export async function reconcileTerminalReservation(
       dedupeKey,
     });
     if (appended.kind !== 'released' && appended.kind !== 'already_released') {
-      throw new ReservationReconciliationConflict('release_conflict');
+      throw new ReservationReconciliationConflict('release_conflict', {
+        reservationId: reservation.id,
+        jobId: job.id,
+        allocationId: settlement?.allocationId ?? null,
+      });
     }
   }
 
@@ -145,7 +157,11 @@ export async function reconcileTerminalReservation(
     terminalReason: input.terminalReason,
   });
   if (applied.kind !== 'reconciled' && applied.kind !== 'already_reconciled') {
-    throw new ReservationReconciliationConflict('reservation_conflict');
+    throw new ReservationReconciliationConflict('reservation_conflict', {
+      reservationId: reservation.id,
+      jobId: job.id,
+      allocationId: settlement?.allocationId ?? null,
+    });
   }
 
   const status =
