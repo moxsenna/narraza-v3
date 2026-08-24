@@ -140,25 +140,29 @@ export function createThreePhaseAttemptHarness(
         return { kind: 'validation_failed', errorCode: validation.errorCode };
 
       emit('tx-c:begin');
-      const published = await deps.jobs.withFencedPublish(input, async (context) => {
-        emit('sentinel:append');
-        await context.appendSentinel({
-          aggregateType: 'workflow_invocation',
-          aggregateId: input.invocationId,
-          eventType: 'workflow_attempt_validated',
-          dedupeKey: `workflow-attempt-validated:${input.invocationId}:${input.attemptId}`,
-          schemaVersion: 1,
-          payload: {
-            projectId: input.projectId,
-            jobId: input.jobId,
-            invocationId: input.invocationId,
-            attemptId: input.attemptId,
-            stageKey: input.stageKey,
-            resultHash: executed.resultHash,
-          },
-        });
-        emit('job:terminalize');
-      });
+      const published = await deps.jobs.withFencedPublish(
+        input,
+        async (context) => {
+          emit('sentinel:append');
+          await context.appendSentinel({
+            aggregateType: 'workflow_invocation',
+            aggregateId: input.invocationId,
+            eventType: 'workflow_attempt_validated',
+            dedupeKey: `workflow-attempt-validated:${input.invocationId}:${input.attemptId}`,
+            schemaVersion: 1,
+            payload: {
+              projectId: input.projectId,
+              jobId: input.jobId,
+              invocationId: input.invocationId,
+              attemptId: input.attemptId,
+              stageKey: input.stageKey,
+              resultHash: executed.resultHash,
+            },
+          });
+          emit('job:terminalize');
+        },
+        { settleUsableOutput: true },
+      );
       emit('tx-c:commit');
       return published.kind === 'published'
         ? { kind: 'published', job: published.job }
