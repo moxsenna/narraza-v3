@@ -63,6 +63,11 @@ export type FinalizeAttemptResult =
       readonly winner: WinnerOutcome;
     }
   | { readonly kind: 'conflict' }
+  | {
+      readonly kind: 'reconciliation_conflict';
+      readonly reason:
+        'allocation_conflict' | 'settlement_conflict' | 'release_conflict' | 'reservation_conflict';
+    }
   | { readonly kind: 'not_authorized' };
 
 export type BeginAttemptPortResult = Exclude<

@@ -98,6 +98,15 @@ export type JobReclaimResult =
   | { readonly kind: 'cancelled'; readonly job: GenerationJobRecord }
   | { readonly kind: 'none' };
 
+export type JobExpiredReclaimLockResult =
+  | {
+      readonly kind: 'locked';
+      readonly job: GenerationJobRecord;
+      readonly ownerUserId: string;
+      readonly outcome: 'requeue' | 'cancel';
+    }
+  | { readonly kind: 'none' };
+
 export type JobFencedLockResult =
   { readonly kind: 'locked'; readonly job: GenerationJobRecord } | { readonly kind: 'lost' };
 
@@ -126,7 +135,14 @@ export interface JobPort {
   requeueRunning(input: JobRequeueInput): Promise<JobRequeueResult>;
   transitionQueuedToTerminal(input: JobQueuedTerminalInput): Promise<JobTerminalTransitionResult>;
   transitionRunningToTerminal(input: JobRunningTerminalInput): Promise<JobTerminalTransitionResult>;
+  /** Legacy atomic seam retained for callers without W3.3 reconciliation capability. */
   reclaimNextExpired(input: JobReclaimInput): Promise<JobReclaimResult>;
+  lockNextExpiredForReclaim(input: JobReclaimInput): Promise<JobExpiredReclaimLockResult>;
+  applyLockedExpiredReclaim(input: {
+    readonly projectId: string;
+    readonly jobId: string;
+    readonly outcome: 'requeue' | 'cancel';
+  }): Promise<JobReclaimResult>;
   lockForFencedPublish(identity: JobLeaseIdentity): Promise<JobFencedLockResult>;
   /** Locks exact running, unexpired, uncancelled lease owner or returns non-enumerating denial. */
   lockLiveOwnerForAttempt(identity: JobLeaseIdentity): Promise<JobLiveOwnerLockResult>;

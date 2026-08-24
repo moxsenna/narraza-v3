@@ -98,6 +98,7 @@ export type {
   JobRunningCancellationResult,
   JobReclaimInput,
   JobReclaimResult,
+  JobExpiredReclaimLockResult,
   JobFencedLockResult,
   JobLiveOwnerLockResult,
   JobFinalizationLockResult,

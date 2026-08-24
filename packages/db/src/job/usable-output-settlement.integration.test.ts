@@ -1,4 +1,4 @@
-import { createJobService } from '@narraza/application';
+import { createJobService, createWorkflowInvocationService } from '@narraza/application';
 import type { Pool } from 'pg';
 import { expect } from 'vitest';
 import { createUnitOfWork } from '../unit-of-work.js';
@@ -237,6 +237,40 @@ schema.test(
         incidents: 1,
         charged_party: 'system',
       });
+
+      const beforeLate = await client.query(
+        `SELECT status,settled_micro_idr,released_micro_idr,exposure_micro_idr,closing_at,
+                (SELECT count(*)::int FROM credit_ledger WHERE reservation_id=$1) ledger
+           FROM credit_reservations WHERE id=$1`,
+        [RESERVATION_ID],
+      );
+      const invocations = createWorkflowInvocationService(createUnitOfWork(prisma));
+      await expect(
+        invocations.finalizeAttempt({
+          ...claim.identity,
+          leaseToken: leaseTokens.stale,
+          invocationId: 'task9-invocation',
+          attemptId: 'task9-cap-unresolved',
+          status: 'failed',
+          providerRequestId: 'task9-cap-late-provider',
+          resultHash: null,
+          schemaVersion: 1,
+          payload: { late: true },
+          usage: {
+            priceSnapshotId: 'task9-price',
+            inputTokens: 1,
+            outputTokens: 1,
+            providerCostMicroIdr: 50n,
+          },
+        }),
+      ).resolves.toMatchObject({ kind: 'finalized', winner: 'ineligible_owner' });
+      const afterLate = await client.query(
+        `SELECT status,settled_micro_idr,released_micro_idr,exposure_micro_idr,closing_at,
+                (SELECT count(*)::int FROM credit_ledger WHERE reservation_id=$1) ledger
+           FROM credit_reservations WHERE id=$1`,
+        [RESERVATION_ID],
+      );
+      expect(afterLate.rows[0]).toEqual(beforeLate.rows[0]);
     } finally {
       await prisma.$disconnect();
     }
@@ -295,7 +329,7 @@ schema.test(
 );
 
 schema.test(
-  'paid sentinel zero-output leaves bound reservation open and uncharged',
+  'paid sentinel zero-output closes bound reservation with zero charge',
   async ({ client, databaseUrl }) => {
     await seedPlanningGraph(client);
     await insertQueuedJobRow(client, {
@@ -339,12 +373,12 @@ schema.test(
           )
         ).rows[0],
       ).toEqual({
-        status: 'open',
+        status: 'released',
         settled_micro_idr: '0',
-        released_micro_idr: '0',
-        exposure_micro_idr: '1000',
+        released_micro_idr: '1000',
+        exposure_micro_idr: '0',
         allocations: 0,
-        ledger: 0,
+        ledger: 1,
       });
     } finally {
       await prisma.$disconnect();

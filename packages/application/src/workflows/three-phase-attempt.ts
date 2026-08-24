@@ -45,7 +45,10 @@ export type ThreePhaseAttemptResult =
   | { readonly kind: 'already_started' }
   | { readonly kind: 'begin_denied'; readonly outcome: 'conflict' | 'not_authorized' }
   | Extract<ExecutorOutcome, { readonly kind: 'recoverable_no_response' }>
-  | { readonly kind: 'finalize_denied'; readonly outcome: 'conflict' | 'not_authorized' }
+  | {
+      readonly kind: 'finalize_denied';
+      readonly outcome: 'conflict' | 'not_authorized' | 'reconciliation_conflict';
+    }
   | {
       readonly kind: 'finalized_without_publish';
       readonly winner: Extract<
@@ -121,7 +124,11 @@ export function createThreePhaseAttemptHarness(
         usage: executed.usage,
       });
       emit('tx-b:commit');
-      if (finalized.kind === 'conflict' || finalized.kind === 'not_authorized')
+      if (
+        finalized.kind === 'conflict' ||
+        finalized.kind === 'not_authorized' ||
+        finalized.kind === 'reconciliation_conflict'
+      )
         return { kind: 'finalize_denied', outcome: finalized.kind };
       if (finalized.kind !== 'finalized' || finalized.winner !== 'selected')
         return { kind: 'finalized_without_publish', winner: finalized.winner };

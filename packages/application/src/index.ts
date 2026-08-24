@@ -98,6 +98,7 @@ export type {
   JobRunningCancellationResult,
   JobReclaimInput,
   JobReclaimResult,
+  JobExpiredReclaimLockResult,
   JobFencedLockResult,
   JobLiveOwnerLockResult,
   JobFinalizationLockResult,
@@ -156,6 +157,10 @@ export {
 } from './credits/credit-summary-service.js';
 
 export { computeCreditSummaryView } from './credits/credit-summary.js';
+export {
+  ReservationReconciliationConflict,
+  type ReservationReconciliationConflictReason,
+} from './credits/reservation-reconciliation-error.js';
 export {
   reconcileTerminalReservation,
   type ReservationReconciliationResult,

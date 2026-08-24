@@ -400,7 +400,29 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
     },
 
     reclaimOne(input) {
-      return unitOfWork.execute((ports) => ports.job.reclaimNextExpired(input));
+      return unitOfWork.execute(async (ports) => {
+        if (
+          ports.creditReservation === undefined ||
+          ports.job.lockNextExpiredForReclaim === undefined ||
+          ports.job.applyLockedExpiredReclaim === undefined
+        ) {
+          return ports.job.reclaimNextExpired(input);
+        }
+        const candidate = await ports.job.lockNextExpiredForReclaim(input);
+        if (candidate.kind === 'none') return candidate;
+        if (candidate.outcome === 'cancel') {
+          await reconcileTerminalReservation(ports, {
+            ownerUserId: candidate.ownerUserId,
+            job: candidate.job,
+            terminalReason: 'cancelled',
+          });
+        }
+        return ports.job.applyLockedExpiredReclaim({
+          projectId: candidate.job.projectId,
+          jobId: candidate.job.id,
+          outcome: candidate.outcome,
+        });
+      });
     },
 
     async withFencedPublish(identity, publish, options) {
@@ -439,6 +461,12 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
             });
             if (classification.kind === 'usable') {
               await settleUsableOutput(ports, project.ownerUserId, lock.job, classification);
+            } else {
+              await reconcileTerminalReservation(ports, {
+                ownerUserId: project.ownerUserId,
+                job: lock.job,
+                terminalReason: 'released',
+              });
             }
           }
 

@@ -1,5 +1,5 @@
 import { createJobService, createWorkflowInvocationService } from '@narraza/application';
-import type { Pool } from 'pg';
+import { Pool } from 'pg';
 import { expect } from 'vitest';
 import { createUnitOfWork } from '../unit-of-work.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
@@ -64,6 +64,21 @@ const usage = {
   outputTokens: 1,
   providerCostMicroIdr: 100n,
 } as const;
+
+async function waitUntilBlocked(client: Pool, applicationName: string): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const result = await client.query(
+      `SELECT cardinality(pg_blocking_pids(pid)) > 0 AS blocked
+         FROM pg_stat_activity
+        WHERE application_name=$1`,
+      [applicationName],
+    );
+    if (result.rows[0]?.blocked === true) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`${applicationName} did not block before deadline`);
+}
 
 suite.test(
   'reservation-exposure: terminal job closes hold, last late result final-closes without lease',
@@ -184,6 +199,91 @@ suite.test(
 );
 
 suite.test(
+  'reservation-exposure: concurrent cancel, finalize, and reconciliation use job-first lock without deadlock',
+  async ({ client, databaseUrl }) => {
+    await seedRunningExposure(client);
+    await client.query(
+      `UPDATE generation_attempts SET status='failed',finished_at=now() WHERE id=$1`,
+      [ATTEMPT_A],
+    );
+    const setupPrisma = createPrismaForUrl(databaseUrl);
+    const setupJobs = createJobService(createUnitOfWork(setupPrisma));
+    const claim = await setupJobs.claim({ leaseToken: leaseTokens.alice, leaseDurationMs: 60_000 });
+    if (claim.kind !== 'claimed') throw new Error('job not claimed');
+    await setupJobs.cancel({ projectId: ids.projectA, jobId: JOB_ID });
+    await client.query(
+      `UPDATE generation_jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`,
+      [JOB_ID],
+    );
+
+    const blockerPool = new Pool({ connectionString: databaseUrl });
+    const blocker = await blockerPool.connect();
+    const reclaimPrisma = createPrismaForUrl(
+      `${databaseUrl}${databaseUrl.includes('?') ? '&' : '?'}application_name=task10-reclaim`,
+    );
+    const finalizePrisma = createPrismaForUrl(
+      `${databaseUrl}${databaseUrl.includes('?') ? '&' : '?'}application_name=task10-finalize`,
+    );
+    let committed = false;
+    try {
+      await blocker.query('BEGIN');
+      await blocker.query(`SET LOCAL lock_timeout='5s'`);
+      await blocker.query(`SELECT id FROM credit_reservations WHERE id=$1 FOR UPDATE`, [
+        RESERVATION_ID,
+      ]);
+
+      const reclaim = createJobService(createUnitOfWork(reclaimPrisma)).reclaimOne({});
+      await waitUntilBlocked(client, 'task10-reclaim');
+      const finalize = createWorkflowInvocationService(
+        createUnitOfWork(finalizePrisma),
+      ).finalizeAttempt({
+        ...claim.identity,
+        leaseToken: leaseTokens.stale,
+        invocationId: INVOCATION_ID,
+        attemptId: ATTEMPT_B,
+        status: 'failed',
+        providerRequestId: 'provider-concurrent',
+        resultHash: null,
+        schemaVersion: 1,
+        payload: { concurrent: true },
+        usage,
+      });
+      await waitUntilBlocked(client, 'task10-finalize');
+      await blocker.query('COMMIT');
+      committed = true;
+
+      const [reclaimResult, finalizeResult] = await Promise.all([reclaim, finalize]);
+      expect(reclaimResult).toMatchObject({ kind: 'cancelled', job: { status: 'cancelled' } });
+      expect(finalizeResult).toMatchObject({ kind: 'finalized', winner: 'ineligible_owner' });
+      expect(
+        (
+          await client.query(
+            `SELECT j.status job_status,r.status reservation_status,r.settled_micro_idr::text settled,r.released_micro_idr::text released,r.exposure_micro_idr::text exposure,(SELECT count(*)::int FROM ai_usage_events WHERE attempt_id=$2) usage,(SELECT count(*)::int FROM credit_ledger WHERE reservation_id=$1) ledger FROM generation_jobs j JOIN credit_reservations r ON r.job_id=j.id WHERE r.id=$1`,
+            [RESERVATION_ID, ATTEMPT_B],
+          )
+        ).rows[0],
+      ).toMatchObject({
+        job_status: 'cancelled',
+        reservation_status: 'cancelled',
+        settled: '0',
+        released: '1000',
+        exposure: '0',
+        usage: 1,
+        ledger: 1,
+      });
+    } finally {
+      if (!committed) await blocker.query('ROLLBACK').catch(() => undefined);
+      blocker.release();
+      await blockerPool.end();
+      await reclaimPrisma.$disconnect();
+      await finalizePrisma.$disconnect();
+      await setupPrisma.$disconnect();
+    }
+  },
+  15_000,
+);
+
+suite.test(
   'reservation-exposure: deterministic final-close conflict rolls back Tx L after usage commit',
   async ({ client, databaseUrl }) => {
     await seedRunningExposure(client);
@@ -217,7 +317,7 @@ suite.test(
           payload: { late: true },
           usage,
         }),
-      ).rejects.toThrow('terminal reconciliation release binding_invalid');
+      ).resolves.toEqual({ kind: 'reconciliation_conflict', reason: 'release_conflict' });
 
       expect(
         (

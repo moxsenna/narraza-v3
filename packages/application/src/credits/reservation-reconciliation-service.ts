@@ -1,4 +1,5 @@
 import { resolveFundingModel } from './action-funding-policy.js';
+import { ReservationReconciliationConflict } from './reservation-reconciliation-error.js';
 import { computeReservationTargets } from './reservation-target.js';
 import type { TxPorts } from '../ports/unit-of-work.js';
 import type { GenerationJobRecord } from '../ports/types.js';
@@ -59,7 +60,9 @@ export async function reconcileTerminalReservation(
       jobId: job.id,
       reservationId: reservation.id,
     });
-    if (durable.kind === 'conflict') throw new Error('terminal reconciliation allocation conflict');
+    if (durable.kind === 'conflict') {
+      throw new ReservationReconciliationConflict('allocation_conflict');
+    }
     if (durable.kind === 'found') {
       settlement = {
         allocationId: durable.allocationId,
@@ -98,7 +101,7 @@ export async function reconcileTerminalReservation(
       dedupeKey,
     });
     if (appended.kind !== 'settled' && appended.kind !== 'already_settled') {
-      throw new Error(`terminal reconciliation settlement ${appended.kind}`);
+      throw new ReservationReconciliationConflict('settlement_conflict');
     }
   }
 
@@ -126,7 +129,7 @@ export async function reconcileTerminalReservation(
       dedupeKey,
     });
     if (appended.kind !== 'released' && appended.kind !== 'already_released') {
-      throw new Error(`terminal reconciliation release ${appended.kind}`);
+      throw new ReservationReconciliationConflict('release_conflict');
     }
   }
 
@@ -142,7 +145,7 @@ export async function reconcileTerminalReservation(
     terminalReason: input.terminalReason,
   });
   if (applied.kind !== 'reconciled' && applied.kind !== 'already_reconciled') {
-    throw new Error(`terminal reconciliation reservation ${applied.kind}`);
+    throw new ReservationReconciliationConflict('reservation_conflict');
   }
 
   const status =

@@ -1,3 +1,4 @@
+import { ReservationReconciliationConflict } from '../credits/reservation-reconciliation-error.js';
 import { reconcileTerminalReservation } from '../credits/reservation-reconciliation-service.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
 import type {
@@ -95,6 +96,9 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
         return result;
       } catch (error) {
         if (error instanceof FinalizeRollback) return error.result;
+        if (error instanceof ReservationReconciliationConflict) {
+          return { kind: 'reconciliation_conflict', reason: error.reason };
+        }
         throw error;
       }
     },

@@ -547,6 +547,53 @@ export function createJobRepo(tx: TxClient): JobPort {
       return job.status === 'cancelled' ? { kind: 'cancelled', job } : { kind: 'requeued', job };
     },
 
+    async lockNextExpiredForReclaim(_input: JobReclaimInput) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST},
+                (SELECT owner_user_id FROM projects WHERE id=generation_jobs.project_id) AS owner_user_id
+           FROM generation_jobs
+          WHERE status='running' AND lease_expires_at <= clock_timestamp()
+          ORDER BY lease_expires_at ASC,id ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1`,
+      )) as Array<RawRow & { owner_user_id: string }>;
+      const row = rows[0];
+      return row
+        ? {
+            kind: 'locked' as const,
+            job: toRecord(row),
+            ownerUserId: row.owner_user_id,
+            outcome: row.cancel_requested_at === null ? ('requeue' as const) : ('cancel' as const),
+          }
+        : { kind: 'none' as const };
+    },
+
+    async applyLockedExpiredReclaim(input) {
+      const status = input.outcome === 'cancel' ? 'cancelled' : 'queued';
+      const rows = (await tx.$queryRawUnsafe(
+        `UPDATE generation_jobs
+            SET status=$3,
+                available_at=CASE WHEN $3='queued' THEN now() ELSE available_at END,
+                lease_token=NULL,lease_expires_at=NULL,
+                cancel_requested_at=CASE WHEN $3='cancelled' THEN NULL ELSE cancel_requested_at END,
+                fence_version=fence_version+1,updated_at=now()
+          WHERE project_id=$1 AND id=$2 AND status='running'
+            AND lease_expires_at <= clock_timestamp()
+            AND (($3='cancelled' AND cancel_requested_at IS NOT NULL)
+              OR ($3='queued' AND cancel_requested_at IS NULL))
+        RETURNING ${COLUMN_LIST}`,
+        input.projectId,
+        input.jobId,
+        status,
+      )) as RawRow[];
+      const row = rows[0];
+      if (!row) return { kind: 'none' };
+      const job = toRecord(row);
+      return input.outcome === 'cancel'
+        ? { kind: 'cancelled' as const, job }
+        : { kind: 'requeued' as const, job };
+    },
+
     async lockForFencedPublish(identity: JobLeaseIdentity): Promise<JobFencedLockResult> {
       const rows = (await tx.$queryRawUnsafe(
         `SELECT ${COLUMN_LIST}
