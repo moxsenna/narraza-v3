@@ -8,7 +8,7 @@ import { expect } from 'vitest';
 import { createUnitOfWork } from '../unit-of-work.js';
 import { createProjectRepo } from '../repos/project-repo.js';
 import { createSchemaTestSuite } from '../schema-test/harness.js';
-import { ids, seedUsersAndProjects } from '../schema-test/fixtures.js';
+import { ids, seedPlanningGraph, seedUsersAndProjects } from '../schema-test/fixtures.js';
 import {
   createPrismaForUrl,
   insertQueuedJobRow,
@@ -22,6 +22,8 @@ const RESERVATION_ID = '7e100000-0000-4000-8000-000000000011';
 const INVOCATION_ID = 'task11-invocation';
 const ATTEMPT_ID = 'task11-attempt';
 const PRICE_ID = 'task11-price';
+const CANDIDATE_ID = 'task11-candidate';
+const PROSE_VERSION_ID = 'task11-prose-version';
 const RESULT_HASH = 'c'.repeat(64);
 
 const usage = {
@@ -33,10 +35,14 @@ const usage = {
 
 async function seedBoundJob(
   client: Pool,
-  options: { fundingModel?: 'user_paid' | 'system_funded'; kind?: string } = {},
+  options: {
+    fundingModel?: 'user_paid' | 'system_funded';
+    kind?: string;
+    planningGraph?: boolean;
+  } = {},
 ) {
   const fundingModel = options.fundingModel ?? 'user_paid';
-  await seedUsersAndProjects(client);
+  await (options.planningGraph ? seedPlanningGraph(client) : seedUsersAndProjects(client));
   await client.query(
     `INSERT INTO credit_ledger
        (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at)
@@ -68,6 +74,10 @@ async function seedBoundJob(
      VALUES ($1,'provider','model','model',1,1,'IDR',now(),1,'{}',now())`,
     [PRICE_ID],
   );
+}
+
+async function ledgerSnapshot(client: Pool) {
+  return client.query(`SELECT * FROM credit_ledger ORDER BY id`);
 }
 
 async function financialSnapshot(client: Pool) {
@@ -167,6 +177,37 @@ suite.test(
         book: '5000',
         system_usage: 1,
       });
+
+      const reservationBeforeReplay = await client.query(
+        `SELECT * FROM credit_reservations WHERE id=$1`,
+        [RESERVATION_ID],
+      );
+      const ledgerBeforeReplay = await ledgerSnapshot(client);
+      await expect(
+        createWorkflowInvocationService(createUnitOfWork(prisma)).finalizeAttempt({
+          ...claim.identity,
+          invocationId: INVOCATION_ID,
+          attemptId: ATTEMPT_ID,
+          status: 'failed',
+          providerRequestId: 'task11-provider-request',
+          resultHash: null,
+          schemaVersion: 1,
+          payload: { provider: 'failed' },
+          usage,
+        }),
+      ).resolves.toMatchObject({ kind: 'replayed', winner: 'ineligible_owner' });
+      expect(
+        await client.query(`SELECT * FROM credit_reservations WHERE id=$1`, [RESERVATION_ID]),
+      ).toEqual(reservationBeforeReplay);
+      expect(await ledgerSnapshot(client)).toEqual(ledgerBeforeReplay);
+      expect(await financialSnapshot(client)).toMatchObject({
+        settlements: 0,
+        releases: 1,
+        zero_ledger: 0,
+        allocations: 0,
+        system_usage: 1,
+      });
+
       await expect(jobs.finish({ ...claim.identity, status: 'failed' })).resolves.toEqual({
         kind: 'already_terminal',
         status: 'failed',
@@ -313,8 +354,14 @@ suite.test(
         winner: 'cancelled',
       });
       expect(validatorCalls).toBe(0);
-      await expect(jobs.finish({ ...claim.identity, status: 'cancelled' })).resolves.toMatchObject({
-        kind: 'terminalized',
+      await client.query(
+        `UPDATE generation_jobs
+            SET lease_expires_at=clock_timestamp()-interval '1 second'
+          WHERE id=$1`,
+        [JOB_ID],
+      );
+      await expect(jobs.reclaimOne({})).resolves.toMatchObject({
+        kind: 'cancelled',
         job: { status: 'cancelled' },
       });
 
@@ -414,6 +461,129 @@ suite.test(
       ).toEqual({ count: 0 });
     } finally {
       releaseValidator();
+      await prisma.$disconnect();
+    }
+  },
+);
+
+suite.test(
+  'failed-job-zero-charge: system-funded successful usable output publishes with zero user charge',
+  async ({ client, databaseUrl }) => {
+    await seedBoundJob(client, { fundingModel: 'system_funded', planningGraph: true });
+    const prisma = createPrismaForUrl(databaseUrl);
+    const unitOfWork = createUnitOfWork(prisma);
+    const jobs = createJobService(unitOfWork);
+    const harness = createThreePhaseAttemptHarness({
+      workflow: createWorkflowInvocationService(unitOfWork),
+      jobs,
+      executor: async () => ({
+        kind: 'billable',
+        status: 'succeeded',
+        providerRequestId: 'task11-system-success',
+        resultHash: RESULT_HASH,
+        schemaVersion: 1,
+        payload: { usable: true },
+        usage,
+      }),
+      validator: async () => {
+        await client.query(
+          `INSERT INTO proposal_groups
+             (id,project_id,kind,status,dependency_hash,created_at,updated_at)
+           VALUES ('task11-group',$1,'prose','pending',$2,now(),now())`,
+          [ids.projectA, 'd'.repeat(64)],
+        );
+        await client.query(
+          `INSERT INTO generated_candidates
+             (id,project_id,group_id,job_id,ordinal,schema_version,payload,created_at)
+           VALUES ($1,$2,'task11-group',$3,0,1,$4::jsonb,now())`,
+          [
+            CANDIDATE_ID,
+            ids.projectA,
+            JOB_ID,
+            JSON.stringify({ contributingAttemptIds: [ATTEMPT_ID] }),
+          ],
+        );
+        await client.query(
+          `INSERT INTO prose_versions
+             (id,project_id,beat_id,source_candidate_id,status,revision,content,content_hash,created_at)
+           VALUES ($1,$2,$3,$4,'draft',0,'task11 usable prose',$5,now())`,
+          [PROSE_VERSION_ID, ids.projectA, ids.beatA, CANDIDATE_ID, 'e'.repeat(64)],
+        );
+        await client.query(`UPDATE generated_candidates SET prose_version_id=$1 WHERE id=$2`, [
+          PROSE_VERSION_ID,
+          CANDIDATE_ID,
+        ]);
+        return { kind: 'valid' as const };
+      },
+    });
+    try {
+      const ledgerBefore = await ledgerSnapshot(client);
+      const claim = await jobs.claim({ leaseToken: leaseTokens.alice, leaseDurationMs: 60_000 });
+      if (claim.kind !== 'claimed') throw new Error('job not claimed');
+
+      await expect(
+        harness.run({
+          ...claim.identity,
+          invocationId: INVOCATION_ID,
+          attemptId: ATTEMPT_ID,
+          stageKey: 'writer',
+          schemaVersion: 1,
+          payload: { input: true },
+        }),
+      ).resolves.toMatchObject({ kind: 'published', job: { status: 'succeeded' } });
+
+      expect(await financialSnapshot(client)).toEqual({
+        job_status: 'succeeded',
+        reservation_status: 'released',
+        settled: '0',
+        released: '1000',
+        exposure: '0',
+        settlements: 0,
+        releases: 0,
+        zero_ledger: 0,
+        allocations: 0,
+        book: '5000',
+        system_usage: 1,
+      });
+      expect(await ledgerSnapshot(client)).toEqual(ledgerBefore);
+      expect(
+        (
+          await client.query(
+            `SELECT gc.prose_version_id,pv.source_candidate_id,gc.payload
+               FROM generated_candidates gc
+               JOIN prose_versions pv ON pv.id=gc.prose_version_id
+              WHERE gc.id=$1`,
+            [CANDIDATE_ID],
+          )
+        ).rows,
+      ).toEqual([
+        {
+          prose_version_id: PROSE_VERSION_ID,
+          source_candidate_id: CANDIDATE_ID,
+          payload: { contributingAttemptIds: [ATTEMPT_ID] },
+        },
+      ]);
+      expect(
+        (
+          await client.query(
+            `SELECT attempt_id,price_snapshot_id,input_tokens,output_tokens,
+                    provider_cost_micro_idr::text,charged_party,dedupe_key
+               FROM ai_usage_events WHERE attempt_id=$1`,
+            [ATTEMPT_ID],
+          )
+        ).rows,
+      ).toEqual([
+        {
+          attempt_id: ATTEMPT_ID,
+          price_snapshot_id: PRICE_ID,
+          input_tokens: 11,
+          output_tokens: 7,
+          provider_cost_micro_idr: '180',
+          charged_party: 'system',
+          dedupe_key: `usage:${ATTEMPT_ID}`,
+        },
+      ]);
+    } finally {
       await prisma.$disconnect();
     }
   },
