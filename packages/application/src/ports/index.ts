@@ -121,6 +121,16 @@ export type {
   CreditBalancePort,
 } from './credit-balance-port.js';
 export type {
+  AppendCreditBillingAllocationInput,
+  AppendCreditBillingAllocationResult,
+  CreditBillingAllocationPort,
+} from './credit-billing-allocation-port.js';
+export type {
+  UsableOutputClassification,
+  ClassifyPublishedOutputInput,
+  UsableOutputClassifier,
+} from './usable-output-classifier.js';
+export type {
   CreditReservationPort,
   CreateReservationInput,
   CreateReservationResult,

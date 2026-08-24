@@ -1,5 +1,8 @@
 import type { ActionFundingModel } from '../credits/action-funding-policy.js';
-import { validateFundingModelEnqueue } from '../credits/action-funding-policy.js';
+import {
+  resolveFundingModel,
+  validateFundingModelEnqueue,
+} from '../credits/action-funding-policy.js';
 import type {
   JobClaimResult,
   JobHeartbeatResult,
@@ -8,7 +11,8 @@ import type {
   JobTerminalTransitionResult,
   RunningTerminalStatus,
 } from '../ports/job-port.js';
-import type { UnitOfWork } from '../ports/unit-of-work.js';
+import type { TxPorts, UnitOfWork } from '../ports/unit-of-work.js';
+import type { UsableOutputClassification } from '../ports/usable-output-classifier.js';
 import type {
   GenerationJobRecord,
   JobLeaseIdentity,
@@ -85,6 +89,11 @@ export interface FencedPublishContext {
   readonly appendSentinel: (input: FencedPublishSentinelInput) => Promise<void>;
 }
 
+export interface FencedPublishOptions {
+  /** Opt-in W3.3 capability. Omission preserves W3.1/W3.2 sentinel behavior. */
+  readonly settleUsableOutput?: boolean;
+}
+
 export type FencedPublishResult =
   | { readonly kind: 'published'; readonly job: GenerationJobRecord }
   | { readonly kind: 'project_tombstoned' }
@@ -105,6 +114,7 @@ export interface JobService {
   withFencedPublish(
     identity: JobLeaseIdentity,
     publish: (context: FencedPublishContext) => Promise<void>,
+    options?: FencedPublishOptions,
   ): Promise<FencedPublishResult>;
 }
 
@@ -124,6 +134,138 @@ class FencedPublishRollback extends Error {
   constructor(readonly result: FencedPublishResult) {
     super('Job transaction must roll back');
     this.name = 'FencedPublishRollback';
+  }
+}
+
+async function settleUsableOutput(
+  ports: TxPorts,
+  userId: string,
+  job: GenerationJobRecord,
+  output: Extract<UsableOutputClassification, { kind: 'usable' }>,
+): Promise<void> {
+  const allocationPort = ports.creditBillingAllocation;
+  if (allocationPort === undefined)
+    throw new Error('usable-output settlement capability unavailable');
+  const fundingModel = resolveFundingModel(job.kind);
+  if (job.reservationId === null) {
+    if (fundingModel === 'pre_d4_legacy') return;
+    throw new Error('funding_model_violation: usable paid output has no reservation');
+  }
+
+  const reservation = await ports.creditReservation.lockBound({
+    reservationId: job.reservationId,
+    projectId: job.projectId,
+    jobId: job.id,
+  });
+  if (reservation === null || reservation.status !== 'open') {
+    throw new Error('usable-output settlement reservation binding invalid');
+  }
+
+  const cost = await allocationPort.sumEligibleProviderCost({
+    projectId: job.projectId,
+    jobId: job.id,
+    contributingAttemptIds: output.contributingAttemptIds,
+  });
+  if (cost.kind !== 'summed') {
+    throw new Error('usable-output contributing attempts are not eligible winners');
+  }
+
+  const intendedSettlement = cost.providerCostMicroIdr;
+  const actualSettlement =
+    fundingModel === 'system_funded'
+      ? 0n
+      : intendedSettlement < reservation.reservedMicroIdr
+        ? intendedSettlement
+        : reservation.reservedMicroIdr;
+  const subsidy = intendedSettlement - actualSettlement;
+  const release = reservation.reservedMicroIdr - actualSettlement;
+  const allocationDedupeKey =
+    `allocation:${reservation.id}:${output.outputKind}:${output.outputRef}` as const;
+  const allocation = await allocationPort.appendForUsableOutput({
+    id: allocationDedupeKey,
+    projectId: job.projectId,
+    jobId: job.id,
+    reservationId: reservation.id,
+    usableOutputKind: output.outputKind,
+    usableOutputRef: output.outputRef,
+    contributingAttemptIds: output.contributingAttemptIds,
+    providerCostMicroIdr: intendedSettlement,
+    userSettlementMicroIdr: actualSettlement,
+    systemSubsidyMicroIdr: subsidy,
+    dedupeKey: allocationDedupeKey,
+  });
+  if (allocation.kind === 'conflict' || allocation.kind === 'attempt_binding_invalid') {
+    throw new Error(`usable-output allocation ${allocation.kind}`);
+  }
+  const durableAllocationId = allocation.allocationId;
+
+  if (actualSettlement > 0n) {
+    const settled = await ports.ledger.appendReservationSettlement({
+      projectId: job.projectId,
+      jobId: job.id,
+      userId,
+      reservationId: reservation.id,
+      ledgerEntryId: `settle:${reservation.id}:${durableAllocationId}`,
+      allocationId: durableAllocationId,
+      attemptId: null,
+      amountMicroIdr: actualSettlement,
+      dedupeKey: `settle:${reservation.id}:${durableAllocationId}`,
+    });
+    if (settled.kind !== 'settled' && settled.kind !== 'already_settled') {
+      throw new Error(`usable-output settlement ledger ${settled.kind}`);
+    }
+  }
+
+  if (release > 0n) {
+    const released = await ports.ledger.appendReservationRelease({
+      projectId: job.projectId,
+      jobId: job.id,
+      userId,
+      reservationId: reservation.id,
+      ledgerEntryId: `release:${reservation.id}:invocation_completed:${durableAllocationId}`,
+      reason: 'invocation_completed',
+      allocationId: durableAllocationId,
+      attemptId: null,
+      amountMicroIdr: release,
+      dedupeKey: `release:${reservation.id}:invocation_completed:${durableAllocationId}`,
+    });
+    if (released.kind !== 'released' && released.kind !== 'already_released') {
+      throw new Error(`usable-output release ledger ${released.kind}`);
+    }
+  }
+
+  const reconciled = await ports.creditReservation.applyReconciliationTarget({
+    reservationId: reservation.id,
+    userId,
+    projectId: job.projectId,
+    jobProjectId: job.projectId,
+    jobId: job.id,
+    settledTargetMicroIdr: actualSettlement,
+    releasedTargetMicroIdr: release,
+    exposureTargetMicroIdr: 0n,
+    terminalReason: 'released',
+  });
+  if (reconciled.kind !== 'reconciled' && reconciled.kind !== 'already_reconciled') {
+    throw new Error(`usable-output reservation ${reconciled.kind}`);
+  }
+
+  if (subsidy > 0n) {
+    const occurredAt = await ports.dbNow();
+    await ports.outbox.append({
+      id: ports.allocateId(),
+      aggregateType: 'credit_reservation',
+      aggregateId: reservation.id,
+      eventType: 'credit.overage_detected',
+      dedupeKey: `incident:credit-overage:${reservation.id}:${durableAllocationId}`,
+      occurredAt,
+      schemaVersion: 1,
+      payload: {
+        allocationId: durableAllocationId,
+        intendedSettlementMicroIdr: intendedSettlement.toString(),
+        actualSettlementMicroIdr: actualSettlement.toString(),
+        systemSubsidyMicroIdr: subsidy.toString(),
+      },
+    });
   }
 }
 
@@ -262,7 +404,7 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
       return unitOfWork.execute((ports) => ports.job.reclaimNextExpired(input));
     },
 
-    async withFencedPublish(identity, publish) {
+    async withFencedPublish(identity, publish, options) {
       try {
         return await unitOfWork.execute<FencedPublishResult>(async (ports) => {
           const project = await ports.project.lockForUpdate(identity.projectId);
@@ -285,6 +427,21 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
             },
           };
           await publish(context);
+
+          if (options?.settleUsableOutput === true) {
+            const classifier = ports.usableOutputClassifier;
+            if (classifier === undefined) {
+              throw new Error('usable-output classifier capability unavailable');
+            }
+            const classification = await classifier.classifyPublishedOutput({
+              projectId: identity.projectId,
+              jobId: identity.jobId,
+              jobKind: lock.job.kind,
+            });
+            if (classification.kind === 'usable') {
+              await settleUsableOutput(ports, project.ownerUserId, lock.job, classification);
+            }
+          }
 
           const terminal = await ports.job.transitionRunningToTerminal({
             ...identity,

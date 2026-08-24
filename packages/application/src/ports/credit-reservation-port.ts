@@ -48,6 +48,13 @@ export interface CreditReservationPort {
   // Task 6: Create open USER_PAID reservation
   create(input: CreateReservationInput): Promise<CreateReservationResult>;
 
+  /** Locks exact job binding for settlement target computation. */
+  lockBound(input: {
+    readonly reservationId: string;
+    readonly projectId: string;
+    readonly jobId: string;
+  }): Promise<CreditReservationRecord | null>;
+
   // Task 7/8: Apply reconciliation targets using ABSOLUTE TARGETS (Blocker 2)
   applyReconciliationTarget(
     input: ApplyReconciliationTargetInput,

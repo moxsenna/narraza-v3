@@ -123,6 +123,12 @@ export type {
   CreditSummaryView,
   CreditBalancePort,
   CreditReservationRecord,
+  AppendCreditBillingAllocationInput,
+  AppendCreditBillingAllocationResult,
+  CreditBillingAllocationPort,
+  UsableOutputClassification,
+  ClassifyPublishedOutputInput,
+  UsableOutputClassifier,
   CreditReservationPort,
   CreateReservationInput,
   CreateReservationResult,
@@ -162,6 +168,7 @@ export {
   type ReclaimOneInput,
   type FencedPublishSentinelInput,
   type FencedPublishContext,
+  type FencedPublishOptions,
   type FencedPublishResult,
   type JobService,
 } from './jobs/job-service.js';
@@ -208,7 +215,10 @@ export type {
   ConfirmQuoteResult,
 } from './credits/confirmation-contract.js';
 // Re-export Task 2 pure functions for integration testing
-export { computeReservationTargets, deriveReservationStatus } from './credits/reservation-target.js';
+export {
+  computeReservationTargets,
+  deriveReservationStatus,
+} from './credits/reservation-target.js';
 export {
   createAuthService,
   type AuthService,

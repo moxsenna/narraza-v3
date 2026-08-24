@@ -109,6 +109,19 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
       return { kind: 'conflict' };
     },
 
+    async lockBound(input) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST}
+           FROM credit_reservations
+          WHERE id=$1 AND project_id=$2 AND job_project_id=$2 AND job_id=$3
+          FOR UPDATE`,
+        input.reservationId,
+        input.projectId,
+        input.jobId,
+      )) as RawReservationRow[];
+      return rows[0] ? toReservationRecord(rows[0]) : null;
+    },
+
     // Blocker 2 & 3 & 4: Apply reconciliation targets using ABSOLUTE TARGETS + status derivation + exact binding validation
     async applyReconciliationTarget(
       input: ApplyReconciliationTargetInput,

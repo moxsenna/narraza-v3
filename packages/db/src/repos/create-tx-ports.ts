@@ -6,6 +6,7 @@ import { createChangeSetRepo } from './change-set-repo.js';
 import { createCharacterRepo } from './character-repo.js';
 import { createConceptRepo } from './concept-repo.js';
 import { createCreditBalanceRepo } from './credit-balance-repo.js';
+import { createCreditBillingAllocationPort } from './credit-billing-allocation-port.js';
 import { createCreditReservationRepo } from './credit-reservation-repo.js';
 import { createFactRepo } from './fact-repo.js';
 import { createFoundationRepo } from './foundation-repo.js';
@@ -20,6 +21,7 @@ import { createQuoteRepo } from './quote-repo.js';
 import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
 import type { TxClient } from './tx-client.js';
+import { createUsableOutputClassifier } from './usable-output-classifier.js';
 import { createWorkflowInvocationRepo } from './workflow-invocation-repo.js';
 
 export function createTxPorts(tx: TxClient): TxPorts {
@@ -41,7 +43,9 @@ export function createTxPorts(tx: TxClient): TxPorts {
     snapshot: createSnapshotPort(tx),
     ledger: createLedgerPort(tx),
     creditBalance: createCreditBalanceRepo(tx),
+    creditBillingAllocation: createCreditBillingAllocationPort(tx),
     creditReservation: createCreditReservationRepo(tx),
+    usableOutputClassifier: createUsableOutputClassifier(tx),
     job: createJobRepo(tx),
     workflowInvocation,
     generationAttempt: workflowInvocation,
