@@ -19,6 +19,20 @@ export type AppendCreditBillingAllocationResult =
   | { readonly kind: 'attempt_binding_invalid' };
 
 export interface CreditBillingAllocationPort {
+  findReservationSettlement(input: {
+    readonly projectId: string;
+    readonly jobId: string;
+    readonly reservationId: string;
+  }): Promise<
+    | {
+        readonly kind: 'found';
+        readonly allocationId: string;
+        readonly userSettlementMicroIdr: bigint;
+      }
+    | { readonly kind: 'none' }
+    | { readonly kind: 'conflict' }
+  >;
+
   sumEligibleProviderCost(input: {
     readonly projectId: string;
     readonly jobId: string;

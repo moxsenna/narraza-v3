@@ -76,6 +76,17 @@ export function createWorkflowInvocationRepo(
   tx: TxClient,
 ): WorkflowInvocationPort & GenerationAttemptPort {
   return {
+    async countUnresolvedAttempts(input) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT count(*)::int AS count
+           FROM generation_attempts
+          WHERE project_id=$1 AND job_id=$2 AND status='started'`,
+        input.projectId,
+        input.jobId,
+      )) as Array<{ count: number }>;
+      return rows[0]?.count ?? 0;
+    },
+
     async beginAttempt(input: BeginAttemptInput): Promise<BeginAttemptPortResult> {
       await tx.$queryRawUnsafe(
         `INSERT INTO workflow_invocations (id,project_id,job_id,stage_key,status,winner_attempt_id,fence_version,created_at,updated_at) VALUES ($1,$2,$3,$4,'running',NULL,0,now(),now()) ON CONFLICT DO NOTHING`,

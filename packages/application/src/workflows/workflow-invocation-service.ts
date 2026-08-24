@@ -1,3 +1,4 @@
+import { reconcileTerminalReservation } from '../credits/reservation-reconciliation-service.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
 import type {
   BeginAttemptInput,
@@ -34,7 +35,10 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
 
     async finalizeAttempt(input) {
       try {
-        return await unitOfWork.execute<FinalizeAttemptResult>(async (ports) => {
+        let supportsLateReconciliation = false;
+        const result = await unitOfWork.execute<FinalizeAttemptResult>(async (ports) => {
+          supportsLateReconciliation =
+            ports.creditReservation !== undefined && ports.job.lockForReconciliation !== undefined;
           const project = await ports.project.lockForUpdate(input.projectId);
           if (project === null) return { kind: 'not_authorized' };
 
@@ -63,6 +67,32 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
 
           return { kind: finalized.kind, attempt: finalized.attempt, winner: classified.winner };
         });
+
+        if (
+          supportsLateReconciliation &&
+          (result.kind === 'finalized' || result.kind === 'replayed')
+        ) {
+          await unitOfWork.execute(async (ports) => {
+            const project = await ports.project.lockForUpdate(input.projectId);
+            if (project === null) return;
+            const job = await ports.job.lockForReconciliation({
+              projectId: input.projectId,
+              jobId: input.jobId,
+            });
+            if (
+              job === null ||
+              !['succeeded', 'failed', 'dead', 'cancelled'].includes(job.status)
+            ) {
+              return;
+            }
+            await reconcileTerminalReservation(ports, {
+              ownerUserId: project.ownerUserId,
+              job,
+              terminalReason: job.status === 'cancelled' ? 'cancelled' : 'released',
+            });
+          });
+        }
+        return result;
       } catch (error) {
         if (error instanceof FinalizeRollback) return error.result;
         throw error;

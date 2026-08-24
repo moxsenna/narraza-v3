@@ -87,6 +87,10 @@ export type InvocationFinalizationLockResult =
   | { readonly kind: 'not_authorized' };
 
 export interface WorkflowInvocationPort {
+  countUnresolvedAttempts(input: {
+    readonly projectId: string;
+    readonly jobId: string;
+  }): Promise<number>;
   beginAttempt(input: BeginAttemptInput): Promise<BeginAttemptPortResult>;
   lockForFinalization(input: FinalizeAttemptInput): Promise<InvocationFinalizationLockResult>;
   classifyWinner(

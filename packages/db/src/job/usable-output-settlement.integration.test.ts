@@ -151,9 +151,61 @@ schema.test(
 );
 
 schema.test(
+  'usable output with unresolved attempt settles only charge and preserves remainder exposure',
+  async ({ client, databaseUrl }) => {
+    await seedRunningSettlement(client, 600n, 1_000n);
+    await client.query(
+      `INSERT INTO generation_attempts
+         (id,project_id,job_id,invocation_id,ordinal,status,started_at,finished_at,schema_version,payload,created_at,updated_at)
+       VALUES ('task9-unresolved',$1,$2,'task9-invocation',1,'started',now(),NULL,1,'{}',now(),now())`,
+      [ids.projectA, JOB_ID],
+    );
+    const prisma = createPrismaForUrl(databaseUrl);
+    const service = createJobService(createUnitOfWork(prisma));
+    try {
+      const claim = await service.claim({ leaseToken: leaseTokens.bob, leaseDurationMs: 30_000 });
+      if (claim.kind !== 'claimed') throw new Error('job not claimed');
+      await expect(
+        service.withFencedPublish(claim.identity, async () => undefined, {
+          settleUsableOutput: true,
+        }),
+      ).resolves.toMatchObject({ kind: 'published', job: { status: 'succeeded' } });
+
+      expect(
+        (
+          await client.query(
+            `SELECT status,settled_micro_idr::text,released_micro_idr::text,exposure_micro_idr::text,
+                    closing_at IS NOT NULL AS has_closing_at,
+                    (SELECT count(*)::int FROM credit_ledger WHERE reservation_id=$1 AND entry_type='release') AS releases
+               FROM credit_reservations WHERE id=$1`,
+            [RESERVATION_ID],
+          )
+        ).rows[0],
+      ).toMatchObject({
+        status: 'closing',
+        settled_micro_idr: '600',
+        released_micro_idr: '0',
+        exposure_micro_idr: '400',
+        has_closing_at: true,
+        releases: 0,
+      });
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
+);
+
+schema.test(
   'overage hard-caps user settlement and writes one durable incident',
   async ({ client, databaseUrl }) => {
     await seedRunningSettlement(client, 1_400n, 1_000n);
+    await client.query(
+      `INSERT INTO generation_attempts
+         (id,project_id,job_id,invocation_id,ordinal,status,started_at,finished_at,schema_version,payload,created_at,updated_at)
+       VALUES ('task9-cap-unresolved',$1,$2,'task9-invocation',1,'started',now(),NULL,1,'{}',now(),now())`,
+      [ids.projectA, JOB_ID],
+    );
+    const before = await client.query(`SELECT now() AS value`);
     const prisma = createPrismaForUrl(databaseUrl);
     const service = createJobService(createUnitOfWork(prisma));
     try {
@@ -165,19 +217,23 @@ schema.test(
 
       const result = await client.query(
         `SELECT a.provider_cost_micro_idr::text,a.user_settlement_micro_idr::text,a.system_subsidy_micro_idr::text,
-              r.settled_micro_idr::text,r.released_micro_idr::text,
+              r.status,r.settled_micro_idr::text,r.released_micro_idr::text,r.exposure_micro_idr::text,
+              r.closing_at >= $2::timestamptz AS pg_closing_at,
               (SELECT count(*)::int FROM outbox_events WHERE dedupe_key LIKE 'incident:credit-overage:%') AS incidents,
               (SELECT charged_party FROM ai_usage_events WHERE attempt_id=$1) AS charged_party
          FROM credit_billing_allocations a
          JOIN credit_reservations r ON r.id=a.reservation_id`,
-        [ATTEMPT_ID],
+        [ATTEMPT_ID, before.rows[0].value],
       );
       expect(result.rows[0]).toMatchObject({
         provider_cost_micro_idr: '1400',
         user_settlement_micro_idr: '1000',
         system_subsidy_micro_idr: '400',
+        status: 'settled',
         settled_micro_idr: '1000',
         released_micro_idr: '0',
+        exposure_micro_idr: '0',
+        pg_closing_at: true,
         incidents: 1,
         charged_party: 'system',
       });

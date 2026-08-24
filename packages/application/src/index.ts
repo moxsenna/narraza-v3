@@ -156,6 +156,11 @@ export {
 } from './credits/credit-summary-service.js';
 
 export { computeCreditSummaryView } from './credits/credit-summary.js';
+export {
+  reconcileTerminalReservation,
+  type ReservationReconciliationResult,
+  type ReservationSettlementEvidence,
+} from './credits/reservation-reconciliation-service.js';
 
 export {
   createJobService,

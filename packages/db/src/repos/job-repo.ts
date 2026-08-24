@@ -231,6 +231,19 @@ export function createJobRepo(tx: TxClient): JobPort {
       return row ? toRecord(row) : null;
     },
 
+    async lockForReconciliation(input: JobLookupInput): Promise<GenerationJobRecord | null> {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST}
+           FROM generation_jobs
+          WHERE project_id = $1 AND id = $2
+          FOR UPDATE`,
+        input.projectId,
+        input.jobId,
+      )) as RawRow[];
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
     async claimNext(input: JobClaimInput): Promise<JobClaimResult> {
       // Single CTE: lock one candidate row with SKIP LOCKED, then atomically
       // flip it to running with a live lease and an incremented fence.

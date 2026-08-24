@@ -117,6 +117,8 @@ export interface JobPort {
   findById(input: JobLookupInput): Promise<GenerationJobRecord | null>;
   listActiveByProject(projectId: string): Promise<readonly GenerationJobRecord[]>;
   lockForUpdate(input: JobLookupInput): Promise<GenerationJobRecord | null>;
+  /** Locks exact job without requiring live lease ownership; used after terminalization. */
+  lockForReconciliation(input: JobLookupInput): Promise<GenerationJobRecord | null>;
   claimNext(input: JobClaimInput): Promise<JobClaimResult>;
   heartbeat(input: JobHeartbeatInput): Promise<JobHeartbeatResult>;
   requestRunningCancellation(input: JobLookupInput): Promise<JobRunningCancellationResult>;

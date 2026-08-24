@@ -1,4 +1,5 @@
 import type { ActionFundingModel } from '../credits/action-funding-policy.js';
+import { reconcileTerminalReservation } from '../credits/reservation-reconciliation-service.js';
 import {
   resolveFundingModel,
   validateFundingModelEnqueue,
@@ -177,20 +178,11 @@ async function settleUsableOutput(
   const effectiveFundingModel =
     fundingModel === 'pre_d4_legacy' ? reservation.fundingModel : fundingModel;
   if (effectiveFundingModel === 'system_funded') {
-    const reconciled = await ports.creditReservation.applyReconciliationTarget({
-      reservationId: reservation.id,
-      userId,
-      projectId: job.projectId,
-      jobProjectId: job.projectId,
-      jobId: job.id,
-      settledTargetMicroIdr: 0n,
-      releasedTargetMicroIdr: reservation.reservedMicroIdr,
-      exposureTargetMicroIdr: 0n,
+    await reconcileTerminalReservation(ports, {
+      ownerUserId: userId,
+      job,
       terminalReason: 'released',
     });
-    if (reconciled.kind !== 'reconciled' && reconciled.kind !== 'already_reconciled') {
-      throw new Error(`usable-output reservation ${reconciled.kind}`);
-    }
     return;
   }
 
@@ -209,7 +201,6 @@ async function settleUsableOutput(
       ? intendedSettlement
       : reservation.reservedMicroIdr;
   const subsidy = intendedSettlement - actualSettlement;
-  const release = reservation.reservedMicroIdr - actualSettlement;
   const allocationDedupeKey =
     `allocation:${reservation.id}:${output.outputKind}:${output.outputRef}` as const;
   const allocation = await allocationPort.appendForUsableOutput({
@@ -230,55 +221,16 @@ async function settleUsableOutput(
   }
   const durableAllocationId = allocation.allocationId;
 
-  if (actualSettlement > 0n) {
-    const settled = await ports.ledger.appendReservationSettlement({
-      projectId: job.projectId,
-      jobId: job.id,
-      userId,
-      reservationId: reservation.id,
-      ledgerEntryId: `settle:${reservation.id}:${durableAllocationId}`,
-      allocationId: durableAllocationId,
-      attemptId: null,
-      amountMicroIdr: actualSettlement,
-      dedupeKey: `settle:${reservation.id}:${durableAllocationId}`,
-    });
-    if (settled.kind !== 'settled' && settled.kind !== 'already_settled') {
-      throw new Error(`usable-output settlement ledger ${settled.kind}`);
-    }
-  }
-
-  if (release > 0n) {
-    const released = await ports.ledger.appendReservationRelease({
-      projectId: job.projectId,
-      jobId: job.id,
-      userId,
-      reservationId: reservation.id,
-      ledgerEntryId: `release:${reservation.id}:invocation_completed:${durableAllocationId}`,
-      reason: 'invocation_completed',
-      allocationId: durableAllocationId,
-      attemptId: null,
-      amountMicroIdr: release,
-      dedupeKey: `release:${reservation.id}:invocation_completed:${durableAllocationId}`,
-    });
-    if (released.kind !== 'released' && released.kind !== 'already_released') {
-      throw new Error(`usable-output release ledger ${released.kind}`);
-    }
-  }
-
-  const reconciled = await ports.creditReservation.applyReconciliationTarget({
-    reservationId: reservation.id,
-    userId,
-    projectId: job.projectId,
-    jobProjectId: job.projectId,
-    jobId: job.id,
-    settledTargetMicroIdr: actualSettlement,
-    releasedTargetMicroIdr: release,
-    exposureTargetMicroIdr: 0n,
+  await reconcileTerminalReservation(ports, {
+    ownerUserId: userId,
+    job,
     terminalReason: 'released',
+    settlement: {
+      allocationId: durableAllocationId,
+      userSettlementMicroIdr: actualSettlement,
+    },
+    releaseReason: 'invocation_completed',
   });
-  if (reconciled.kind !== 'reconciled' && reconciled.kind !== 'already_reconciled') {
-    throw new Error(`usable-output reservation ${reconciled.kind}`);
-  }
 
   if (subsidy > 0n && fundingModel !== 'pre_d4_legacy') {
     const appendIncident = ports.outbox.appendCreditOverageIncident;
@@ -430,7 +382,21 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
     },
 
     finish(input) {
-      return unitOfWork.execute((ports) => ports.job.transitionRunningToTerminal(input));
+      return unitOfWork.execute(async (ports) => {
+        if (ports.creditReservation === undefined) {
+          return ports.job.transitionRunningToTerminal(input);
+        }
+        const project = await ports.project.lockForUpdate(input.projectId);
+        if (project === null) return { kind: 'lost_ownership' as const };
+        const terminal = await ports.job.transitionRunningToTerminal(input);
+        if (terminal.kind !== 'terminalized') return terminal;
+        await reconcileTerminalReservation(ports, {
+          ownerUserId: project.ownerUserId,
+          job: terminal.job,
+          terminalReason: input.status === 'cancelled' ? 'cancelled' : 'released',
+        });
+        return terminal;
+      });
     },
 
     reclaimOne(input) {

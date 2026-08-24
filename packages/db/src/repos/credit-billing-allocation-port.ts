@@ -23,6 +23,28 @@ interface AllocationRow {
 
 export function createCreditBillingAllocationPort(tx: TxClient): CreditBillingAllocationPort {
   return {
+    async findReservationSettlement(input) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT id,user_settlement_micro_idr
+           FROM credit_billing_allocations
+          WHERE project_id=$1 AND job_id=$2 AND reservation_id=$3
+          ORDER BY id
+          LIMIT 2`,
+        input.projectId,
+        input.jobId,
+        input.reservationId,
+      )) as Array<{ id: string; user_settlement_micro_idr: bigint }>;
+      if (rows.length > 1) return { kind: 'conflict' };
+      const row = rows[0];
+      return row
+        ? {
+            kind: 'found',
+            allocationId: row.id,
+            userSettlementMicroIdr: row.user_settlement_micro_idr,
+          }
+        : { kind: 'none' };
+    },
+
     async sumEligibleProviderCost(input) {
       const attemptIds = [...new Set(input.contributingAttemptIds)].sort();
       const usage = await loadEligibleUsage(tx, input.projectId, input.jobId, attemptIds);

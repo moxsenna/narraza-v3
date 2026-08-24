@@ -333,7 +333,9 @@ export function createCreditReservationRepo(tx: TxClient): CreditReservationPort
           // Same S/L/E but different terminal disposition => conflict (cannot change disposition without moving off tuple)
           return { kind: 'conflict', reason: 'terminal_disposition_mismatch' as const };
         }
-        return { kind: 'already_reconciled' };
+        if (derivedStatus === reservation.status) return { kind: 'already_reconciled' };
+        // `open -> closing` keeps the same amount tuple but is a real lifecycle
+        // transition: terminal exposure must gain status and authoritative DB time.
       }
 
       // Lifecycle coherence guard: never write status=open with closing_at non-null
