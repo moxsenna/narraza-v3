@@ -1,8 +1,19 @@
 'use client';
 import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { resendVerificationAction } from '../../server/auth/actions';
 import { initialFormState } from '../../server/auth/form-state';
+import { Button, Input } from '../primitives';
 import { FormError, FormNotice } from './fields';
+
+function ResendSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" variant="secondary" className="min-h-10" disabled={pending}>
+      {pending ? 'Mengirim…' : 'Kirim ulang'}
+    </Button>
+  );
+}
 
 // Small inline resend used on the login screen when an account is unverified.
 // The email is read from the sibling login email field via a hidden mirror is
@@ -13,22 +24,17 @@ export function ResendVerificationForm() {
     return <FormNotice message="Tautan verifikasi baru sudah dikirim. Cek emailmu." />;
   }
   return (
-    <form action={action} className="flex flex-col gap-2 rounded-lg bg-neutral-50 p-3">
-      <p className="text-sm text-neutral-600">Belum menerima tautan verifikasi?</p>
+    <form action={action} className="flex flex-col gap-2 rounded-sm bg-surface-soft p-3">
+      <p className="text-sm text-secondary">Belum menerima tautan verifikasi?</p>
       <div className="flex gap-2">
-        <input
+        <Input
           name="email"
           type="email"
           required
           placeholder="Email untuk kirim ulang"
-          className="h-10 flex-1 rounded-lg border border-neutral-300 px-3 text-sm outline-none focus:border-brand-500 focus:ring-3 focus:ring-brand-500/30"
+          className="min-h-10 flex-1"
         />
-        <button
-          type="submit"
-          className="h-10 rounded-lg border border-brand-700 px-3 text-sm font-semibold text-brand-700 hover:bg-brand-500/10"
-        >
-          Kirim ulang
-        </button>
+        <ResendSubmitButton />
       </div>
       <FormError message={state.status === 'error' ? state.message : undefined} />
     </form>

@@ -6,7 +6,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { clearMailpit, waitForMailLink } from './mailpit';
 
-const mailpitApiUrl = process.env.MAILPIT_API_URL ?? 'http://localhost:8026';
+const mailpitApiUrl = process.env.MAILPIT_API_URL ?? 'http://localhost:8025';
 const verifySubject = 'Verifikasi email Narraza-mu';
 const password = 'Narraza!IdorTest123';
 
@@ -114,6 +114,7 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     `/app/proyek/${projectA}/karakter`,
     `/app/proyek/${projectA}/fakta`,
     `/app/proyek/${projectA}/rahasia`,
+    `/app/proyek/${projectA}/tulis`,
   ];
   const randomRoutes = [
     `/app/proyek/${randomId}`,
@@ -123,6 +124,7 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     `/app/proyek/${randomId}/karakter`,
     `/app/proyek/${randomId}/fakta`,
     `/app/proyek/${randomId}/rahasia`,
+    `/app/proyek/${randomId}/tulis`,
   ];
 
   for (const route of [...foreignRoutes, ...randomRoutes]) {
@@ -134,6 +136,14 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     expect(body).not.toContain('Pesan rahasia owner A');
   }
 
+  for (const deniedProjectId of [projectA, randomId]) {
+    await page.goto(
+      `/app/__preview/frontend-parity?scenario=tulis-choose&projectId=${encodeURIComponent(deniedProjectId)}`,
+    );
+    await expectBrandedNotFound(page);
+    expect(await page.locator('body').innerText()).not.toContain(secretTitle);
+  }
+
   // Mutation IDOR: attacker posts with foreign projectId.
   await page.goto(`/app/proyek/${projectB}/chat`);
   await expect(page.locator('textarea[name="content"]')).toBeVisible();
@@ -142,8 +152,12 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
   }, projectA);
   await page.locator('textarea[name="content"]').fill('IDOR inject attempt');
   await page.getByRole('button', { name: /Kirim/i }).click();
-  await expect(page.getByRole('alert')).toBeVisible({ timeout: 15_000 });
-  const alertText = await page.getByRole('alert').innerText();
+  const chatForm = page.locator('form').filter({
+    has: page.locator('textarea[name="content"]'),
+  });
+  const mutationAlert = chatForm.getByRole('alert');
+  await expect(mutationAlert).toBeVisible({ timeout: 15_000 });
+  const alertText = await mutationAlert.innerText();
   expect(alertText.toLowerCase()).not.toContain(secretTitle.toLowerCase());
 
   await page.goto(`/app/proyek/${projectB}/chat`);
@@ -159,7 +173,15 @@ test('idor: foreign and random project resources are indistinguishable NOT_FOUND
     }, projectA);
   await page.locator('textarea[name="coreConcept"]').fill('Hacked concept');
   await page.getByRole('button', { name: /Simpan draft/i }).click();
-  await expect(page.getByRole('alert')).toBeVisible({ timeout: 15_000 });
+  const fondasiForm = page.locator('form').filter({
+    has: page.locator('textarea[name="coreConcept"]'),
+  });
+  const foundationRegion = fondasiForm.locator('..');
+  const foundationAlert = foundationRegion.locator('p[role="alert"]');
+  await expect(foundationAlert).toHaveCount(1);
+  await expect(foundationAlert).toBeVisible({ timeout: 15_000 });
+  const foundationAlertText = await foundationAlert.innerText();
+  expect(foundationAlertText.toLowerCase()).not.toContain(secretTitle.toLowerCase());
 
   // Owner A data intact.
   await logout(page);

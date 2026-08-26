@@ -44,6 +44,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r --filter "./packages/**" test:unit
       - run: pnpm --filter @narraza/worker-gen test
+      - run: pnpm --filter @narraza/web test
 
   integration:
     name: Integration Tests

@@ -116,7 +116,8 @@ export async function updateFoundationDraftAction(
   const endingDirection = formNullable(formData, 'endingDirection');
   const readerPromise = formNullable(formData, 'readerPromise');
 
-  const mainId = formStr(formData, 'mainCharacterId') || 'main';
+  const mainId = formStr(formData, 'mainCharacterId');
+  const mainCharacterId = mainId || 'main';
   const mainIdentity = formNullable(formData, 'mainCharacterIdentity');
   const mainGoal = formNullable(formData, 'mainCharacterGoal');
   const mainMotivation = formNullable(formData, 'mainCharacterMotivation');
@@ -126,7 +127,14 @@ export async function updateFoundationDraftAction(
     (v) => v !== null,
   );
 
-  const otherId = formStr(formData, 'relationshipOtherId') || 'other';
+  const otherId = formStr(formData, 'relationshipOtherId');
+  const relationshipMainIsFromRaw = formStr(formData, 'relationshipMainIsFrom');
+  const relationshipMainIsFrom =
+    relationshipMainIsFromRaw === 'true'
+      ? true
+      : relationshipMainIsFromRaw === 'false'
+        ? false
+        : null;
   const relDescription = formNullable(formData, 'relationshipDescription');
 
   const secretTruth = formNullable(formData, 'secretTruth');
@@ -139,7 +147,7 @@ export async function updateFoundationDraftAction(
 
   const mainCharacter = hasMainFields
     ? {
-        id: mainId,
+        id: mainCharacterId,
         active: true,
         identity: mainIdentity,
         goal: mainGoal,
@@ -150,11 +158,11 @@ export async function updateFoundationDraftAction(
     : null;
 
   const relationships =
-    relDescription !== null
+    relDescription !== null && mainId && otherId && relationshipMainIsFrom !== null
       ? [
           {
-            fromCharacterId: otherId,
-            toCharacterId: mainId,
+            fromCharacterId: relationshipMainIsFrom ? mainId : otherId,
+            toCharacterId: relationshipMainIsFrom ? otherId : mainId,
             active: true,
             description: relDescription,
           },

@@ -32,6 +32,131 @@ export const APP_MESSAGES_ID = {
       previewMiddle: 'Fondasi dan rencana bab',
       previewEnd: 'Bab siap ditinjau',
     },
+    problemSection: {
+      title: 'Menulis panjang itu berat bukan karena idemu jelek',
+      description: 'Tiga masalah yang paling sering menghentikan serial di tengah jalan.',
+    },
+    featureSection: {
+      title: 'Yang dijaga Narraza untukmu',
+    },
+    personaSection: {
+      title: 'Mulai dari titik manapun kamu berada',
+    },
+    creditSection: {
+      title: 'Biaya proses yang transparan',
+      description:
+        'Narraza dirancang agar biaya proses berbayar terlihat sebelum kamu mengonfirmasi. Detail kredit akan tersedia saat fitur ini diluncurkan.',
+    },
+    problemCards: [
+      {
+        title: '“Ideku berantakan.”',
+        description:
+          'Narra mengubah percakapan santai menjadi fondasi cerita yang rapi: tokoh, konflik, janji pembaca, dan arah ending — tanpa istilah teknis.',
+      },
+      {
+        title: '“AI selalu lupa cerita sebelumnya.”',
+        description:
+          'Fakta, relasi, dan rahasia disimpan sebagai catatan cerita yang dijaga. Setiap adegan baru ditulis dari catatan itu, bukan dari ingatan kosong.',
+      },
+      {
+        title: '“Rahasia Bab 25 bocor di Bab 3.”',
+        description:
+          'Jadwal Rahasia menjaga kapan petunjuk boleh muncul dan kapan jawaban boleh terbuka. Cek Otomatis memperingatkan sebelum terlambat.',
+      },
+    ],
+    featureCards: [
+      {
+        title: 'Fondasi Cerita',
+        description:
+          'Tokoh, konflik, janji pembaca, dan arah ending tersimpan rapi. Dikunci saat kamu siap — bukan sebelum itu.',
+      },
+      {
+        title: 'Fakta yang Dikunci',
+        description:
+          'Fakta penting buatan AI selalu berupa usulan dulu. Kamu yang menerima, mengubah, atau menolak.',
+      },
+      {
+        title: 'Jadwal Rahasia',
+        description:
+          'Atur kapan petunjuk muncul dan kapan jawaban terbuka. Rahasiamu tidak bocor sebelum waktunya.',
+      },
+      {
+        title: 'Ruang Tulis',
+        description:
+          'Editor per adegan dengan arahan, versi yang bisa dibandingkan, dan perbaikan terarah — bukan textarea kosong.',
+      },
+      {
+        title: 'Cek Otomatis',
+        description:
+          'Cerita nyambung, pengetahuan tokoh sesuai, ending bab cukup kuat — diperiksa sebelum kamu menerima versi.',
+      },
+      {
+        title: 'Paket Publish',
+        description:
+          'Teaser, sinopsis, caption promosi, dan preview HP dari bab yang sudah kamu setujui.',
+      },
+    ],
+    personaCards: [
+      {
+        title: 'Belum pernah menulis',
+        description:
+          'Tidak perlu tahu istilah premis atau plot. Jawab pertanyaan ringan Narra, dan lihat ceritamu terbentuk.',
+      },
+      {
+        title: 'Punya ide kasar',
+        description:
+          'Satu kalimat konflik cukup. Narraza membantu mengubahnya menjadi konsep, karakter, dan rencana bab.',
+      },
+      {
+        title: 'Punya outline',
+        description:
+          'Pilih jalur Punya outline saat membuat proyek, lalu susun fondasi dan rencana cerita dari outline yang sudah kamu miliki. Unggah naskah belum tersedia.',
+      },
+      {
+        title: 'Penulis berpengalaman',
+        description:
+          'Kontrol penuh atas fondasi, fakta, reveal, outline, dan setiap perubahan cerita resmi.',
+      },
+    ],
+    creditTierCards: [
+      {
+        title: 'Hemat',
+        description: 'Pilihan proses ringan untuk eksplorasi ide.',
+      },
+      {
+        title: 'Seimbang',
+        description: 'Pilihan seimbang untuk penulisan serial rutin.',
+        badge: 'Disarankan',
+        emphasized: true,
+      },
+      {
+        title: 'Terbaik',
+        description: 'Pilihan kualitas tinggi untuk bagian cerita penting.',
+      },
+    ],
+    creditDisclosure: 'Detail kredit akan tersedia saat fitur ini diluncurkan.',
+    trust: {
+      title: 'Cerita tetap milikmu',
+      description:
+        'Narraza membantu menyusun dan memeriksa. Keputusan kreatif tetap ada di tanganmu.',
+      faq: [
+        {
+          question: 'Siapa yang bisa membaca ceritaku?',
+          answer:
+            'Akses cerita mengikuti akun dan proyekmu. Informasi hukum lengkap tetap mengikuti Kebijakan Privasi.',
+        },
+        {
+          question: 'Apakah Narraza menjamin cerita selalu benar?',
+          answer:
+            'Tidak. Narraza membantu menjaga konsistensi, tetapi hasil tetap perlu kamu tinjau.',
+        },
+        {
+          question: 'Apa yang dikirim ke penyedia AI?',
+          answer:
+            'Hanya konteks yang diperlukan untuk proses yang kamu jalankan. Rincian final mengikuti Kebijakan Privasi dan kebijakan penyedia yang disetujui.',
+        },
+      ],
+    },
     workflow: {
       title: 'Dari ide sampai bab yang membuat pembaca ingin lanjut',
       description: 'Enam langkah. Kamu memutuskan, Narraza menjaga.',
@@ -81,36 +206,12 @@ export const APP_MESSAGES_ID = {
     },
   },
   shell: {
+    desktopGroups: ['PERSIAPAN', 'PERENCANAAN', 'PENULISAN', 'PEMERIKSAAN', 'PUBLIKASI', 'LAINNYA'],
+    mobileTabs: ['Beranda', 'Rencana', 'Tulis', 'Cek', 'Lainnya'],
     creditSoon: 'Kredit — segera hadir',
     avatarLabel: 'Akun',
     logout: 'Keluar',
     navigationLabel: 'Navigasi aplikasi',
-    groups: [
-      {
-        label: 'PERSIAPAN',
-        items: ['Beranda Proyek', 'Chat Narra', 'Fondasi Cerita', 'Karakter'],
-      },
-      {
-        label: 'PERENCANAAN',
-        items: ['Rencana Bab', 'Jadwal Rahasia', 'Fakta'],
-      },
-      {
-        label: 'PENULISAN',
-        items: ['Naskah Bab', 'Ruang Tulis'],
-      },
-      {
-        label: 'PEMERIKSAAN',
-        items: ['Cek Cerita', 'Tutup Bab'],
-      },
-      {
-        label: 'PUBLIKASI',
-        items: ['Paket Publish'],
-      },
-      {
-        label: 'LAINNYA',
-        items: ['Kredit & Penggunaan', 'Pengaturan'],
-      },
-    ],
   },
   dashboard: {
     eyebrow: 'MULAI CERITA',
