@@ -39,11 +39,7 @@ export const FROZEN_D4_FREE_KINDS = [
  * Frozen list of pre-D4 legacy base kinds present in baseline at commit df05d77.
  * Exempt from enqueue guard and §9 incident path.
  */
-export const FROZEN_PRE_D4_LEGACY_KINDS = [
-  'prose',
-  'draft_generation',
-  'source-kind',
-] as const;
+export const FROZEN_PRE_D4_LEGACY_KINDS = ['prose', 'draft_generation', 'source-kind'] as const;
 
 const PAID_KIND_SET = new Set<string>(FROZEN_D4_PAID_KINDS);
 const FREE_KIND_SET = new Set<string>(FROZEN_D4_FREE_KINDS);
@@ -64,7 +60,7 @@ export function resolveFundingModel(jobKind: string): ActionFundingModel {
     return 'pre_d4_legacy';
   }
   throw new Error(
-    `Unknown job kind '${jobKind}'. Unmapped kinds post-freeze must fail closed and be added to action-funding-policy explicitly.`
+    `Unknown job kind '${jobKind}'. Unmapped kinds post-freeze must fail closed and be added to action-funding-policy explicitly.`,
   );
 }
 
@@ -73,9 +69,7 @@ export type EnqueueValidationResult =
   | {
       readonly valid: false;
       readonly reason:
-        | 'missing_reservation_for_paid'
-        | 'missing_reservation_for_system_funded'
-        | 'unknown_kind';
+        'missing_reservation_for_paid' | 'missing_reservation_for_system_funded' | 'unknown_kind';
       readonly fundingModel?: ActionFundingModel;
     };
 

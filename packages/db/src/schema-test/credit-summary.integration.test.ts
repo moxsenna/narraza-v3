@@ -19,7 +19,10 @@ interface LedgerSeed {
   readonly dedupeKey: string;
 }
 
-async function seedLedgerEntry(client: Parameters<typeof seedUsersAndProjects>[0], seed: LedgerSeed) {
+async function seedLedgerEntry(
+  client: Parameters<typeof seedUsersAndProjects>[0],
+  seed: LedgerSeed,
+) {
   await client.query(
     `INSERT INTO credit_ledger
        (id,user_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at)
@@ -40,11 +43,15 @@ interface ReservationSeed {
   readonly exposureMicroIdr?: bigint;
 }
 
-async function seedReservation(client: Parameters<typeof seedUsersAndProjects>[0], seed: ReservationSeed) {
+async function seedReservation(
+  client: Parameters<typeof seedUsersAndProjects>[0],
+  seed: ReservationSeed,
+) {
   const settled = seed.settledMicroIdr ?? 0n;
   const released = seed.releasedMicroIdr ?? 0n;
   const exposure =
-    seed.exposureMicroIdr ?? (seed.status === 'open' || seed.status === 'closing' ? seed.reservedMicroIdr : 0n);
+    seed.exposureMicroIdr ??
+    (seed.status === 'open' || seed.status === 'closing' ? seed.reservedMicroIdr : 0n);
   // Terminal/closing states require closing_at per credit_reservations_lifecycle_check.
   const closingAt = seed.status === 'open' ? null : 'now()';
   await client.query(
@@ -75,15 +82,71 @@ schema.test(
     // -legacy charge 1,000,000 -reservation_settlement 2,500,000 -debit adjustment 500,000
     // release 4,000,000 credit row must be EXCLUDED from book.
     const entries: LedgerSeed[] = [
-      { id: 'l-grant', userId: ids.userA, entryType: 'grant', direction: 'credit', amountMicroIdr: 7_000_000n, dedupeKey: 'dk-grant' },
-      { id: 'l-refund', userId: ids.userA, entryType: 'refund', direction: 'credit', amountMicroIdr: 3_000_000n, dedupeKey: 'dk-refund' },
-      { id: 'l-adj-credit', userId: ids.userA, entryType: 'adjustment', direction: 'credit', amountMicroIdr: 2_000_000n, dedupeKey: 'dk-adj-c' },
-      { id: 'l-charge-legacy', userId: ids.userA, entryType: 'charge', direction: 'debit', amountMicroIdr: 1_000_000n, dedupeKey: 'dk-charge' },
-      { id: 'l-settle', userId: ids.userA, entryType: 'reservation_settlement', direction: 'debit', amountMicroIdr: 2_500_000n, dedupeKey: 'dk-settle' },
-      { id: 'l-adj-debit', userId: ids.userA, entryType: 'adjustment', direction: 'debit', amountMicroIdr: 500_000n, dedupeKey: 'dk-adj-d' },
-      { id: 'l-release', userId: ids.userA, entryType: 'release', direction: 'credit', amountMicroIdr: 4_000_000n, dedupeKey: 'dk-release' },
+      {
+        id: 'l-grant',
+        userId: ids.userA,
+        entryType: 'grant',
+        direction: 'credit',
+        amountMicroIdr: 7_000_000n,
+        dedupeKey: 'dk-grant',
+      },
+      {
+        id: 'l-refund',
+        userId: ids.userA,
+        entryType: 'refund',
+        direction: 'credit',
+        amountMicroIdr: 3_000_000n,
+        dedupeKey: 'dk-refund',
+      },
+      {
+        id: 'l-adj-credit',
+        userId: ids.userA,
+        entryType: 'adjustment',
+        direction: 'credit',
+        amountMicroIdr: 2_000_000n,
+        dedupeKey: 'dk-adj-c',
+      },
+      {
+        id: 'l-charge-legacy',
+        userId: ids.userA,
+        entryType: 'charge',
+        direction: 'debit',
+        amountMicroIdr: 1_000_000n,
+        dedupeKey: 'dk-charge',
+      },
+      {
+        id: 'l-settle',
+        userId: ids.userA,
+        entryType: 'reservation_settlement',
+        direction: 'debit',
+        amountMicroIdr: 2_500_000n,
+        dedupeKey: 'dk-settle',
+      },
+      {
+        id: 'l-adj-debit',
+        userId: ids.userA,
+        entryType: 'adjustment',
+        direction: 'debit',
+        amountMicroIdr: 500_000n,
+        dedupeKey: 'dk-adj-d',
+      },
+      {
+        id: 'l-release',
+        userId: ids.userA,
+        entryType: 'release',
+        direction: 'credit',
+        amountMicroIdr: 4_000_000n,
+        dedupeKey: 'dk-release',
+      },
       // User B noise must never touch user A's book (matrix #19).
-      { id: 'l-b-grant', userId: ids.userB, entryType: 'grant', direction: 'credit', amountMicroIdr: 99_000_000n, dedupeKey: 'dk-b-grant' },
+      {
+        id: 'l-b-grant',
+        userId: ids.userB,
+        entryType: 'grant',
+        direction: 'credit',
+        amountMicroIdr: 99_000_000n,
+        dedupeKey: 'dk-b-grant',
+      },
     ];
     for (const entry of entries) {
       await seedLedgerEntry(client, entry);
@@ -123,24 +186,108 @@ schema.test(
   async ({ client, databaseUrl }) => {
     await seedUsersAndProjects(client);
     // (#8) open user_paid 2,000,000 -> held
-    await seedReservation(client, { id: 'r-open-paid', userId: ids.userA, projectId: ids.projectA, status: 'open', fundingModel: 'user_paid', reservedMicroIdr: 2_000_000n });
+    await seedReservation(client, {
+      id: 'r-open-paid',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'open',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 2_000_000n,
+    });
     // (#9) closing user_paid 3,000,000 -> reconciling
-    await seedReservation(client, { id: 'r-closing-paid', userId: ids.userA, projectId: ids.projectA, status: 'closing', fundingModel: 'user_paid', reservedMicroIdr: 3_000_000n, exposureMicroIdr: 3_000_000n });
+    await seedReservation(client, {
+      id: 'r-closing-paid',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'closing',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 3_000_000n,
+      exposureMicroIdr: 3_000_000n,
+    });
     // (#10) open system_funded 50,000,000 -> neither
-    await seedReservation(client, { id: 'r-open-sys', userId: ids.userA, projectId: ids.projectA, status: 'open', fundingModel: 'system_funded', reservedMicroIdr: 50_000_000n });
+    await seedReservation(client, {
+      id: 'r-open-sys',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'open',
+      fundingModel: 'system_funded',
+      reservedMicroIdr: 50_000_000n,
+    });
     // (#11) closing system_funded 60,000,000 -> neither
-    await seedReservation(client, { id: 'r-closing-sys', userId: ids.userA, projectId: ids.projectA, status: 'closing', fundingModel: 'system_funded', reservedMicroIdr: 60_000_000n, exposureMicroIdr: 60_000_000n });
+    await seedReservation(client, {
+      id: 'r-closing-sys',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'closing',
+      fundingModel: 'system_funded',
+      reservedMicroIdr: 60_000_000n,
+      exposureMicroIdr: 60_000_000n,
+    });
     // (#12) NULL legacy open 1,500,000 -> held (legacy user-credit compatibility)
-    await seedReservation(client, { id: 'r-open-legacy', userId: ids.userA, projectId: ids.projectA, status: 'open', fundingModel: null, reservedMicroIdr: 1_500_000n });
+    await seedReservation(client, {
+      id: 'r-open-legacy',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'open',
+      fundingModel: null,
+      reservedMicroIdr: 1_500_000n,
+    });
     // NULL legacy closing 2,500,000 -> reconciling
-    await seedReservation(client, { id: 'r-closing-legacy', userId: ids.userA, projectId: ids.projectA, status: 'closing', fundingModel: null, reservedMicroIdr: 2_500_000n, exposureMicroIdr: 2_500_000n });
+    await seedReservation(client, {
+      id: 'r-closing-legacy',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'closing',
+      fundingModel: null,
+      reservedMicroIdr: 2_500_000n,
+      exposureMicroIdr: 2_500_000n,
+    });
     // (#13) terminal states never create held/reconciling display
-    await seedReservation(client, { id: 'r-settled', userId: ids.userA, projectId: ids.projectA, status: 'settled', fundingModel: 'user_paid', reservedMicroIdr: 4_000_000n, settledMicroIdr: 4_000_000n });
-    await seedReservation(client, { id: 'r-released', userId: ids.userA, projectId: ids.projectA, status: 'released', fundingModel: 'user_paid', reservedMicroIdr: 5_000_000n, releasedMicroIdr: 5_000_000n });
-    await seedReservation(client, { id: 'r-cancelled', userId: ids.userA, projectId: ids.projectA, status: 'cancelled', fundingModel: 'user_paid', reservedMicroIdr: 6_000_000n, releasedMicroIdr: 6_000_000n });
-    await seedReservation(client, { id: 'r-expired', userId: ids.userA, projectId: ids.projectA, status: 'expired', fundingModel: 'user_paid', reservedMicroIdr: 7_000_000n, releasedMicroIdr: 7_000_000n });
+    await seedReservation(client, {
+      id: 'r-settled',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'settled',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 4_000_000n,
+      settledMicroIdr: 4_000_000n,
+    });
+    await seedReservation(client, {
+      id: 'r-released',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'released',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 5_000_000n,
+      releasedMicroIdr: 5_000_000n,
+    });
+    await seedReservation(client, {
+      id: 'r-cancelled',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'cancelled',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 6_000_000n,
+      releasedMicroIdr: 6_000_000n,
+    });
+    await seedReservation(client, {
+      id: 'r-expired',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'expired',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 7_000_000n,
+      releasedMicroIdr: 7_000_000n,
+    });
     // (#19) user B reservation must not leak into user A summary
-    await seedReservation(client, { id: 'r-b-open', userId: ids.userB, projectId: ids.projectB, status: 'open', fundingModel: 'user_paid', reservedMicroIdr: 80_000_000n });
+    await seedReservation(client, {
+      id: 'r-b-open',
+      userId: ids.userB,
+      projectId: ids.projectB,
+      status: 'open',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 80_000_000n,
+    });
 
     const prisma = createPrismaForUrl(databaseUrl);
     const uow = createUnitOfWork(prisma);
@@ -178,8 +325,22 @@ schema.test(
     await seedUsersAndProjects(client);
     // (#14) book = 10,000,001; open user_paid exposure = 1.
     // Frozen: floor((10,000,001 - 1)/M) = 1. Separate conversion would give floor(book)=1 - ceil(held)=1 -> 0.
-    await seedLedgerEntry(client, { id: 'l-bound-grant', userId: ids.userA, entryType: 'grant', direction: 'credit', amountMicroIdr: 10_000_001n, dedupeKey: 'dk-bound-grant' });
-    await seedReservation(client, { id: 'r-bound-hold', userId: ids.userA, projectId: ids.projectA, status: 'open', fundingModel: 'user_paid', reservedMicroIdr: 1n });
+    await seedLedgerEntry(client, {
+      id: 'l-bound-grant',
+      userId: ids.userA,
+      entryType: 'grant',
+      direction: 'credit',
+      amountMicroIdr: 10_000_001n,
+      dedupeKey: 'dk-bound-grant',
+    });
+    await seedReservation(client, {
+      id: 'r-bound-hold',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'open',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 1n,
+    });
 
     const prisma = createPrismaForUrl(databaseUrl);
     const summary = createCreditSummaryService(createUnitOfWork(prisma));
@@ -198,8 +359,22 @@ schema.test(
   async ({ client, databaseUrl }) => {
     await seedUsersAndProjects(client);
     // book = 3,000,000; held = 5,000,000 -> availableMicro = -2,000,000 -> available clamps to 0 (#17)
-    await seedLedgerEntry(client, { id: 'l-neg-grant', userId: ids.userA, entryType: 'grant', direction: 'credit', amountMicroIdr: 3_000_000n, dedupeKey: 'dk-neg-grant' });
-    await seedReservation(client, { id: 'r-neg-hold', userId: ids.userA, projectId: ids.projectA, status: 'open', fundingModel: 'user_paid', reservedMicroIdr: 5_000_000n });
+    await seedLedgerEntry(client, {
+      id: 'l-neg-grant',
+      userId: ids.userA,
+      entryType: 'grant',
+      direction: 'credit',
+      amountMicroIdr: 3_000_000n,
+      dedupeKey: 'dk-neg-grant',
+    });
+    await seedReservation(client, {
+      id: 'r-neg-hold',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'open',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 5_000_000n,
+    });
 
     const prisma = createPrismaForUrl(databaseUrl);
     const summary = createCreditSummaryService(createUnitOfWork(prisma));
@@ -217,15 +392,31 @@ schema.test('huge bigint values remain exact end to end (#18)', async ({ client,
   await seedUsersAndProjects(client);
   const hugeGrant = 9_000_000_000_000_000_000n; // 9e18 micro-IDR (fits PostgreSQL BIGINT)
   const hugeHold = 1_000_000_000_000_000_001n;
-  await seedLedgerEntry(client, { id: 'l-huge-grant', userId: ids.userA, entryType: 'grant', direction: 'credit', amountMicroIdr: hugeGrant, dedupeKey: 'dk-huge-grant' });
-  await seedReservation(client, { id: 'r-huge-hold', userId: ids.userA, projectId: ids.projectA, status: 'open', fundingModel: 'user_paid', reservedMicroIdr: hugeHold });
+  await seedLedgerEntry(client, {
+    id: 'l-huge-grant',
+    userId: ids.userA,
+    entryType: 'grant',
+    direction: 'credit',
+    amountMicroIdr: hugeGrant,
+    dedupeKey: 'dk-huge-grant',
+  });
+  await seedReservation(client, {
+    id: 'r-huge-hold',
+    userId: ids.userA,
+    projectId: ids.projectA,
+    status: 'open',
+    fundingModel: 'user_paid',
+    reservedMicroIdr: hugeHold,
+  });
 
   const prisma = createPrismaForUrl(databaseUrl);
   const uow = createUnitOfWork(prisma);
   const summary = createCreditSummaryService(uow);
 
   try {
-    const snapshot = await uow.execute((ports) => ports.creditBalance.getBalanceSnapshot(ids.userA));
+    const snapshot = await uow.execute((ports) =>
+      ports.creditBalance.getBalanceSnapshot(ids.userA),
+    );
     expect(snapshot).toEqual({
       bookMicroIdr: hugeGrant,
       heldMicroIdr: hugeHold,
@@ -246,8 +437,23 @@ schema.test(
     await seedUsersAndProjects(client);
     // Coherent pre-settlement state: book = 10,000,000 grant;
     // closing user_paid reservation with 4,000,000 exposure.
-    await seedLedgerEntry(client, { id: 'l-cc-grant', userId: ids.userA, entryType: 'grant', direction: 'credit', amountMicroIdr: 10_000_000n, dedupeKey: 'dk-cc-grant' });
-    await seedReservation(client, { id: 'r-cc-closing', userId: ids.userA, projectId: ids.projectA, status: 'closing', fundingModel: 'user_paid', reservedMicroIdr: 4_000_000n, exposureMicroIdr: 4_000_000n });
+    await seedLedgerEntry(client, {
+      id: 'l-cc-grant',
+      userId: ids.userA,
+      entryType: 'grant',
+      direction: 'credit',
+      amountMicroIdr: 10_000_000n,
+      dedupeKey: 'dk-cc-grant',
+    });
+    await seedReservation(client, {
+      id: 'r-cc-closing',
+      userId: ids.userA,
+      projectId: ids.projectA,
+      status: 'closing',
+      fundingModel: 'user_paid',
+      reservedMicroIdr: 4_000_000n,
+      exposureMicroIdr: 4_000_000n,
+    });
 
     const prisma = createPrismaForUrl(databaseUrl);
     const uow = createUnitOfWork(prisma);
@@ -302,17 +508,20 @@ schema.test(
   },
 );
 
-schema.test('funding_model CHECK accepts only user_paid, system_funded, or NULL', async ({ client }) => {
-  await seedUsersAndProjects(client);
-  await expect(
-    client.query(
-      `INSERT INTO credit_reservations
+schema.test(
+  'funding_model CHECK accepts only user_paid, system_funded, or NULL',
+  async ({ client }) => {
+    await seedUsersAndProjects(client);
+    await expect(
+      client.query(
+        `INSERT INTO credit_reservations
          (id,user_id,project_id,status,funding_model,reserved_micro_idr,settled_micro_idr,released_micro_idr,exposure_micro_idr,created_at,updated_at)
        VALUES ('r-bad-funding',$1,$2,'open','nonsense',1000,0,0,1000,now(),now())`,
-      [ids.userA, ids.projectA],
-    ),
-  ).rejects.toMatchObject({
-    code: '23514',
-    constraint: 'credit_reservations_funding_model_check',
-  });
-});
+        [ids.userA, ids.projectA],
+      ),
+    ).rejects.toMatchObject({
+      code: '23514',
+      constraint: 'credit_reservations_funding_model_check',
+    });
+  },
+);

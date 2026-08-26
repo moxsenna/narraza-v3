@@ -56,10 +56,10 @@ describe('action-funding-policy', () => {
 
     it('fails closed and throws on unmapped new kind introduced post-freeze', () => {
       expect(() => resolveFundingModel('unmapped_future_kind')).toThrowError(
-        /Unknown job kind 'unmapped_future_kind'/
+        /Unknown job kind 'unmapped_future_kind'/,
       );
       expect(() => resolveFundingModel('random_ai_action')).toThrowError(
-        /Unknown job kind 'random_ai_action'/
+        /Unknown job kind 'random_ai_action'/,
       );
       expect(() => resolveFundingModel('')).toThrowError();
     });
@@ -86,38 +86,38 @@ describe('action-funding-policy', () => {
 
   describe('validateFundingModelEnqueue', () => {
     it('allows pre_d4_legacy kinds with or without reservationId', () => {
-      expect(
-        validateFundingModelEnqueue({ kind: 'prose', reservationId: null })
-      ).toEqual({ valid: true, fundingModel: 'pre_d4_legacy' });
+      expect(validateFundingModelEnqueue({ kind: 'prose', reservationId: null })).toEqual({
+        valid: true,
+        fundingModel: 'pre_d4_legacy',
+      });
+
+      expect(validateFundingModelEnqueue({ kind: 'prose', reservationId: 'res-123' })).toEqual({
+        valid: true,
+        fundingModel: 'pre_d4_legacy',
+      });
 
       expect(
-        validateFundingModelEnqueue({ kind: 'prose', reservationId: 'res-123' })
-      ).toEqual({ valid: true, fundingModel: 'pre_d4_legacy' });
-
-      expect(
-        validateFundingModelEnqueue({ kind: 'draft_generation', reservationId: null })
+        validateFundingModelEnqueue({ kind: 'draft_generation', reservationId: null }),
       ).toEqual({ valid: true, fundingModel: 'pre_d4_legacy' });
     });
 
     it('requires non-null reservationId for user_paid kinds', () => {
       expect(
-        validateFundingModelEnqueue({ kind: 'scene_generation', reservationId: null })
+        validateFundingModelEnqueue({ kind: 'scene_generation', reservationId: null }),
       ).toEqual({
         valid: false,
         reason: 'missing_reservation_for_paid',
         fundingModel: 'user_paid',
       });
 
-      expect(
-        validateFundingModelEnqueue({ kind: 'scene_generation', reservationId: '' })
-      ).toEqual({
+      expect(validateFundingModelEnqueue({ kind: 'scene_generation', reservationId: '' })).toEqual({
         valid: false,
         reason: 'missing_reservation_for_paid',
         fundingModel: 'user_paid',
       });
 
       expect(
-        validateFundingModelEnqueue({ kind: 'scene_generation', reservationId: 'res-abc' })
+        validateFundingModelEnqueue({ kind: 'scene_generation', reservationId: 'res-abc' }),
       ).toEqual({
         valid: true,
         fundingModel: 'user_paid',
@@ -126,26 +126,26 @@ describe('action-funding-policy', () => {
 
     it('requires non-null reservationId (upstream created) for system_funded kinds', () => {
       expect(
-        validateFundingModelEnqueue({ kind: 'chat_intake_reply', reservationId: null })
+        validateFundingModelEnqueue({ kind: 'chat_intake_reply', reservationId: null }),
       ).toEqual({
         valid: false,
         reason: 'missing_reservation_for_system_funded',
         fundingModel: 'system_funded',
       });
 
-      expect(
-        validateFundingModelEnqueue({ kind: 'chat_intake_reply', reservationId: '' })
-      ).toEqual({
-        valid: false,
-        reason: 'missing_reservation_for_system_funded',
-        fundingModel: 'system_funded',
-      });
+      expect(validateFundingModelEnqueue({ kind: 'chat_intake_reply', reservationId: '' })).toEqual(
+        {
+          valid: false,
+          reason: 'missing_reservation_for_system_funded',
+          fundingModel: 'system_funded',
+        },
+      );
 
       expect(
         validateFundingModelEnqueue({
           kind: 'chat_intake_reply',
           reservationId: 'res-system-budget-1',
-        })
+        }),
       ).toEqual({
         valid: true,
         fundingModel: 'system_funded',
@@ -153,12 +153,12 @@ describe('action-funding-policy', () => {
     });
 
     it('rejects unknown kinds on enqueue validation', () => {
-      expect(
-        validateFundingModelEnqueue({ kind: 'unknown_kind', reservationId: 'res-1' })
-      ).toEqual({
-        valid: false,
-        reason: 'unknown_kind',
-      });
+      expect(validateFundingModelEnqueue({ kind: 'unknown_kind', reservationId: 'res-1' })).toEqual(
+        {
+          valid: false,
+          reason: 'unknown_kind',
+        },
+      );
     });
   });
 });

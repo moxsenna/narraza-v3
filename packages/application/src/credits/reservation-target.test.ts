@@ -15,7 +15,7 @@ describe('reservation-target', () => {
           unresolvedRelevantAttempts: 0,
           currentSettledMicroIdr: 0n,
           currentReleasedMicroIdr: 0n,
-        })
+        }),
       ).toThrowError(/reservedMicroIdr must be strictly positive/);
 
       expect(() =>
@@ -25,7 +25,7 @@ describe('reservation-target', () => {
           unresolvedRelevantAttempts: 0,
           currentSettledMicroIdr: 0n,
           currentReleasedMicroIdr: 0n,
-        })
+        }),
       ).toThrowError(/reservedMicroIdr must be strictly positive/);
     });
 
@@ -43,7 +43,11 @@ describe('reservation-target', () => {
       expect(result.exposureTargetMicroIdr).toBe(0n);
       expect(result.safeReleaseMicroIdr).toBe(20_000_000n);
       expect(result.safeSettlementMicroIdr).toBe(30_000_000n);
-      expect(result.settledTargetMicroIdr + result.releasedTargetMicroIdr + result.exposureTargetMicroIdr).toBe(50_000_000n);
+      expect(
+        result.settledTargetMicroIdr +
+          result.releasedTargetMicroIdr +
+          result.exposureTargetMicroIdr,
+      ).toBe(50_000_000n);
     });
 
     it('computes exact targets for terminal zero output with no unresolved attempts (full release)', () => {
@@ -60,7 +64,11 @@ describe('reservation-target', () => {
       expect(result.exposureTargetMicroIdr).toBe(0n);
       expect(result.safeReleaseMicroIdr).toBe(50_000_000n);
       expect(result.safeSettlementMicroIdr).toBe(0n);
-      expect(result.settledTargetMicroIdr + result.releasedTargetMicroIdr + result.exposureTargetMicroIdr).toBe(50_000_000n);
+      expect(
+        result.settledTargetMicroIdr +
+          result.releasedTargetMicroIdr +
+          result.exposureTargetMicroIdr,
+      ).toBe(50_000_000n);
     });
 
     it('caps user settlement at reservation amount (overage policy)', () => {
@@ -154,14 +162,18 @@ describe('reservation-target', () => {
         { reservedMicroIdr: 100n, commercialUserCharge: 100n, unresolvedRelevantAttempts: 2 },
         { reservedMicroIdr: 100n, commercialUserCharge: 150n, unresolvedRelevantAttempts: 0 },
         { reservedMicroIdr: 100n, commercialUserCharge: 150n, unresolvedRelevantAttempts: 1 },
-        { reservedMicroIdr: 10_000_000n, commercialUserCharge: -50n, unresolvedRelevantAttempts: 0 },
+        {
+          reservedMicroIdr: 10_000_000n,
+          commercialUserCharge: -50n,
+          unresolvedRelevantAttempts: 0,
+        },
       ];
 
       for (const tc of testCases) {
         const res = computeReservationTargets(tc);
-        expect(res.settledTargetMicroIdr + res.releasedTargetMicroIdr + res.exposureTargetMicroIdr).toBe(
-          tc.reservedMicroIdr
-        );
+        expect(
+          res.settledTargetMicroIdr + res.releasedTargetMicroIdr + res.exposureTargetMicroIdr,
+        ).toBe(tc.reservedMicroIdr);
         expect(res.settledTargetMicroIdr).toBeGreaterThanOrEqual(0n);
         expect(res.releasedTargetMicroIdr).toBeGreaterThanOrEqual(0n);
         expect(res.exposureTargetMicroIdr).toBeGreaterThanOrEqual(0n);
@@ -178,7 +190,7 @@ describe('reservation-target', () => {
           unresolvedRelevantAttempts: 0,
           currentSettledMicroIdr: 20_000_000n, // higher than target 10m
           currentReleasedMicroIdr: 0n,
-        })
+        }),
       ).toThrowError(/Monotone settlement violation/);
 
       expect(() =>
@@ -188,7 +200,7 @@ describe('reservation-target', () => {
           unresolvedRelevantAttempts: 0,
           currentSettledMicroIdr: 0n,
           currentReleasedMicroIdr: 20_000_000n, // higher than target 0m
-        })
+        }),
       ).toThrowError(/Monotone release violation/);
     });
   });
@@ -200,7 +212,7 @@ describe('reservation-target', () => {
           settledTargetMicroIdr: 20_000_000n,
           releasedTargetMicroIdr: 0n,
           exposureTargetMicroIdr: 30_000_000n,
-        })
+        }),
       ).toBe('closing');
 
       expect(
@@ -208,7 +220,7 @@ describe('reservation-target', () => {
           settledTargetMicroIdr: 0n,
           releasedTargetMicroIdr: 0n,
           exposureTargetMicroIdr: 50_000_000n,
-        })
+        }),
       ).toBe('closing');
     });
 
@@ -218,7 +230,7 @@ describe('reservation-target', () => {
           settledTargetMicroIdr: 30_000_000n,
           releasedTargetMicroIdr: 20_000_000n,
           exposureTargetMicroIdr: 0n,
-        })
+        }),
       ).toBe('settled');
 
       expect(
@@ -226,7 +238,7 @@ describe('reservation-target', () => {
           settledTargetMicroIdr: 50_000_000n,
           releasedTargetMicroIdr: 0n,
           exposureTargetMicroIdr: 0n,
-        })
+        }),
       ).toBe('settled');
     });
 
@@ -236,7 +248,7 @@ describe('reservation-target', () => {
           settledTargetMicroIdr: 0n,
           releasedTargetMicroIdr: 50_000_000n,
           exposureTargetMicroIdr: 0n,
-        })
+        }),
       ).toBe('released');
     });
 
@@ -247,7 +259,7 @@ describe('reservation-target', () => {
           releasedTargetMicroIdr: 50_000_000n,
           exposureTargetMicroIdr: 0n,
           terminalReason: 'cancelled',
-        })
+        }),
       ).toBe('cancelled');
 
       expect(
@@ -256,7 +268,7 @@ describe('reservation-target', () => {
           releasedTargetMicroIdr: 50_000_000n,
           exposureTargetMicroIdr: 0n,
           terminalReason: 'expired',
-        })
+        }),
       ).toBe('expired');
     });
 
