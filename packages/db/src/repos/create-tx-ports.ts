@@ -8,6 +8,7 @@ import { createConceptRepo } from './concept-repo.js';
 import { createCreditBalanceRepo } from './credit-balance-repo.js';
 import { createCreditBillingAllocationPort } from './credit-billing-allocation-port.js';
 import { createCreditReservationRepo } from './credit-reservation-repo.js';
+import { createCreditRetentionPort } from './credit-retention-port.js';
 import { createFactRepo } from './fact-repo.js';
 import { createFoundationRepo } from './foundation-repo.js';
 import { createIntakeRepo } from './intake-repo.js';
@@ -45,6 +46,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     creditBalance: createCreditBalanceRepo(tx),
     creditBillingAllocation: createCreditBillingAllocationPort(tx),
     creditReservation: createCreditReservationRepo(tx),
+    creditRetention: createCreditRetentionPort(tx),
     usableOutputClassifier: createUsableOutputClassifier(tx),
     job: createJobRepo(tx),
     workflowInvocation,

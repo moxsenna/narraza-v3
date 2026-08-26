@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { createJobService } from '@narraza/application';
+import { createCreditRetentionService, createJobService } from '@narraza/application';
 import { createPrismaClient, createUnitOfWork } from '@narraza/db';
 import { loadWorkerEnv } from '@narraza/shared/env/worker';
 import pino from 'pino';
@@ -13,10 +13,12 @@ export function runProductionMain(): ComposedLoop {
   const prisma = createPrismaClient(env.DATABASE_URL_WORKER);
   const unitOfWork = createUnitOfWork(prisma);
   const service = createJobService(unitOfWork);
+  const { sweepCreditRetention } = createCreditRetentionService(unitOfWork);
   return composeWorker(env, {
     createLoop: ({ processor, settings }) =>
       createJobLoop({
         service,
+        sweepCreditRetention,
         ...(processor ? { processor } : {}),
         settings,
         sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),

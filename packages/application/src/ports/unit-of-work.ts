@@ -5,6 +5,7 @@ import type { CharacterRepo } from './character-repo.js';
 import type { CreditBalancePort } from './credit-balance-port.js';
 import type { CreditBillingAllocationPort } from './credit-billing-allocation-port.js';
 import type { CreditReservationPort } from './credit-reservation-port.js';
+import type { CreditRetentionPort } from './credit-retention-port.js';
 import type { ConceptRepo } from './concept-repo.js';
 import type { FactRepo } from './fact-repo.js';
 import type { FoundationRepo } from './foundation-repo.js';
@@ -55,6 +56,7 @@ export interface TxPorts {
   /** W3.3 opt-in capability; optional for legacy UnitOfWork test doubles. */
   readonly creditBillingAllocation?: CreditBillingAllocationPort;
   readonly creditReservation: CreditReservationPort;
+  readonly creditRetention: CreditRetentionPort;
   /** W3.3 opt-in capability; optional for legacy UnitOfWork test doubles. */
   readonly usableOutputClassifier?: UsableOutputClassifier;
   readonly job: JobPort;

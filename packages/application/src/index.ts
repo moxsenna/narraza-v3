@@ -140,6 +140,9 @@ export type {
   CreateReservationResult,
   ApplyReconciliationTargetInput,
   ReconciliationApplyResult,
+  DeleteEligibleCreditRetentionInput,
+  CreditRetentionSweepResult,
+  CreditRetentionPort,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
@@ -160,6 +163,13 @@ export {
 } from './credits/credit-summary-service.js';
 
 export { computeCreditSummaryView } from './credits/credit-summary.js';
+export {
+  createCreditRetentionService,
+  DEFAULT_RETENTION_MAX_AGE_HOURS,
+  DEFAULT_RETENTION_BATCH_SIZE,
+  type CreditRetentionSweepInput,
+  type CreditRetentionService,
+} from './credits/credit-retention-service.js';
 export {
   ReservationReconciliationConflict,
   type ReservationReconciliationConflictReason,

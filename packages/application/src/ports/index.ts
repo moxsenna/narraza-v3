@@ -146,4 +146,9 @@ export type {
   ApplyReconciliationTargetInput,
   ReconciliationApplyResult,
 } from './credit-reservation-port.js';
+export type {
+  DeleteEligibleCreditRetentionInput,
+  CreditRetentionSweepResult,
+  CreditRetentionPort,
+} from './credit-retention-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';
