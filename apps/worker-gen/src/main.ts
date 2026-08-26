@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { createJobService, createStaleClosingReservationService } from '@narraza/application';
+import { createJobService } from '@narraza/application';
 import { createPrismaClient, createUnitOfWork } from '@narraza/db';
 import { loadWorkerEnv } from '@narraza/shared/env/worker';
 import pino from 'pino';
@@ -13,12 +13,10 @@ export function runProductionMain(): ComposedLoop {
   const prisma = createPrismaClient(env.DATABASE_URL_WORKER);
   const unitOfWork = createUnitOfWork(prisma);
   const service = createJobService(unitOfWork);
-  const staleClosing = createStaleClosingReservationService(unitOfWork);
   return composeWorker(env, {
     createLoop: ({ processor, settings }) =>
       createJobLoop({
         service,
-        sweepStaleClosing: (input) => staleClosing.sweep(input),
         ...(processor ? { processor } : {}),
         settings,
         sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),

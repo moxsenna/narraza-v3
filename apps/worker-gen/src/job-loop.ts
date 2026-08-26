@@ -4,8 +4,6 @@ export interface JobLoopSettings {
   leaseMs: number;
   heartbeatMs: number;
   reclaimSweepMs: number;
-  staleClosingSweepMs: number;
-  staleClosingMaxAgeHours: number;
   pollMs: number;
   errorBackoffMs: number;
   shutdownDrainMs: number;
@@ -20,10 +18,6 @@ type LoopService = Pick<
 
 export interface JobLoopDependencies {
   service: LoopService;
-  sweepStaleClosing: (input: { readonly maxAgeHours: number }) => Promise<{
-    readonly discovered: number;
-    readonly closed: number;
-  }>;
   processor?: JobProcessor;
   settings: JobLoopSettings;
   sleep: (ms: number) => Promise<void>;
@@ -54,8 +48,6 @@ export function createJobLoop(deps: JobLoopDependencies) {
   let claiming: Promise<Awaited<ReturnType<LoopService['claim']>>> | undefined;
   let reclaiming: Promise<void> | undefined;
   let reclaimTimer: Timer | undefined;
-  let sweepingStaleClosing: Promise<void> | undefined;
-  let staleClosingTimer: Timer | undefined;
   let active: ActiveStage | undefined;
   let shutdownPromise: Promise<void> | undefined;
   let shutdownDeadline: number | undefined;
@@ -230,34 +222,8 @@ export function createJobLoop(deps: JobLoopDependencies) {
     return reclaiming;
   };
 
-  const sweepStaleClosingOnce = (): Promise<void> => {
-    if (sweepingStaleClosing) return sweepingStaleClosing;
-    sweepingStaleClosing = (async () => {
-      if (stopping) return;
-      try {
-        const result = await deps.sweepStaleClosing({
-          maxAgeHours: deps.settings.staleClosingMaxAgeHours,
-        });
-        deps.logger.info({ event: 'credit_stale_closing_sweep', ...result });
-      } catch (error) {
-        deps.logger.error({ event: 'credit_stale_closing_sweep_error', error });
-      } finally {
-        if (!stopping) {
-          staleClosingTimer = deps.schedule(
-            () => void sweepStaleClosingOnce(),
-            deps.settings.staleClosingSweepMs,
-          );
-        }
-      }
-    })().finally(() => {
-      sweepingStaleClosing = undefined;
-    });
-    return sweepingStaleClosing;
-  };
-
   const start = (): void => {
     void reclaimOnce();
-    void sweepStaleClosingOnce();
     if (deps.processor) void pollContinuously();
   };
 
@@ -271,7 +237,6 @@ export function createJobLoop(deps: JobLoopDependencies) {
     shutdownPromise = (async () => {
       stopping = true;
       if (reclaimTimer) deps.cancelTimer(reclaimTimer);
-      if (staleClosingTimer) deps.cancelTimer(staleClosingTimer);
       if (claiming) await waitWithinShutdown(claiming).catch(() => undefined);
       const stage = active;
       if (stage) {
@@ -301,13 +266,10 @@ export function createJobLoop(deps: JobLoopDependencies) {
 
       if (polling) await waitWithinShutdown(polling).catch(() => undefined);
       if (reclaiming) await waitWithinShutdown(reclaiming).catch(() => undefined);
-      if (sweepingStaleClosing) {
-        await waitWithinShutdown(sweepingStaleClosing).catch(() => undefined);
-      }
       await waitWithinShutdown(deps.disconnect()).catch(() => undefined);
     })();
     return shutdownPromise;
   };
 
-  return { start, pollOnce, reclaimOnce, sweepStaleClosingOnce, shutdown };
+  return { start, pollOnce, reclaimOnce, shutdown };
 }

@@ -25,8 +25,6 @@ export async function reconcileTerminalReservation(
     readonly terminalReason: 'released' | 'cancelled';
     readonly settlement?: ReservationSettlementEvidence;
     readonly releaseReason?: 'invocation_completed' | 'final-close';
-    /** Stale-closing timeout releases user exposure while unresolved attempts remain durable. */
-    readonly ignoreUnresolvedAttempts?: boolean;
   },
 ): Promise<ReservationReconciliationResult> {
   const { job } = input;
@@ -86,12 +84,10 @@ export async function reconcileTerminalReservation(
 
   const commercialUserCharge =
     effectiveFundingModel === 'user_paid' ? (settlement?.userSettlementMicroIdr ?? 0n) : 0n;
-  const unresolvedRelevantAttempts = input.ignoreUnresolvedAttempts
-    ? 0
-    : await ports.workflowInvocation.countUnresolvedAttempts({
-        projectId: job.projectId,
-        jobId: job.id,
-      });
+  const unresolvedRelevantAttempts = await ports.workflowInvocation.countUnresolvedAttempts({
+    projectId: job.projectId,
+    jobId: job.id,
+  });
   const targets = computeReservationTargets({
     reservedMicroIdr: reservation.reservedMicroIdr,
     commercialUserCharge,

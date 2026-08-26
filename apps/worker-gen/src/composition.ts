@@ -7,8 +7,6 @@ type LifecycleEnv = Pick<
   | 'JOB_LEASE_SECONDS'
   | 'JOB_HEARTBEAT_SECONDS'
   | 'JOB_RECLAIM_SWEEP_SECONDS'
-  | 'RETENTION_SWEEP_MINUTES'
-  | 'RETENTION_MAX_AGE_HOURS'
   | 'JOB_POLL_MS'
   | 'JOB_ERROR_BACKOFF_MS'
   | 'JOB_SHUTDOWN_DRAIN_MS'
@@ -19,8 +17,6 @@ export function workerSettingsFromEnv(env: LifecycleEnv): JobLoopSettings {
     leaseMs: env.JOB_LEASE_SECONDS * 1000,
     heartbeatMs: env.JOB_HEARTBEAT_SECONDS * 1000,
     reclaimSweepMs: env.JOB_RECLAIM_SWEEP_SECONDS * 1000,
-    staleClosingSweepMs: env.RETENTION_SWEEP_MINUTES * 60_000,
-    staleClosingMaxAgeHours: env.RETENTION_MAX_AGE_HOURS,
     pollMs: env.JOB_POLL_MS,
     errorBackoffMs: env.JOB_ERROR_BACKOFF_MS,
     shutdownDrainMs: env.JOB_SHUTDOWN_DRAIN_MS,
