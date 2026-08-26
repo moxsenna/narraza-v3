@@ -127,7 +127,7 @@ started early.
   - [x] Invocation per stage key; attempts; CAS winner; late attempt records usage, not winner
   - [x] Three-phase harness (Tx create attempt → external mock → Tx finalize+settle → CPU validate → Tx C fenced publish)
   - [x] Tests: `invocation-winner`, `late-attempt`, `tombstone-mid-attempt`
-- [~] **W3.3 Credit engine (S2.6 + D4 + D6)** _(Fable)_ — Batch A Tasks 9–12 PASS/CLOSED per external PM; Batch B certification + Draft PR/CI pending final PM review
+- [x] **W3.3 Credit engine (S2.6 + D4 + D6)** _(Fable)_ — Tasks 8–14 CLOSED; external PM final review PASS (2026-08-26, head `3e047f8`, PR #18 CI 8/8); W3.3 approved for merge
   - [x] Ledger append-only + dedupe; reservations + closing; `safeRelease ≥ 0`; exposure exceeded → ops incident
   - [x] `issueCreditQuote` bound to workflowPlanHash+dependencyHash+maxMicroIdr+expiry(10m); consume once
   - [x] Confirm: revalidate owner/quote/hash/balance → jobId + reserve → enqueue (idempotent by requestId)
