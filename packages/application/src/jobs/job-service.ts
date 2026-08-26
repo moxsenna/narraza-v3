@@ -1,5 +1,9 @@
 import type { ActionFundingModel } from '../credits/action-funding-policy.js';
-import { reconcileTerminalReservation } from '../credits/reservation-reconciliation-service.js';
+import {
+  recordMissingJobReservationIncident,
+  reconcileTerminalReservation,
+  type MissingReservationViolation,
+} from '../credits/reservation-reconciliation-service.js';
 import {
   resolveFundingModel,
   validateFundingModelEnqueue,
@@ -103,7 +107,23 @@ export type FencedPublishResult =
   | { readonly kind: 'lost_ownership' }
   | { readonly kind: 'cancellation_required' }
   | { readonly kind: 'cancellation_blocks_success' }
-  | { readonly kind: 'funding_model_conflict' };
+  | { readonly kind: 'funding_model_conflict' }
+  | (MissingReservationViolation & { readonly job: GenerationJobRecord });
+
+/**
+ * Service-level finish outcome: either the port's terminal transition or a
+ * funding-binding violation carrying the committed terminal job.
+ */
+export type JobFinishResult =
+  | JobTerminalTransitionResult
+  | (MissingReservationViolation & { readonly job: GenerationJobRecord });
+
+/**
+ * Service-level reclaim outcome: either the port's reclaim result or a
+ * funding-binding violation carrying the committed cancelled job.
+ */
+export type JobReclaimServiceResult =
+  JobReclaimResult | (MissingReservationViolation & { readonly job: GenerationJobRecord });
 
 export interface JobService {
   cancel(input: CancelInput): Promise<CancelResult>;
@@ -111,8 +131,8 @@ export interface JobService {
   claim(input: ClaimInput): Promise<JobClaimResult>;
   heartbeat(input: HeartbeatInput): Promise<JobHeartbeatResult>;
   requeue(input: RequeueInput): Promise<JobRequeueResult>;
-  finish(input: FinishInput): Promise<JobTerminalTransitionResult>;
-  reclaimOne(input: ReclaimOneInput): Promise<JobReclaimResult>;
+  finish(input: FinishInput): Promise<JobFinishResult>;
+  reclaimOne(input: ReclaimOneInput): Promise<JobReclaimServiceResult>;
   withFencedPublish(
     identity: JobLeaseIdentity,
     publish: (context: FencedPublishContext) => Promise<void>,
@@ -136,6 +156,17 @@ class FencedPublishRollback extends Error {
   constructor(readonly result: FencedPublishResult) {
     super('Job transaction must roll back');
     this.name = 'FencedPublishRollback';
+  }
+}
+
+/**
+ * Thrown when the reclaim cancellation CAS loses after a funding incident was
+ * recorded, so the incident never commits without cancellation evidence.
+ */
+class ReclaimRollback extends Error {
+  constructor() {
+    super('Job transaction must roll back');
+    this.name = 'ReclaimRollback';
   }
 }
 
@@ -382,47 +413,77 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
     },
 
     finish(input) {
-      return unitOfWork.execute(async (ports) => {
+      return unitOfWork.execute<JobFinishResult>(async (ports) => {
         if (ports.creditReservation === undefined) {
           return ports.job.transitionRunningToTerminal(input);
         }
         const project = await ports.project.lockForUpdate(input.projectId);
         if (project === null) return { kind: 'lost_ownership' as const };
-        const terminal = await ports.job.transitionRunningToTerminal(input);
+
+        // Funding-binding preflight under lock: a known nonlegacy unbounded job
+        // must never fake success; commit failed instead.
+        const locked = await ports.job.lockForUpdate({
+          projectId: input.projectId,
+          jobId: input.jobId,
+        });
+        const unboundedSuccess =
+          locked !== null &&
+          locked.reservationId === null &&
+          input.status === 'succeeded' &&
+          resolveFundingModel(locked.kind) !== 'pre_d4_legacy';
+
+        const terminal = await ports.job.transitionRunningToTerminal(
+          unboundedSuccess ? { ...input, status: 'failed' } : input,
+        );
         if (terminal.kind !== 'terminalized') return terminal;
-        await reconcileTerminalReservation(ports, {
+
+        const reconciled = await reconcileTerminalReservation(ports, {
           ownerUserId: project.ownerUserId,
           job: terminal.job,
-          terminalReason: input.status === 'cancelled' ? 'cancelled' : 'released',
+          terminalReason:
+            (unboundedSuccess ? 'failed' : input.status) === 'cancelled' ? 'cancelled' : 'released',
         });
+        if (reconciled.kind === 'funding_model_violation') {
+          return { ...reconciled, job: terminal.job };
+        }
         return terminal;
       });
     },
 
-    reclaimOne(input) {
-      return unitOfWork.execute(async (ports) => {
-        if (
-          ports.creditReservation === undefined ||
-          ports.job.lockNextExpiredForReclaim === undefined ||
-          ports.job.applyLockedExpiredReclaim === undefined
-        ) {
-          return ports.job.reclaimNextExpired(input);
-        }
-        const candidate = await ports.job.lockNextExpiredForReclaim(input);
-        if (candidate.kind === 'none') return candidate;
-        if (candidate.outcome === 'cancel') {
-          await reconcileTerminalReservation(ports, {
-            ownerUserId: candidate.ownerUserId,
-            job: candidate.job,
-            terminalReason: 'cancelled',
+    async reclaimOne(input) {
+      try {
+        return await unitOfWork.execute<JobReclaimServiceResult>(async (ports) => {
+          if (
+            ports.creditReservation === undefined ||
+            ports.job.lockNextExpiredForReclaim === undefined ||
+            ports.job.applyLockedExpiredReclaim === undefined
+          ) {
+            return ports.job.reclaimNextExpired(input);
+          }
+          const candidate = await ports.job.lockNextExpiredForReclaim(input);
+          if (candidate.kind === 'none') return candidate;
+          let violation: MissingReservationViolation | undefined;
+          if (candidate.outcome === 'cancel') {
+            const reconciled = await reconcileTerminalReservation(ports, {
+              ownerUserId: candidate.ownerUserId,
+              job: candidate.job,
+              terminalReason: 'cancelled',
+            });
+            if (reconciled.kind === 'funding_model_violation') violation = reconciled;
+          }
+          const applied = await ports.job.applyLockedExpiredReclaim({
+            projectId: candidate.job.projectId,
+            jobId: candidate.job.id,
+            outcome: candidate.outcome,
           });
-        }
-        return ports.job.applyLockedExpiredReclaim({
-          projectId: candidate.job.projectId,
-          jobId: candidate.job.id,
-          outcome: candidate.outcome,
+          if (applied.kind === 'none') throw new ReclaimRollback();
+          if (violation) return { ...violation, job: applied.job };
+          return applied;
         });
-      });
+      } catch (error) {
+        if (error instanceof ReclaimRollback) return { kind: 'none' as const };
+        throw error;
+      }
     },
 
     async withFencedPublish(identity, publish, options) {
@@ -435,6 +496,27 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
 
           const lock = await ports.job.lockForFencedPublish(identity);
           if (lock.kind === 'lost') return { kind: 'lost' };
+
+          // Funding-binding preflight: a known nonlegacy unbounded job can never
+          // publish successfully. Record the durable incident, transition the
+          // running job to failed, and skip callback, classifier, sentinel,
+          // allocation, ledger, and reservation reconciliation entirely.
+          if (
+            lock.job.reservationId === null &&
+            resolveFundingModel(lock.job.kind) !== 'pre_d4_legacy'
+          ) {
+            const recorded = await recordMissingJobReservationIncident(ports, lock.job);
+            if (recorded.kind === 'funding_model_violation') {
+              const terminal = await ports.job.transitionRunningToTerminal({
+                ...identity,
+                status: 'failed',
+              });
+              if (terminal.kind !== 'terminalized') {
+                throw new FencedPublishRollback(terminal);
+              }
+              return { ...recorded, job: terminal.job };
+            }
+          }
 
           const context: FencedPublishContext = {
             appendSentinel: async (input) => {

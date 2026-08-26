@@ -73,6 +73,9 @@ export type {
   ReservationReconciliationIncidentInput,
   ReservationReconciliationIncidentReason,
   ReservationReconciliationIncidentResult,
+  MissingJobReservationFundingModel,
+  MissingJobReservationIncidentInput,
+  MissingJobReservationIncidentResult,
   OutboxPort,
   SnapshotAppendInput,
   SnapshotPort,
@@ -175,7 +178,10 @@ export {
   type ReservationReconciliationConflictReason,
 } from './credits/reservation-reconciliation-error.js';
 export {
+  recordMissingJobReservationIncident,
   reconcileTerminalReservation,
+  type MissingReservationViolation,
+  type RecordMissingJobReservationOutcome,
   type ReservationReconciliationResult,
   type ReservationSettlementEvidence,
 } from './credits/reservation-reconciliation-service.js';
@@ -194,6 +200,8 @@ export {
   type FencedPublishContext,
   type FencedPublishOptions,
   type FencedPublishResult,
+  type JobFinishResult,
+  type JobReclaimServiceResult,
   type JobService,
 } from './jobs/job-service.js';
 

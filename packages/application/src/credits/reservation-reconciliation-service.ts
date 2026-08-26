@@ -1,8 +1,17 @@
 import { resolveFundingModel } from './action-funding-policy.js';
+import type {
+  MissingReservationViolation,
+  RecordMissingJobReservationOutcome,
+} from './missing-reservation-violation.js';
 import { ReservationReconciliationConflict } from './reservation-reconciliation-error.js';
 import { computeReservationTargets } from './reservation-target.js';
 import type { TxPorts } from '../ports/unit-of-work.js';
 import type { GenerationJobRecord } from '../ports/types.js';
+
+export type {
+  MissingReservationViolation,
+  RecordMissingJobReservationOutcome,
+} from './missing-reservation-violation.js';
 
 export type ReservationReconciliationResult =
   | {
@@ -10,11 +19,46 @@ export type ReservationReconciliationResult =
       readonly status: 'closing' | 'settled' | 'released' | 'cancelled' | 'expired';
     }
   | { readonly kind: 'not_bound' }
-  | { readonly kind: 'not_terminal' };
+  | { readonly kind: 'not_terminal' }
+  | MissingReservationViolation;
 
 export interface ReservationSettlementEvidence {
   readonly allocationId: string;
   readonly userSettlementMicroIdr: bigint;
+}
+
+/**
+ * Terminal funding-binding check for a job with `reservationId === null`.
+ * pre_d4_legacy jobs are exempt (exact baseline `not_bound` behavior, no
+ * incident). user_paid/system_funded jobs record one durable typed incident per
+ * corrupt job and return a funding violation. Makes zero ledger, allocation,
+ * or reservation calls.
+ */
+export async function recordMissingJobReservationIncident(
+  ports: TxPorts,
+  job: GenerationJobRecord,
+): Promise<RecordMissingJobReservationOutcome> {
+  const fundingModel = resolveFundingModel(job.kind);
+  if (fundingModel === 'pre_d4_legacy') return { kind: 'not_bound' };
+  const appendIncident = ports.outbox.appendMissingJobReservationIncident;
+  if (appendIncident === undefined) {
+    throw new Error('job missing-reservation incident capability unavailable');
+  }
+  const dedupeKey = `incident:job-missing-reservation:${job.id}` as const;
+  const incident = await appendIncident({
+    id: dedupeKey,
+    projectId: job.projectId,
+    jobId: job.id,
+    jobKind: job.kind,
+    fundingModel,
+    dedupeKey,
+  });
+  return {
+    kind: 'funding_model_violation',
+    reason: 'missing_reservation',
+    fundingModel,
+    incident: incident.kind,
+  };
 }
 
 export async function reconcileTerminalReservation(
@@ -34,8 +78,7 @@ export async function reconcileTerminalReservation(
 
   const fundingModel = resolveFundingModel(job.kind);
   if (job.reservationId === null) {
-    if (fundingModel === 'pre_d4_legacy') return { kind: 'not_bound' };
-    throw new Error('funding_model_violation: terminal job has no reservation');
+    return recordMissingJobReservationIncident(ports, job);
   }
 
   const reservation = await ports.creditReservation.lockBound({

@@ -73,9 +73,9 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
           supportsLateReconciliation &&
           (result.kind === 'finalized' || result.kind === 'replayed')
         ) {
-          await unitOfWork.execute(async (ports) => {
+          const fundingViolation = await unitOfWork.execute(async (ports) => {
             const project = await ports.project.lockForUpdate(input.projectId);
-            if (project === null) return;
+            if (project === null) return undefined;
             const job = await ports.job.lockForReconciliation({
               projectId: input.projectId,
               jobId: input.jobId,
@@ -84,14 +84,18 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
               job === null ||
               !['succeeded', 'failed', 'dead', 'cancelled'].includes(job.status)
             ) {
-              return;
+              return undefined;
             }
-            await reconcileTerminalReservation(ports, {
+            const reconciled = await reconcileTerminalReservation(ports, {
               ownerUserId: project.ownerUserId,
               job,
               terminalReason: job.status === 'cancelled' ? 'cancelled' : 'released',
             });
+            return reconciled.kind === 'funding_model_violation'
+              ? { ...reconciled, job }
+              : undefined;
           });
+          if (fundingViolation) return fundingViolation;
         }
         return result;
       } catch (error) {

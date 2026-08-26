@@ -1,6 +1,8 @@
+import type { MissingReservationViolation } from '../credits/missing-reservation-violation.js';
 import type { UsageMetrics } from './ai-usage-port.js';
 import type {
   GenerationAttemptRecord,
+  GenerationJobRecord,
   JobLeaseIdentity,
   JsonObject,
   WorkflowInvocationRecord,
@@ -73,6 +75,8 @@ export type FinalizeAttemptResult =
       readonly reason:
         'allocation_conflict' | 'settlement_conflict' | 'release_conflict' | 'reservation_conflict';
     }
+  /** Late reconciliation hit a terminal job with no reservation binding; incident committed, usage preserved. */
+  | (MissingReservationViolation & { readonly job: GenerationJobRecord })
   | { readonly kind: 'not_authorized' };
 
 export type BeginAttemptPortResult = Exclude<

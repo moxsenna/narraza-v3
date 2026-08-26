@@ -70,6 +70,9 @@ export type {
   ReservationReconciliationIncidentInput,
   ReservationReconciliationIncidentReason,
   ReservationReconciliationIncidentResult,
+  MissingJobReservationFundingModel,
+  MissingJobReservationIncidentInput,
+  MissingJobReservationIncidentResult,
   OutboxPort,
 } from './outbox-port.js';
 export type { SnapshotAppendInput, SnapshotPort } from './snapshot-port.js';

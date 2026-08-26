@@ -189,6 +189,16 @@ export function createJobLoop(deps: JobLoopDependencies) {
             stage.phase = 'publishing';
             const published = await deps.service.withFencedPublish(stage.identity, async () => {});
             stage.phase = 'finalizing';
+            if (published.kind === 'funding_model_violation') {
+              deps.logger.info({
+                event: 'job_funding_violation',
+                phase: 'publish',
+                reason: published.reason,
+                fundingModel: published.fundingModel,
+                incident: published.incident,
+                jobId: stage.identity.jobId,
+              });
+            }
             if (published.kind !== 'published') stage.stale = true;
           }
         })();
@@ -216,6 +226,16 @@ export function createJobLoop(deps: JobLoopDependencies) {
       if (stopping) return;
       try {
         const result = await deps.service.reclaimOne({});
+        if (result.kind === 'funding_model_violation') {
+          deps.logger.info({
+            event: 'job_funding_violation',
+            phase: 'reclaim',
+            reason: result.reason,
+            fundingModel: result.fundingModel,
+            incident: result.incident,
+            jobId: result.job.id,
+          });
+        }
         deps.logger.info({ event: 'job_reclaim', result: result.kind });
       } catch (error) {
         deps.logger.error({ event: 'job_reclaim_error', error });

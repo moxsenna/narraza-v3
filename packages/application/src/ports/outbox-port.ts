@@ -39,6 +39,27 @@ export interface ReservationReconciliationIncidentInput {
 export type ReservationReconciliationIncidentResult =
   { readonly kind: 'appended' } | { readonly kind: 'replayed' } | { readonly kind: 'conflict' };
 
+/** Funding models that require a reservation binding; a terminal job without one is a corrupt state. */
+export type MissingJobReservationFundingModel = 'user_paid' | 'system_funded';
+
+/**
+ * Durable incident for a terminal job whose funding model requires a reservation
+ * but whose `reservationId` is null. Stable identity: one incident per corrupt
+ * job (`incident:job-missing-reservation:{jobId}`); lease tokens, fence versions,
+ * paths, and timestamps are excluded from semantic identity.
+ */
+export interface MissingJobReservationIncidentInput {
+  readonly id: string;
+  readonly projectId: string;
+  readonly jobId: string;
+  readonly jobKind: string;
+  readonly fundingModel: MissingJobReservationFundingModel;
+  readonly dedupeKey: `incident:job-missing-reservation:${string}`;
+}
+
+export type MissingJobReservationIncidentResult =
+  { readonly kind: 'appended' } | { readonly kind: 'replayed' } | { readonly kind: 'conflict' };
+
 export interface OutboxPort {
   append(input: OutboxAppendInput): Promise<void>;
   /** Optional only for backward-compatible legacy UnitOfWork test doubles. */
@@ -49,4 +70,8 @@ export interface OutboxPort {
   appendReservationReconciliationIncident?(
     input: ReservationReconciliationIncidentInput,
   ): Promise<ReservationReconciliationIncidentResult>;
+  /** Optional only for backward-compatible legacy UnitOfWork test doubles. */
+  appendMissingJobReservationIncident?(
+    input: MissingJobReservationIncidentInput,
+  ): Promise<MissingJobReservationIncidentResult>;
 }

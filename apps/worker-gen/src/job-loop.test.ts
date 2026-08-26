@@ -251,6 +251,59 @@ describe('job loop', () => {
     expect(deps.disconnect).toHaveBeenCalledOnce();
   });
 
+  it('logs controlled funding violations from reclaim without raising a reclaim error', async () => {
+    const { service, deps, loop } = harness();
+    service.reclaimOne.mockResolvedValue({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      job: { id: 'j' },
+    });
+
+    await loop.reclaimOnce();
+
+    expect(deps.logger.info).toHaveBeenCalledWith({
+      event: 'job_funding_violation',
+      phase: 'reclaim',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      jobId: 'j',
+    });
+    expect(deps.logger.error).not.toHaveBeenCalled();
+    expect(deps.schedule).toHaveBeenCalledWith(expect.any(Function), 30_000);
+  });
+
+  it('logs controlled funding violations from publish and never raises a poll error', async () => {
+    const processor = vi.fn().mockResolvedValue(undefined);
+    const { service, deps, loop } = harness({ processor });
+    service.claim.mockResolvedValue(claimed);
+    service.withFencedPublish.mockResolvedValue({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'system_funded',
+      incident: 'replayed',
+      job: { id: 'j' },
+    });
+
+    const run = loop.pollOnce();
+    await vi.waitFor(() => expect(service.withFencedPublish).toHaveBeenCalledOnce());
+    await run;
+
+    expect(deps.logger.info).toHaveBeenCalledWith({
+      event: 'job_funding_violation',
+      phase: 'publish',
+      reason: 'missing_reservation',
+      fundingModel: 'system_funded',
+      incident: 'replayed',
+      jobId: identity.jobId,
+    });
+    expect(deps.logger.error).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'job_poll_error' }),
+    );
+  });
+
   it('waits for a deferred claim, then requeues its exact identity without starting processor', async () => {
     let resolveClaim!: (value: typeof claimed) => void;
     const claim = new Promise<typeof claimed>((resolve) => (resolveClaim = resolve));

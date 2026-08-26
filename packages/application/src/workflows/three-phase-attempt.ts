@@ -51,7 +51,8 @@ export type ThreePhaseAttemptResult =
         | 'conflict'
         | 'not_authorized'
         | 'reconciliation_conflict'
-        | 'reconciliation_incident_conflict';
+        | 'reconciliation_incident_conflict'
+        | 'funding_model_violation';
     }
   | {
       readonly kind: 'finalized_without_publish';
@@ -132,7 +133,8 @@ export function createThreePhaseAttemptHarness(
         finalized.kind === 'conflict' ||
         finalized.kind === 'not_authorized' ||
         finalized.kind === 'reconciliation_conflict' ||
-        finalized.kind === 'reconciliation_incident_conflict'
+        finalized.kind === 'reconciliation_incident_conflict' ||
+        finalized.kind === 'funding_model_violation'
       )
         return { kind: 'finalize_denied', outcome: finalized.kind };
       if (finalized.kind !== 'finalized' || finalized.winner !== 'selected')
