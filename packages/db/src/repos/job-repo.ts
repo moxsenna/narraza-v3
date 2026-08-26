@@ -117,15 +117,34 @@ export function createJobRepo(tx: TxClient): JobPort {
   return {
     async insert(input: JobInsertInput): Promise<JobInsertResult> {
       if (input.reservationId !== null) {
+        // Funding binding integrity (PM Amendment #16): the reservation's
+        // persisted funding_model must match the job's funding classification.
+        // 'pre_d4_legacy' binds only NULL (legacy) reservations; new D4 paths
+        // never create NULL rows. Mismatches fail closed before any write.
+        const expectedFundingModel =
+          input.fundingModel === 'pre_d4_legacy' ? null : input.fundingModel;
         const eligible = (await tx.$queryRawUnsafe(
-          `SELECT id FROM credit_reservations
+          `SELECT id, funding_model FROM credit_reservations
             WHERE id = $1 AND project_id = $2 AND status = 'open'
               AND job_id IS NULL AND job_project_id IS NULL
+              AND funding_model IS NOT DISTINCT FROM $3::text
             FOR UPDATE`,
           input.reservationId,
           input.projectId,
-        )) as Array<{ id: string }>;
-        if (!eligible[0]) return { kind: 'binding_invalid' };
+          expectedFundingModel,
+        )) as Array<{ id: string; funding_model: string | null }>;
+        if (!eligible[0]) {
+          // Distinguish a funding mismatch from other binding failures so the
+          // typed surface stays observable; both write nothing.
+          const anyOpen = (await tx.$queryRawUnsafe(
+            `SELECT funding_model FROM credit_reservations
+              WHERE id = $1 AND project_id = $2 AND status = 'open'
+                AND job_id IS NULL AND job_project_id IS NULL`,
+            input.reservationId,
+            input.projectId,
+          )) as Array<{ funding_model: string | null }>;
+          return anyOpen[0] ? { kind: 'funding_model_mismatch' } : { kind: 'binding_invalid' };
+        }
       }
 
       const rows = (await tx.$queryRawUnsafe(
@@ -200,6 +219,19 @@ export function createJobRepo(tx: TxClient): JobPort {
     },
 
     async lockForUpdate(input: JobLookupInput): Promise<GenerationJobRecord | null> {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST}
+           FROM generation_jobs
+          WHERE project_id = $1 AND id = $2
+          FOR UPDATE`,
+        input.projectId,
+        input.jobId,
+      )) as RawRow[];
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
+    async lockForReconciliation(input: JobLookupInput): Promise<GenerationJobRecord | null> {
       const rows = (await tx.$queryRawUnsafe(
         `SELECT ${COLUMN_LIST}
            FROM generation_jobs
@@ -515,6 +547,53 @@ export function createJobRepo(tx: TxClient): JobPort {
       return job.status === 'cancelled' ? { kind: 'cancelled', job } : { kind: 'requeued', job };
     },
 
+    async lockNextExpiredForReclaim(_input: JobReclaimInput) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST},
+                (SELECT owner_user_id FROM projects WHERE id=generation_jobs.project_id) AS owner_user_id
+           FROM generation_jobs
+          WHERE status='running' AND lease_expires_at <= clock_timestamp()
+          ORDER BY lease_expires_at ASC,id ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1`,
+      )) as Array<RawRow & { owner_user_id: string }>;
+      const row = rows[0];
+      return row
+        ? {
+            kind: 'locked' as const,
+            job: toRecord(row),
+            ownerUserId: row.owner_user_id,
+            outcome: row.cancel_requested_at === null ? ('requeue' as const) : ('cancel' as const),
+          }
+        : { kind: 'none' as const };
+    },
+
+    async applyLockedExpiredReclaim(input) {
+      const status = input.outcome === 'cancel' ? 'cancelled' : 'queued';
+      const rows = (await tx.$queryRawUnsafe(
+        `UPDATE generation_jobs
+            SET status=$3,
+                available_at=CASE WHEN $3='queued' THEN now() ELSE available_at END,
+                lease_token=NULL,lease_expires_at=NULL,
+                cancel_requested_at=CASE WHEN $3='cancelled' THEN NULL ELSE cancel_requested_at END,
+                fence_version=fence_version+1,updated_at=now()
+          WHERE project_id=$1 AND id=$2 AND status='running'
+            AND lease_expires_at <= clock_timestamp()
+            AND (($3='cancelled' AND cancel_requested_at IS NOT NULL)
+              OR ($3='queued' AND cancel_requested_at IS NULL))
+        RETURNING ${COLUMN_LIST}`,
+        input.projectId,
+        input.jobId,
+        status,
+      )) as RawRow[];
+      const row = rows[0];
+      if (!row) return { kind: 'none' };
+      const job = toRecord(row);
+      return input.outcome === 'cancel'
+        ? { kind: 'cancelled' as const, job }
+        : { kind: 'requeued' as const, job };
+    },
+
     async lockForFencedPublish(identity: JobLeaseIdentity): Promise<JobFencedLockResult> {
       const rows = (await tx.$queryRawUnsafe(
         `SELECT ${COLUMN_LIST}
@@ -551,6 +630,33 @@ export function createJobRepo(tx: TxClient): JobPort {
       )) as RawRow[];
       const row = rows[0];
       return row ? { kind: 'locked', job: toRecord(row) } : { kind: 'not_authorized' };
+    },
+
+    async lockForFinalization(identity: JobLeaseIdentity) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT cancel_requested_at,
+                lease_token = $3
+                AND fence_version = $4
+                AND status = 'running'
+                AND lease_expires_at > clock_timestamp() AS eligible
+           FROM generation_jobs
+          WHERE project_id = $1 AND id = $2
+          FOR UPDATE`,
+        identity.projectId,
+        identity.jobId,
+        identity.leaseToken,
+        identity.fenceVersion,
+      )) as Array<{ cancel_requested_at: Date | null; eligible: boolean }>;
+      const row = rows[0];
+      if (!row) return { kind: 'not_authorized' as const };
+      return {
+        kind: 'locked' as const,
+        eligibility: row.cancel_requested_at
+          ? ('cancelled' as const)
+          : row.eligible
+            ? ('eligible' as const)
+            : ('ineligible_owner' as const),
+      };
     },
   };
 }

@@ -20,3 +20,15 @@ export async function dbNow(client: DbClient): Promise<Date> {
   }
   return value;
 }
+
+export async function dbOperationalNow(client: DbClient): Promise<Date> {
+  const rows = (await client.$queryRaw`SELECT clock_timestamp() AS now`) as Array<{
+    now: Date | string;
+  }>;
+  const raw = rows[0]?.now;
+  const value = raw instanceof Date ? raw : raw === undefined ? undefined : new Date(raw);
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    throw new Error('dbOperationalNow: postgres clock_timestamp() did not return a Date');
+  }
+  return value;
+}

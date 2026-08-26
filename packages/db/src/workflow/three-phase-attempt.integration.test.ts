@@ -15,6 +15,7 @@ import {
   createPrismaForUrl,
   fetchJobRow,
   insertQueuedJobRow,
+  insertReservationBinding,
   leaseTokens,
   setRunning,
 } from '../job/job-test-fixtures.js';
@@ -25,6 +26,7 @@ const suite = createSchemaTestSuite();
 const jobId = '75000000-0000-4000-8000-000000000001';
 const invocationId = '76000000-0000-4000-8000-000000000001';
 const attemptId = '77000000-0000-4000-8000-000000000001';
+const reservationId = '79000000-0000-4000-8000-000000000001';
 const resultHash = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const sentinelKey = `workflow-attempt-validated:${invocationId}:${attemptId}`;
 const wait = () => {
@@ -205,6 +207,87 @@ suite.test(
             stageKey: 'writer',
             resultHash,
           },
+        },
+      ]);
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
+);
+
+suite.test(
+  'paid zero-output three-phase publish succeeds and atomically releases full reservation',
+  async ({ client, databaseUrl }) => {
+    await seedUsersAndProjects(client);
+    await client.query(
+      `INSERT INTO model_price_snapshots (id,provider_id,requested_model_id,resolved_model_id,input_rate_micro_idr,output_rate_micro_idr,currency,effective_at,schema_version,payload,created_at) VALUES ('phase-price','provider','model','model',1,1,'IDR',now(),1,'{}',now())`,
+    );
+    await insertQueuedJobRow(client, {
+      id: jobId,
+      projectId: ids.projectA,
+      kind: 'scene_generation',
+    });
+    await insertReservationBinding(client, {
+      reservationId,
+      jobId,
+      projectId: ids.projectA,
+      userId: ids.userA,
+      reservedMicroIdr: 1_000n,
+    });
+    await client.query(
+      `UPDATE credit_reservations
+          SET job_project_id=$1,funding_model='user_paid'
+        WHERE id=$2`,
+      [ids.projectA, reservationId],
+    );
+    await setRunning(client, jobId, leaseTokens.alice, 60_000);
+    const prisma = createPrismaForUrl(databaseUrl);
+    try {
+      const unitOfWork = createUnitOfWork(prisma);
+      const harness = createThreePhaseAttemptHarness({
+        workflow: createWorkflowInvocationService(unitOfWork),
+        jobs: createJobService(unitOfWork),
+        executor: async () => billableOutcome,
+        validator: async () => ({ kind: 'valid' }),
+      });
+
+      await expect(harness.run(harnessInput)).resolves.toMatchObject({
+        kind: 'published',
+        job: { status: 'succeeded' },
+      });
+
+      const durable = await client.query(
+        `SELECT j.status AS job_status,
+                r.status AS reservation_status,
+                r.settled_micro_idr::text,
+                r.released_micro_idr::text,
+                r.exposure_micro_idr::text,
+                (SELECT count(*)::int FROM outbox_events WHERE dedupe_key=$1) AS sentinels,
+                (SELECT count(*)::int FROM credit_ledger
+                  WHERE reservation_id=$2 AND entry_type='reservation_settlement') AS settlements,
+                (SELECT count(*)::int FROM credit_billing_allocations
+                  WHERE reservation_id=$2) AS allocations,
+                (SELECT count(*)::int FROM credit_ledger
+                  WHERE reservation_id=$2 AND entry_type='release') AS releases,
+                (SELECT amount_micro_idr::text FROM credit_ledger
+                  WHERE reservation_id=$2 AND entry_type='release') AS release_amount
+           FROM generation_jobs j
+           JOIN credit_reservations r ON r.id=j.reservation_id
+          WHERE j.id=$3`,
+        [sentinelKey, reservationId, jobId],
+      );
+      expect(durable.rows).toEqual([
+        {
+          job_status: 'succeeded',
+          reservation_status: 'released',
+          settled_micro_idr: '0',
+          released_micro_idr: '1000',
+          exposure_micro_idr: '0',
+          sentinels: 1,
+          settlements: 0,
+          allocations: 0,
+          releases: 1,
+          release_amount: '1000',
         },
       ]);
     } finally {

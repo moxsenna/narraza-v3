@@ -10,6 +10,8 @@ type LifecycleEnv = Pick<
   | 'JOB_POLL_MS'
   | 'JOB_ERROR_BACKOFF_MS'
   | 'JOB_SHUTDOWN_DRAIN_MS'
+  | 'RETENTION_SWEEP_MINUTES'
+  | 'RETENTION_MAX_AGE_HOURS'
 >;
 
 export function workerSettingsFromEnv(env: LifecycleEnv): JobLoopSettings {
@@ -20,6 +22,8 @@ export function workerSettingsFromEnv(env: LifecycleEnv): JobLoopSettings {
     pollMs: env.JOB_POLL_MS,
     errorBackoffMs: env.JOB_ERROR_BACKOFF_MS,
     shutdownDrainMs: env.JOB_SHUTDOWN_DRAIN_MS,
+    retentionSweepMs: env.RETENTION_SWEEP_MINUTES * 60_000,
+    retentionMaxAgeHours: env.RETENTION_MAX_AGE_HOURS,
   };
 }
 

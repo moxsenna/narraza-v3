@@ -1,10 +1,14 @@
 import type { TxPorts } from '@narraza/application';
-import { dbNow } from '../db-now.js';
+import { dbNow, dbOperationalNow } from '../db-now.js';
 import { createAiUsagePort } from './ai-usage-port.js';
 import { createAuditPort } from './audit-port.js';
 import { createChangeSetRepo } from './change-set-repo.js';
 import { createCharacterRepo } from './character-repo.js';
 import { createConceptRepo } from './concept-repo.js';
+import { createCreditBalanceRepo } from './credit-balance-repo.js';
+import { createCreditBillingAllocationPort } from './credit-billing-allocation-port.js';
+import { createCreditReservationRepo } from './credit-reservation-repo.js';
+import { createCreditRetentionPort } from './credit-retention-port.js';
 import { createFactRepo } from './fact-repo.js';
 import { createFoundationRepo } from './foundation-repo.js';
 import { createIntakeRepo } from './intake-repo.js';
@@ -14,9 +18,11 @@ import { createOutlineRepo } from './outline-repo.js';
 import { createOutboxPort } from './outbox-port.js';
 import { createProjectRepo } from './project-repo.js';
 import { createProposalRepo } from './proposal-repo.js';
+import { createQuoteRepo } from './quote-repo.js';
 import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
 import type { TxClient } from './tx-client.js';
+import { createUsableOutputClassifier } from './usable-output-classifier.js';
 import { createWorkflowInvocationRepo } from './workflow-invocation-repo.js';
 
 export function createTxPorts(tx: TxClient): TxPorts {
@@ -37,11 +43,18 @@ export function createTxPorts(tx: TxClient): TxPorts {
     outbox: createOutboxPort(tx),
     snapshot: createSnapshotPort(tx),
     ledger: createLedgerPort(tx),
+    creditBalance: createCreditBalanceRepo(tx),
+    creditBillingAllocation: createCreditBillingAllocationPort(tx),
+    creditReservation: createCreditReservationRepo(tx),
+    creditRetention: createCreditRetentionPort(tx),
+    usableOutputClassifier: createUsableOutputClassifier(tx),
     job: createJobRepo(tx),
     workflowInvocation,
     generationAttempt: workflowInvocation,
     aiUsage: createAiUsagePort(tx, allocateId),
+    quote: createQuoteRepo(tx),
     dbNow: () => dbNow(tx),
+    dbOperationalNow: () => dbOperationalNow(tx),
     allocateId,
   };
 }

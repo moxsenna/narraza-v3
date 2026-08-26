@@ -1,6 +1,7 @@
 import type {
   BeginAttemptInput,
   BeginAttemptPortResult,
+  FinalizationEligibility,
   FinalizeAttemptInput,
   GenerationAttemptPort,
   GenerationAttemptRecord,
@@ -75,6 +76,17 @@ export function createWorkflowInvocationRepo(
   tx: TxClient,
 ): WorkflowInvocationPort & GenerationAttemptPort {
   return {
+    async countUnresolvedAttempts(input) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT count(*)::int AS count
+           FROM generation_attempts
+          WHERE project_id=$1 AND job_id=$2 AND status='started'`,
+        input.projectId,
+        input.jobId,
+      )) as Array<{ count: number }>;
+      return rows[0]?.count ?? 0;
+    },
+
     async beginAttempt(input: BeginAttemptInput): Promise<BeginAttemptPortResult> {
       await tx.$queryRawUnsafe(
         `INSERT INTO workflow_invocations (id,project_id,job_id,stage_key,status,winner_attempt_id,fence_version,created_at,updated_at) VALUES ($1,$2,$3,$4,'running',NULL,0,now(),now()) ON CONFLICT DO NOTHING`,
@@ -130,6 +142,22 @@ export function createWorkflowInvocationRepo(
       };
     },
 
+    async lockForFinalization(input: FinalizeAttemptInput) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${invocationColumns}
+           FROM workflow_invocations
+          WHERE project_id=$1 AND job_id=$2 AND id=$3
+          FOR UPDATE`,
+        input.projectId,
+        input.jobId,
+        input.invocationId,
+      )) as InvocationRow[];
+      const row = rows[0];
+      return row
+        ? { kind: 'locked' as const, invocation: invocationRecord(row) }
+        : { kind: 'not_authorized' as const };
+    },
+
     async finalizeAttempt(input: FinalizeAttemptInput) {
       const rows = (await tx.$queryRawUnsafe(
         `UPDATE generation_attempts SET status=$5,provider_request_id=$6,result_hash=$7,finished_at=now(),schema_version=$8,payload=$9::jsonb,updated_at=now() WHERE project_id=$1 AND job_id=$2 AND invocation_id=$3 AND id=$4 AND status='started' RETURNING ${attemptColumns}`,
@@ -175,34 +203,9 @@ export function createWorkflowInvocationRepo(
       input: FinalizeAttemptInput,
       attempt: GenerationAttemptRecord,
       allowSelection: boolean,
+      eligibility: FinalizationEligibility,
     ): Promise<WinnerClassificationResult> {
-      const projects = (await tx.$queryRawUnsafe(
-        `SELECT deleted_at FROM projects WHERE id=$1 FOR UPDATE`,
-        input.projectId,
-      )) as Array<{ deleted_at: Date | null }>;
-      if (!projects[0]) return { kind: 'not_authorized' };
-      if (projects[0].deleted_at) return { kind: 'classified', winner: 'project_tombstoned' };
-      const jobs = (await tx.$queryRawUnsafe(
-        `SELECT lease_token,fence_version,status,cancel_requested_at,lease_expires_at > clock_timestamp() AS live FROM generation_jobs WHERE project_id=$1 AND id=$2 FOR UPDATE`,
-        input.projectId,
-        input.jobId,
-      )) as Array<{
-        lease_token: string | null;
-        fence_version: number;
-        status: string;
-        cancel_requested_at: Date | null;
-        live: boolean;
-      }>;
-      const job = jobs[0];
-      if (!job) return { kind: 'not_authorized' };
-      if (job.cancel_requested_at) return { kind: 'classified', winner: 'cancelled' };
-      if (
-        job.lease_token !== input.leaseToken ||
-        job.fence_version !== input.fenceVersion ||
-        job.status !== 'running' ||
-        !job.live
-      )
-        return { kind: 'classified', winner: 'ineligible_owner' };
+      if (eligibility !== 'eligible') return { kind: 'classified', winner: eligibility };
       if (attempt.status === 'failed') return { kind: 'classified', winner: 'attempt_failed' };
       if (!allowSelection) {
         const replay = (await tx.$queryRawUnsafe(

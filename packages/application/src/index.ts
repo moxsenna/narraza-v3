@@ -33,6 +33,7 @@ export type {
   CanonicalChangeSetRecord,
   CanonicalChangeOperationRecord,
   ProposalRecord,
+  CreditQuoteRecord,
   ProjectInsertInput,
   ProjectRepo,
   FoundationInsertInput,
@@ -67,11 +68,23 @@ export type {
   AuditAppendInput,
   AuditPort,
   OutboxAppendInput,
+  CreditOverageIncidentInput,
+  CreditOverageIncidentResult,
+  ReservationReconciliationIncidentInput,
+  ReservationReconciliationIncidentReason,
+  ReservationReconciliationIncidentResult,
+  MissingJobReservationFundingModel,
+  MissingJobReservationIncidentInput,
+  MissingJobReservationIncidentResult,
   OutboxPort,
   SnapshotAppendInput,
   SnapshotPort,
   ReleaseQueuedCancellationInput,
   ReleaseQueuedCancellationResult,
+  AppendReservationSettlementInput,
+  ReservationSettlementAppendResult,
+  AppendReservationReleaseInput,
+  ReservationReleaseAppendResult,
   LedgerPort,
   JobInsertInput,
   JobInsertResult,
@@ -91,8 +104,10 @@ export type {
   JobRunningCancellationResult,
   JobReclaimInput,
   JobReclaimResult,
+  JobExpiredReclaimLockResult,
   JobFencedLockResult,
   JobLiveOwnerLockResult,
+  JobFinalizationLockResult,
   JobPort,
   UsageMetrics,
   AppendUsageResult,
@@ -106,14 +121,70 @@ export type {
   BeginAttemptPortResult,
   FinalizeAttemptPortResult,
   WinnerClassificationResult,
+  FinalizationEligibility,
+  InvocationFinalizationLockResult,
   WorkflowInvocationPort,
   GenerationAttemptPort,
+  QuoteInsertInput,
+  QuoteInsertResult,
+  QuotePort,
+  CreditBalanceSnapshot,
+  CreditSummaryView,
+  CreditBalancePort,
+  CreditReservationRecord,
+  AppendCreditBillingAllocationInput,
+  AppendCreditBillingAllocationResult,
+  CreditBillingAllocationPort,
+  UsableOutputClassification,
+  ClassifyPublishedOutputInput,
+  UsableOutputClassifier,
+  CreditReservationPort,
+  CreateReservationInput,
+  CreateReservationResult,
+  ApplyReconciliationTargetInput,
+  ReconciliationApplyResult,
+  DeleteEligibleCreditRetentionInput,
+  CreditRetentionSweepResult,
+  CreditRetentionPort,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
   UnitOfWork,
 } from './ports/index.js';
 
+export {
+  createCreditQuoteService,
+  type IssueQuoteInput,
+  type IssueQuoteResult,
+  type CreditQuoteService,
+} from './credits/quote-service.js';
+
+export {
+  createCreditSummaryService,
+  type CreditSummaryInput,
+  type CreditSummaryService,
+} from './credits/credit-summary-service.js';
+
+export { computeCreditSummaryView } from './credits/credit-summary.js';
+export {
+  createCreditRetentionService,
+  DEFAULT_RETENTION_MAX_AGE_HOURS,
+  DEFAULT_RETENTION_BATCH_SIZE,
+  type CreditRetentionSweepInput,
+  type CreditRetentionService,
+} from './credits/credit-retention-service.js';
+export {
+  ReservationReconciliationConflict,
+  type ReservationReconciliationConflictReason,
+} from './credits/reservation-reconciliation-error.js';
+export {
+  recordMissingJobReservationIncident,
+  reconcileTerminalReservation,
+  type MissingReservationViolation,
+  type RecordMissingJobReservationOutcome,
+  type ReservationReconciliationResult,
+  type ReservationSettlementEvidence,
+} from './credits/reservation-reconciliation-service.js';
 export {
   createJobService,
   type CancelInput,
@@ -127,7 +198,10 @@ export {
   type ReclaimOneInput,
   type FencedPublishSentinelInput,
   type FencedPublishContext,
+  type FencedPublishOptions,
   type FencedPublishResult,
+  type JobFinishResult,
+  type JobReclaimServiceResult,
   type JobService,
 } from './jobs/job-service.js';
 
@@ -165,6 +239,18 @@ export type {
 } from './auth/ports.js';
 export { type AuthConfig, type EmailTokenPurpose } from './auth/constants.js';
 export { type AuthError, type AuthErrorCode } from './auth/errors.js';
+
+// Task 6: Credit quote confirmation service
+export { createCreditQuoteConfirmationService } from './credits/credit-quote-confirmation-service.js';
+export type {
+  CreateConfirmationInput,
+  ConfirmQuoteResult,
+} from './credits/confirmation-contract.js';
+// Re-export Task 2 pure functions for integration testing
+export {
+  computeReservationTargets,
+  deriveReservationStatus,
+} from './credits/reservation-target.js';
 export {
   createAuthService,
   type AuthService,

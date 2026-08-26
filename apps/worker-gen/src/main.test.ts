@@ -9,6 +9,8 @@ const env = {
   JOB_POLL_MS: 1000,
   JOB_ERROR_BACKOFF_MS: 5000,
   JOB_SHUTDOWN_DRAIN_MS: 30000,
+  RETENTION_SWEEP_MINUTES: 60,
+  RETENTION_MAX_AGE_HOURS: 24,
 };
 
 function deps(processor?: (...args: unknown[]) => Promise<void>) {
@@ -32,6 +34,8 @@ describe('worker composition', () => {
       pollMs: 1000,
       errorBackoffMs: 5000,
       shutdownDrainMs: 30_000,
+      retentionSweepMs: 3_600_000,
+      retentionMaxAgeHours: 24,
     });
   });
 

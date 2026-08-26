@@ -7,6 +7,8 @@ export interface JobLoopSettings {
   pollMs: number;
   errorBackoffMs: number;
   shutdownDrainMs: number;
+  retentionSweepMs: number;
+  retentionMaxAgeHours: number;
 }
 
 export type JobProcessor = (job: unknown, signal: AbortSignal) => Promise<void>;
@@ -18,6 +20,10 @@ type LoopService = Pick<
 
 export interface JobLoopDependencies {
   service: LoopService;
+  sweepCreditRetention: (input: { maxAgeHours: number }) => Promise<{
+    deletedQuotes: number;
+    deletedBundles: number;
+  }>;
   processor?: JobProcessor;
   settings: JobLoopSettings;
   sleep: (ms: number) => Promise<void>;
@@ -48,6 +54,8 @@ export function createJobLoop(deps: JobLoopDependencies) {
   let claiming: Promise<Awaited<ReturnType<LoopService['claim']>>> | undefined;
   let reclaiming: Promise<void> | undefined;
   let reclaimTimer: Timer | undefined;
+  let retentionSweeping: Promise<void> | undefined;
+  let retentionTimer: Timer | undefined;
   let active: ActiveStage | undefined;
   let shutdownPromise: Promise<void> | undefined;
   let shutdownDeadline: number | undefined;
@@ -181,6 +189,16 @@ export function createJobLoop(deps: JobLoopDependencies) {
             stage.phase = 'publishing';
             const published = await deps.service.withFencedPublish(stage.identity, async () => {});
             stage.phase = 'finalizing';
+            if (published.kind === 'funding_model_violation') {
+              deps.logger.info({
+                event: 'job_funding_violation',
+                phase: 'publish',
+                reason: published.reason,
+                fundingModel: published.fundingModel,
+                incident: published.incident,
+                jobId: stage.identity.jobId,
+              });
+            }
             if (published.kind !== 'published') stage.stale = true;
           }
         })();
@@ -208,6 +226,16 @@ export function createJobLoop(deps: JobLoopDependencies) {
       if (stopping) return;
       try {
         const result = await deps.service.reclaimOne({});
+        if (result.kind === 'funding_model_violation') {
+          deps.logger.info({
+            event: 'job_funding_violation',
+            phase: 'reclaim',
+            reason: result.reason,
+            fundingModel: result.fundingModel,
+            incident: result.incident,
+            jobId: result.job.id,
+          });
+        }
         deps.logger.info({ event: 'job_reclaim', result: result.kind });
       } catch (error) {
         deps.logger.error({ event: 'job_reclaim_error', error });
@@ -222,8 +250,34 @@ export function createJobLoop(deps: JobLoopDependencies) {
     return reclaiming;
   };
 
+  const sweepCreditRetention = (): Promise<void> => {
+    if (retentionSweeping) return retentionSweeping;
+    retentionSweeping = (async () => {
+      if (stopping) return;
+      try {
+        const result = await deps.sweepCreditRetention({
+          maxAgeHours: deps.settings.retentionMaxAgeHours,
+        });
+        deps.logger.info({ event: 'credit_retention_sweep', ...result });
+      } catch (error) {
+        deps.logger.error({ event: 'credit_retention_sweep_error', error });
+      } finally {
+        if (!stopping) {
+          retentionTimer = deps.schedule(
+            () => void sweepCreditRetention(),
+            deps.settings.retentionSweepMs,
+          );
+        }
+      }
+    })().finally(() => {
+      retentionSweeping = undefined;
+    });
+    return retentionSweeping;
+  };
+
   const start = (): void => {
     void reclaimOnce();
+    void sweepCreditRetention();
     if (deps.processor) void pollContinuously();
   };
 
@@ -237,6 +291,7 @@ export function createJobLoop(deps: JobLoopDependencies) {
     shutdownPromise = (async () => {
       stopping = true;
       if (reclaimTimer) deps.cancelTimer(reclaimTimer);
+      if (retentionTimer) deps.cancelTimer(retentionTimer);
       if (claiming) await waitWithinShutdown(claiming).catch(() => undefined);
       const stage = active;
       if (stage) {
@@ -266,10 +321,11 @@ export function createJobLoop(deps: JobLoopDependencies) {
 
       if (polling) await waitWithinShutdown(polling).catch(() => undefined);
       if (reclaiming) await waitWithinShutdown(reclaiming).catch(() => undefined);
+      if (retentionSweeping) await waitWithinShutdown(retentionSweeping).catch(() => undefined);
       await waitWithinShutdown(deps.disconnect()).catch(() => undefined);
     })();
     return shutdownPromise;
   };
 
-  return { start, pollOnce, reclaimOnce, shutdown };
+  return { start, pollOnce, reclaimOnce, sweepCreditRetention, shutdown };
 }

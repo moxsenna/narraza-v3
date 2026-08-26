@@ -1,3 +1,4 @@
+import type { ActionFundingModel } from '../credits/action-funding-policy.js';
 import type {
   GenerationJobRecord,
   JobLeaseIdentity,
@@ -9,6 +10,8 @@ export interface JobInsertInput {
   readonly id: string;
   readonly projectId: string;
   readonly kind: string;
+  /** Funding classification resolved from `kind`; the adapter matches it against `credit_reservations.funding_model`. */
+  readonly fundingModel: ActionFundingModel;
   readonly priority: number;
   /** Positive whole milliseconds; adapter resolves availability as DB `NOW()` plus this delay. */
   readonly availableInMs: number;
@@ -23,7 +26,8 @@ export interface JobInsertInput {
 export type JobInsertResult =
   | { readonly kind: 'inserted'; readonly job: GenerationJobRecord }
   | { readonly kind: 'conflict' }
-  | { readonly kind: 'binding_invalid' };
+  | { readonly kind: 'binding_invalid' }
+  | { readonly kind: 'funding_model_mismatch' };
 
 export interface JobLookupInput {
   readonly projectId: string;
@@ -94,6 +98,15 @@ export type JobReclaimResult =
   | { readonly kind: 'cancelled'; readonly job: GenerationJobRecord }
   | { readonly kind: 'none' };
 
+export type JobExpiredReclaimLockResult =
+  | {
+      readonly kind: 'locked';
+      readonly job: GenerationJobRecord;
+      readonly ownerUserId: string;
+      readonly outcome: 'requeue' | 'cancel';
+    }
+  | { readonly kind: 'none' };
+
 export type JobFencedLockResult =
   { readonly kind: 'locked'; readonly job: GenerationJobRecord } | { readonly kind: 'lost' };
 
@@ -101,11 +114,20 @@ export type JobLiveOwnerLockResult =
   | { readonly kind: 'locked'; readonly job?: GenerationJobRecord }
   | { readonly kind: 'not_authorized' };
 
+export type JobFinalizationLockResult =
+  | {
+      readonly kind: 'locked';
+      readonly eligibility: 'eligible' | 'cancelled' | 'ineligible_owner';
+    }
+  | { readonly kind: 'not_authorized' };
+
 export interface JobPort {
   insert(input: JobInsertInput): Promise<JobInsertResult>;
   findById(input: JobLookupInput): Promise<GenerationJobRecord | null>;
   listActiveByProject(projectId: string): Promise<readonly GenerationJobRecord[]>;
   lockForUpdate(input: JobLookupInput): Promise<GenerationJobRecord | null>;
+  /** Locks exact job without requiring live lease ownership; used after terminalization. */
+  lockForReconciliation(input: JobLookupInput): Promise<GenerationJobRecord | null>;
   claimNext(input: JobClaimInput): Promise<JobClaimResult>;
   heartbeat(input: JobHeartbeatInput): Promise<JobHeartbeatResult>;
   requestRunningCancellation(input: JobLookupInput): Promise<JobRunningCancellationResult>;
@@ -113,8 +135,16 @@ export interface JobPort {
   requeueRunning(input: JobRequeueInput): Promise<JobRequeueResult>;
   transitionQueuedToTerminal(input: JobQueuedTerminalInput): Promise<JobTerminalTransitionResult>;
   transitionRunningToTerminal(input: JobRunningTerminalInput): Promise<JobTerminalTransitionResult>;
+  /** Legacy atomic seam retained for callers without W3.3 reconciliation capability. */
   reclaimNextExpired(input: JobReclaimInput): Promise<JobReclaimResult>;
+  lockNextExpiredForReclaim(input: JobReclaimInput): Promise<JobExpiredReclaimLockResult>;
+  applyLockedExpiredReclaim(input: {
+    readonly projectId: string;
+    readonly jobId: string;
+    readonly outcome: 'requeue' | 'cancel';
+  }): Promise<JobReclaimResult>;
   lockForFencedPublish(identity: JobLeaseIdentity): Promise<JobFencedLockResult>;
   /** Locks exact running, unexpired, uncancelled lease owner or returns non-enumerating denial. */
   lockLiveOwnerForAttempt(identity: JobLeaseIdentity): Promise<JobLiveOwnerLockResult>;
+  lockForFinalization(identity: JobLeaseIdentity): Promise<JobFinalizationLockResult>;
 }

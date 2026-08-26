@@ -127,14 +127,16 @@ started early.
   - [x] Invocation per stage key; attempts; CAS winner; late attempt records usage, not winner
   - [x] Three-phase harness (Tx create attempt → external mock → Tx finalize+settle → CPU validate → Tx C fenced publish)
   - [x] Tests: `invocation-winner`, `late-attempt`, `tombstone-mid-attempt`
-- [ ] **W3.3 Credit engine (S2.6 + D4 + D6)** _(Fable)_
-  - [ ] Ledger append-only + dedupe; reservations + closing; `safeRelease ≥ 0`; exposure exceeded → ops incident
-  - [ ] `issueCreditQuote` bound to workflowPlanHash+dependencyHash+maxMicroIdr+expiry(10m); consume once
-  - [ ] Confirm: revalidate owner/quote/hash/balance → jobId + reserve → enqueue (idempotent by requestId)
-  - [ ] Zero-charge: no-usable-output → full release; provider cost → system via AIUsageEvent
-  - [ ] Display conversion (D6): `microIdrToCredits` floor/ceil; `CreditSummaryView {available, held, reconciling}`
-  - [ ] Retention sweeper (unused quote/bundle, D12)
-  - [ ] Tests: `credit-quote`, `reservation-exposure`, `failed-job-zero-charge`, `credit-rounding`
+- [x] **W3.3 Credit engine (S2.6 + D4 + D6)** _(Fable)_ — Tasks 8–14 CLOSED; external PM final review PASS (2026-08-26, head `3e047f8`, PR #18 CI 8/8); W3.3 approved for merge
+  - [x] Ledger append-only + dedupe; reservations + closing; `safeRelease ≥ 0`; exposure exceeded → ops incident
+  - [x] `issueCreditQuote` bound to workflowPlanHash+dependencyHash+maxMicroIdr+expiry(10m); consume once
+  - [x] Confirm: revalidate owner/quote/hash/balance → jobId + reserve → enqueue (idempotent by requestId)
+  - [x] Zero-charge: no-usable-output → full release; provider cost → system via AIUsageEvent
+  - [x] Display conversion (D6): `microIdrToCredits` floor/ceil; `CreditSummaryView {available, held, reconciling}`
+  - [x] Retention sweeper (unused quote/bundle, D12): hourly bounded sweep, age > 24h strict DB clock, `FOR UPDATE SKIP LOCKED`, evidence rows never deleted; production retention-vs-confirmation race certified (`credit-retention-confirmation-race`)
+  - [x] Missing-reservation funding incidents: nonlegacy terminal jobs fail closed with durable typed incident `credit.job_missing_reservation` (dedupe `incident:job-missing-reservation:{jobId}`); `pre_d4_legacy` exempt
+  - [x] Tests: `credit-quote`, `reservation-exposure`, `failed-job-zero-charge`, `credit-rounding`, `ledger-reconciliation`, `usable-output-settlement`, `credit-retention` (20 cases), `missing-reservation-incident` (9 cases)
+  - Note (PM ratification recorded at Batch B): Task 12 retention maintenance wiring in worker-gen is approved. "Worker source diff empty" means no additional unauthorized worker behavior and no AI processor activation — not deletion of the approved retention wiring. Processor remains disabled (`JOB_PROCESSOR_ENABLED=false` gates claim/polling only; reclaim and retention stay active). D11/D12 semantics unchanged.
 - [ ] **W3.4 Outbox** _(Fable)_
   - [ ] OutboxEvent + receipts (processing/completed/uncertain/dead + deliveryGeneration); consumer module in worker (D11); idempotent handler; dead replay = new generation, same dedupeKey
   - [ ] Tests: `outbox-idempotent`, `outbox-uncertain-delivery`, `outbox-replay-generation`

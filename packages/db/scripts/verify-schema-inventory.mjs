@@ -49,6 +49,7 @@ const EXPECTED_TABLES = [
   'validation_findings',
   'validation_reports',
   'workflow_invocations',
+  'credit_billing_allocations',
 ].sort();
 
 export async function verifySchemaInventory(client) {
@@ -65,10 +66,10 @@ export async function verifySchemaInventory(client) {
   const extra = actual.filter((name) => !EXPECTED_TABLES.includes(name));
   if (missing.length || extra.length || actual.length !== EXPECTED_TABLES.length) {
     throw new Error(
-      `Schema inventory mismatch. missing=[${missing.join(', ')}] extra=[${extra.join(', ')}] expected=48 actual=${actual.length}`,
+      `Schema inventory mismatch. missing=[${missing.join(', ')}] extra=[${extra.join(', ')}] expected=49 actual=${actual.length}`,
     );
   }
-  process.stdout.write('PASS 48 tables = 5 M0 + 43 W1.1\n');
+  process.stdout.write('PASS 49 tables = 5 M0 + 43 W1.1 + 1 W3.3\n');
 }
 
 export { EXPECTED_TABLES };

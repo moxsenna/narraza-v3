@@ -82,7 +82,7 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Architecture: application ports only                                            | S1/S10   | `application-boundary`            | architecture        |
 | Architecture: ai no ledger/storage                                              | S1/S10   | `ai-boundary`                     | architecture        |
 | Architecture: worker adapters no domain logic                                   | S1/S10   | `worker-boundary`                 | architecture        |
-| Schema inventory is exactly 48 application tables (5 M0 + 43 W1.1)             | S2/S10   | `schema-inventory`                | integration,migration |
+| Schema inventory is exactly 49 application tables (5 M0 + 43 W1.1 + 1 W3.3)    | S2/S10   | `schema-inventory`                | integration,migration |
 | W1.1 migrations are ordered, metadata-complete, and expand-only                | S10      | `expand-only`                     | migration           |
 | Composite tenant FKs reject cross-project references with SQLSTATE 23503       | S2       | `planning-tenant-fk`              | integration         |
 | Named schema CHECK constraints reject invalid values with SQLSTATE 23514       | S2       | `schema-check-sqlstate`           | integration         |
@@ -117,6 +117,12 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Structural validator emits semantic review instead of unprovable blocker | S3 | `structural-validator` | unit |
 | Restricted matcher is Unicode-normalized and token-boundary safe | S3 | `restricted-matcher` | unit |
 | Public validation findings never carry source/evidence/restricted detail | S3/D13 | `to-public-finding` | unit,security-smoke |
+| Ledger append-only with dedupe-key arbiter; conservation R=S+L+E monotone under reconciliation | S2.6/D4 | `ledger-reconciliation` | integration |
+| Usable-output settlement commits Tx P atomically; allocation replay byte-identical, divergent tuple rejected | D4 | `usable-output-settlement` | integration |
+| Retention deletes only stale unused quotes/bundles older than 24h; snapshots/audit/outbox evidence survive | D12 | `credit-retention` | integration |
+| Production quote confirmation serializes against concurrent production retention sweep (both interleavings) | D12/S9 | `credit-retention-confirmation-race` | integration |
+| Nonlegacy terminal job without reservation fails closed financially with one durable typed incident; pre_d4_legacy exempt | D4/S8 | `missing-reservation-incident` | integration |
+| Fenced publish preflight rejects unbounded would-be-success before callback/classifier/settlement | D4/S8 | `lease-fence-publish` | integration |
 
 | Operation DAG order and cycle members are stable across input permutations | S3 | `operation-topo-sort` | unit |
 | Canonical operations hash covers semantic material and is permutation-stable | S3 | `operations-hash` | unit |

@@ -20,6 +20,8 @@ export type {
   CanonicalChangeSetRecord,
   CanonicalChangeOperationRecord,
   ProposalRecord,
+  CreditQuoteRecord,
+  CreditReservationRecord,
 } from './types.js';
 
 export type { ProjectInsertInput, ProjectRepo } from './project-repo.js';
@@ -61,11 +63,26 @@ export type {
   ConceptRepo,
 } from './concept-repo.js';
 export type { AuditAppendInput, AuditPort } from './audit-port.js';
-export type { OutboxAppendInput, OutboxPort } from './outbox-port.js';
+export type {
+  OutboxAppendInput,
+  CreditOverageIncidentInput,
+  CreditOverageIncidentResult,
+  ReservationReconciliationIncidentInput,
+  ReservationReconciliationIncidentReason,
+  ReservationReconciliationIncidentResult,
+  MissingJobReservationFundingModel,
+  MissingJobReservationIncidentInput,
+  MissingJobReservationIncidentResult,
+  OutboxPort,
+} from './outbox-port.js';
 export type { SnapshotAppendInput, SnapshotPort } from './snapshot-port.js';
 export type {
   ReleaseQueuedCancellationInput,
   ReleaseQueuedCancellationResult,
+  AppendReservationSettlementInput,
+  ReservationSettlementAppendResult,
+  AppendReservationReleaseInput,
+  ReservationReleaseAppendResult,
   LedgerPort,
 } from './ledger-port.js';
 export type {
@@ -87,8 +104,10 @@ export type {
   JobRunningCancellationResult,
   JobReclaimInput,
   JobReclaimResult,
+  JobExpiredReclaimLockResult,
   JobFencedLockResult,
   JobLiveOwnerLockResult,
+  JobFinalizationLockResult,
   JobPort,
 } from './job-port.js';
 export type { UsageMetrics, AppendUsageResult, AiUsagePort } from './ai-usage-port.js';
@@ -102,7 +121,37 @@ export type {
   BeginAttemptPortResult,
   FinalizeAttemptPortResult,
   WinnerClassificationResult,
+  FinalizationEligibility,
+  InvocationFinalizationLockResult,
   WorkflowInvocationPort,
   GenerationAttemptPort,
 } from './workflow-invocation-port.js';
+export type { QuoteInsertInput, QuoteInsertResult, QuotePort } from './quote-port.js';
+export type {
+  CreditBalanceSnapshot,
+  CreditSummaryView,
+  CreditBalancePort,
+} from './credit-balance-port.js';
+export type {
+  AppendCreditBillingAllocationInput,
+  AppendCreditBillingAllocationResult,
+  CreditBillingAllocationPort,
+} from './credit-billing-allocation-port.js';
+export type {
+  UsableOutputClassification,
+  ClassifyPublishedOutputInput,
+  UsableOutputClassifier,
+} from './usable-output-classifier.js';
+export type {
+  CreditReservationPort,
+  CreateReservationInput,
+  CreateReservationResult,
+  ApplyReconciliationTargetInput,
+  ReconciliationApplyResult,
+} from './credit-reservation-port.js';
+export type {
+  DeleteEligibleCreditRetentionInput,
+  CreditRetentionSweepResult,
+  CreditRetentionPort,
+} from './credit-retention-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';

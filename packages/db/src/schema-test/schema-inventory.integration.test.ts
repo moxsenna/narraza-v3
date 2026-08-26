@@ -4,7 +4,7 @@ import { APPLICATION_TABLES, M0_ENUMS } from './fixtures.js';
 
 const schema = createSchemaTestSuite();
 
-schema.test('contains exactly 48 application tables', async ({ client }) => {
+schema.test('contains exactly 49 application tables', async ({ client }) => {
   const result = await client.query<{ table_name: string }>(
     `SELECT table_name
        FROM information_schema.tables
