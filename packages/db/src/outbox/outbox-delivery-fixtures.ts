@@ -15,6 +15,7 @@ export const outboxEventIds = {
   first: '80000000-0000-4000-8000-000000000001',
   second: '80000000-0000-4000-8000-000000000002',
   third: '80000000-0000-4000-8000-000000000003',
+  fourth: '80000000-0000-4000-8000-000000000004',
 } as const;
 
 export const CONSUMER = 'test-consumer';

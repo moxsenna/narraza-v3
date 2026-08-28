@@ -165,11 +165,15 @@ schema.test('outbox-claim-fence', async ({ client, databaseUrl }) => {
 
     // Two workers race for one event. SKIP LOCKED plus the unique
     // (event, consumer, generation) index means exactly one wins.
-    const [a, b] = await Promise.all([
+    const settled = await Promise.allSettled([
       uowA.execute((port) => port.claimNext(claimInput)),
-      uowB.execute((port) => port.claimNext(claimInput)).catch(() => ({ kind: 'none' }) as const),
+      uowB.execute((port) => port.claimNext(claimInput)),
     ]);
-    const claims = [a, b].filter((result) => result.kind === 'claimed');
+    expect(settled.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled']);
+    const results = settled.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
+    const claims = results.filter((result) => result.kind === 'claimed');
     expect(claims).toHaveLength(1);
     expect(await fetchReceipts(client, outboxEventIds.first)).toHaveLength(1);
 
@@ -226,6 +230,208 @@ schema.test('outbox-claim-fence', async ({ client, databaseUrl }) => {
   } finally {
     await workerA.$disconnect();
     await workerB.$disconnect();
+  }
+});
+
+schema.test('outbox-claim-mixed-order', async ({ client, databaseUrl }) => {
+  // Oldest-first must hold ACROSS both eligibility kinds, not within each one
+  // separately. If fresh work were considered first, a steady arrival rate
+  // would starve an older delivery whose worker crashed — precisely the case
+  // at-least-once recovery exists to cover.
+  //
+  // An even older event of an unregistered type sits in front of everything to
+  // prove type scoping is applied before ordering, not after.
+  await insertOutboxEvent(client, {
+    id: outboxEventIds.fourth,
+    occurredOffsetMs: 0,
+    eventType: 'generation_job.failed',
+  });
+  await insertOutboxEvent(client, { id: outboxEventIds.first, occurredOffsetMs: 1000 });
+  const prisma = createPrismaForUrl(databaseUrl);
+
+  try {
+    const unitOfWork = createDeliveryUnitOfWork(prisma);
+    const claimInput = { consumerKey: CONSUMER, eventTypes: [EVENT_TYPE], leaseMs: LEASE_MS };
+
+    // The old event is claimed and then abandoned mid-flight.
+    await expect(unitOfWork.execute((port) => port.claimNext(claimInput))).resolves.toMatchObject({
+      kind: 'claimed',
+      event: { eventId: outboxEventIds.first },
+      receipt: { deliveryGeneration: 0, attemptCount: 1 },
+    });
+    await expireLease(client, outboxEventIds.first);
+
+    // Newer work arrives after the crash.
+    await insertOutboxEvent(client, { id: outboxEventIds.second, occurredOffsetMs: 2000 });
+
+    // The expired older delivery outranks the newer fresh event.
+    await expect(unitOfWork.execute((port) => port.claimNext(claimInput))).resolves.toMatchObject({
+      kind: 'claimed',
+      event: { eventId: outboxEventIds.first },
+      receipt: { deliveryGeneration: 0, attemptCount: 2 },
+    });
+    expect(await fetchReceipts(client, outboxEventIds.second)).toHaveLength(0);
+
+    // Only once the old delivery leaves the eligible set does the newer one run.
+    await expect(
+      unitOfWork.execute((port) =>
+        port.complete({
+          outboxEventId: outboxEventIds.first,
+          consumerKey: CONSUMER,
+          deliveryGeneration: 0,
+          attemptCount: 2,
+        }),
+      ),
+    ).resolves.toEqual({ kind: 'finalized' });
+    await expect(unitOfWork.execute((port) => port.claimNext(claimInput))).resolves.toMatchObject({
+      kind: 'claimed',
+      event: { eventId: outboxEventIds.second },
+      receipt: { deliveryGeneration: 0, attemptCount: 1 },
+    });
+
+    // Starvation proof: however many fresh events arrive, the expired older
+    // delivery keeps winning until it is finalized.
+    await expireLease(client, outboxEventIds.second);
+    for (let index = 0; index < 5; index += 1) {
+      await insertOutboxEvent(client, {
+        id: `80000000-0000-4000-8000-00000000001${index}`,
+        occurredOffsetMs: 3000 + index,
+      });
+      await expect(unitOfWork.execute((port) => port.claimNext(claimInput))).resolves.toMatchObject(
+        {
+          kind: 'claimed',
+          event: { eventId: outboxEventIds.second },
+          receipt: { deliveryGeneration: 0, attemptCount: index + 2 },
+        },
+      );
+      await expireLease(client, outboxEventIds.second);
+    }
+
+    // The unregistered older event was never claimed at any point.
+    expect(await fetchReceipts(client, outboxEventIds.fourth)).toHaveLength(0);
+  } finally {
+    await prisma.$disconnect();
+  }
+});
+
+schema.test('outbox-claim-mixed-concurrency', async ({ client, databaseUrl }) => {
+  // Mixed eligibility under contention: one expired reclaim candidate and one
+  // fresh candidate, two workers, one claim each. `SKIP LOCKED` on the event
+  // row is the mechanism; a unique-violation catch is not the algorithm.
+  await insertOutboxEvent(client, { id: outboxEventIds.first, occurredOffsetMs: 1000 });
+  await insertOutboxEvent(client, { id: outboxEventIds.second, occurredOffsetMs: 2000 });
+  const workerA = createPrismaForUrl(databaseUrl);
+  const workerB = createPrismaForUrl(databaseUrl);
+
+  try {
+    const uowA = createDeliveryUnitOfWork(workerA);
+    const uowB = createDeliveryUnitOfWork(workerB);
+    const claimInput = { consumerKey: CONSUMER, eventTypes: [EVENT_TYPE], leaseMs: LEASE_MS };
+
+    // `first` becomes the expired reclaim candidate; `second` stays fresh.
+    await uowA.execute((port) => port.claimNext(claimInput));
+    await expireLease(client, outboxEventIds.first);
+
+    const settled = await Promise.allSettled([
+      uowA.execute((port) => port.claimNext(claimInput)),
+      uowB.execute((port) => port.claimNext(claimInput)),
+    ]);
+    // No deadlock and no unexpected error: both transactions completed.
+    expect(settled.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled']);
+
+    const claimed = settled.flatMap((result) =>
+      result.status === 'fulfilled' && result.value.kind === 'claimed' ? [result.value] : [],
+    );
+    expect(claimed).toHaveLength(2);
+    // Each worker owns a different event: no duplicate live ownership.
+    expect(claimed.map((claim) => claim.event.eventId).sort()).toEqual(
+      [outboxEventIds.first, outboxEventIds.second].sort(),
+    );
+
+    // The reclaim incremented exactly once, and the fresh claim opened at 1.
+    const reclaim = claimed.find((claim) => claim.event.eventId === outboxEventIds.first)!;
+    expect(reclaim.receipt).toMatchObject({ deliveryGeneration: 0, attemptCount: 2 });
+    const fresh = claimed.find((claim) => claim.event.eventId === outboxEventIds.second)!;
+    expect(fresh.receipt).toMatchObject({ deliveryGeneration: 0, attemptCount: 1 });
+
+    // One receipt row per event: nothing was claimed twice.
+    expect(await fetchReceipts(client, outboxEventIds.first)).toHaveLength(1);
+    expect(await fetchReceipts(client, outboxEventIds.second)).toHaveLength(1);
+
+    // With both leases live, the eligible set is empty for everyone.
+    await expect(uowA.execute((port) => port.claimNext(claimInput))).resolves.toEqual({
+      kind: 'none',
+    });
+    await expect(uowB.execute((port) => port.claimNext(claimInput))).resolves.toEqual({
+      kind: 'none',
+    });
+  } finally {
+    await workerA.$disconnect();
+    await workerB.$disconnect();
+  }
+});
+
+schema.test('outbox-claim-keyset-precision', async ({ client, databaseUrl }) => {
+  // More candidates than one sweep, with microsecond timestamps that cannot be
+  // represented losslessly by JavaScript Date. A separate transaction locks
+  // the first full batch. The claimant must advance by the exact PostgreSQL
+  // tuple and reach candidate 33 rather than spin on the rounded timestamp.
+  await client.query(
+    `INSERT INTO outbox_events
+       (id, aggregate_type, aggregate_id, event_type, dedupe_key, occurred_at,
+        schema_version, payload, created_at)
+     SELECT '81000000-0000-4000-8000-' || lpad(n::text, 12, '0'),
+            'generation_job',
+            'keyset-' || n,
+            $1,
+            'keyset-' || n,
+            TIMESTAMPTZ '2026-01-01 00:00:00+00' + n * INTERVAL '1 microsecond',
+            1,
+            '{}'::jsonb,
+            now()
+       FROM generate_series(1, 33) AS n`,
+    [EVENT_TYPE],
+  );
+  const locker = await client.connect();
+  const prisma = createPrismaForUrl(databaseUrl);
+
+  try {
+    await locker.query('BEGIN');
+    const locked = await locker.query(
+      `SELECT id
+         FROM outbox_events
+        WHERE dedupe_key LIKE 'keyset-%'
+        ORDER BY occurred_at ASC, id ASC
+        LIMIT 32
+        FOR UPDATE`,
+    );
+    expect(locked.rows).toHaveLength(32);
+
+    const unitOfWork = createDeliveryUnitOfWork(prisma);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('claim did not advance beyond locked candidate batch')),
+        5_000,
+      );
+    });
+    const claim = await Promise.race([
+      unitOfWork.execute((port) =>
+        port.claimNext({ consumerKey: CONSUMER, eventTypes: [EVENT_TYPE], leaseMs: LEASE_MS }),
+      ),
+      timeout,
+    ]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+    expect(claim).toMatchObject({
+      kind: 'claimed',
+      event: { eventId: '81000000-0000-4000-8000-000000000033' },
+      receipt: { deliveryGeneration: 0, attemptCount: 1 },
+    });
+  } finally {
+    await locker.query('ROLLBACK');
+    locker.release();
+    await prisma.$disconnect();
   }
 });
 
