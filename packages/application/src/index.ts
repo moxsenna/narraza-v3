@@ -146,6 +146,19 @@ export type {
   DeleteEligibleCreditRetentionInput,
   CreditRetentionSweepResult,
   CreditRetentionPort,
+  OutboxDeliveryEvent,
+  OutboxDeliveryReceipt,
+  OutboxClaim,
+  ClaimNextOutboxInput,
+  ClaimNextOutboxResult,
+  OutboxFinalizeFence,
+  OutboxFailureFence,
+  OutboxFinalizeResult,
+  ReplayDeadOutboxInput,
+  ReplayDeadOutboxResult,
+  OutboxNotReplayableReason,
+  OutboxDeliveryPort,
+  OutboxDeliveryUnitOfWork,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
@@ -204,6 +217,39 @@ export {
   type JobReclaimServiceResult,
   type JobService,
 } from './jobs/job-service.js';
+
+export {
+  outboxIdempotencyKey,
+  type OutboxHandler,
+  type OutboxHandlerContext,
+  type OutboxHandlerResult,
+} from './outbox/outbox-handler.js';
+export {
+  createOutboxHandlerRegistry,
+  createProductionOutboxHandlerRegistry,
+  type OutboxHandlerRegistry,
+} from './outbox/outbox-handler-registry.js';
+export {
+  createOutboxDeliveryService,
+  type OutboxDeliveryOutcome,
+  type OutboxDeliveryService,
+  type OutboxDeliveryServiceSettings,
+  type OutboxReplayOutcome,
+  type OutboxTerminalKind,
+} from './outbox/outbox-delivery-service.js';
+export {
+  createOutboxConsumerLoop,
+  type OutboxConsumerLoop,
+  type OutboxConsumerLoopDependencies,
+  type OutboxConsumerLoopSettings,
+} from './outbox/outbox-consumer-loop.js';
+export {
+  createOutboxModule,
+  outboxSettingsFromEnv,
+  type OutboxModuleDependencies,
+  type OutboxModuleSettings,
+  type OutboxSettingsEnv,
+} from './outbox/outbox-module.js';
 
 export {
   createWorkflowInvocationService,

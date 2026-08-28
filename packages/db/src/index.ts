@@ -17,6 +17,8 @@ export { dbNow, type DbClient } from './db-now.js';
 export { createUnitOfWork } from './unit-of-work.js';
 export { createTxPorts } from './repos/create-tx-ports.js';
 export { createCreditRetentionPort } from './repos/credit-retention-port.js';
+export { createOutboxDeliveryPort } from './repos/outbox-delivery-port.js';
+export { createOutboxDeliveryUnitOfWork } from './outbox-delivery-unit-of-work.js';
 export type {
   User,
   Session,
