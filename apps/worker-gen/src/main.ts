@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { createCreditRetentionService, createJobService } from '@narraza/application';
-import { createPrismaClient, createUnitOfWork } from '@narraza/db';
+import {
+  createCreditRetentionService,
+  createJobService,
+  createOutboxModule,
+  createProductionOutboxHandlerRegistry,
+  outboxSettingsFromEnv,
+} from '@narraza/application';
+import { createOutboxDeliveryUnitOfWork, createPrismaClient, createUnitOfWork } from '@narraza/db';
 import { loadWorkerEnv } from '@narraza/shared/env/worker';
 import pino from 'pino';
 import { composeWorker, type ComposedLoop } from './composition.js';
@@ -14,6 +20,9 @@ export function runProductionMain(): ComposedLoop {
   const unitOfWork = createUnitOfWork(prisma);
   const service = createJobService(unitOfWork);
   const { sweepCreditRetention } = createCreditRetentionService(unitOfWork);
+  // S6.3: the outbox consumer owns a distinct least-privilege connection. The job
+  // lifecycle client and the outbox client are never interchanged.
+  const outboxPrisma = createPrismaClient(env.DATABASE_URL_OUTBOX);
   return composeWorker(env, {
     createLoop: ({ processor, settings }) =>
       createJobLoop({
@@ -28,6 +37,16 @@ export function runProductionMain(): ComposedLoop {
         createLeaseToken: randomUUID,
         logger,
       } satisfies JobLoopDependencies),
+    createOutboxLoop: () =>
+      createOutboxModule({
+        unitOfWork: createOutboxDeliveryUnitOfWork(outboxPrisma),
+        registry: createProductionOutboxHandlerRegistry(),
+        settings: outboxSettingsFromEnv(env),
+        schedule: (callback, ms) => setTimeout(callback, ms),
+        cancelTimer: clearTimeout,
+        disconnect: () => outboxPrisma.$disconnect(),
+        logger,
+      }),
     registerSignal: (signal, handler) => process.once(signal, handler),
     logger,
     setExitCode: (code) => {

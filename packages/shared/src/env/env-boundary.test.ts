@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadWebEnv, webEnvSchema } from './web.js';
 import { loadWorkerEnv, workerEnvSchema } from './worker.js';
-import { outboxEnvSchema } from './outbox.js';
+import { loadOutboxEnv, outboxEnvSchema } from './outbox.js';
 
 /**
  * env-boundary (S6/S10, verification-matrix): each process schema physically
@@ -43,12 +43,97 @@ describe('env-boundary', () => {
     expect(workerKeys).not.toContain('DATABASE_URL_WEB');
     expect(outboxKeys).toContain('DATABASE_URL_OUTBOX');
   });
+
+  it('worker carries a distinct outbox role URL for the embedded consumer (D11/S6.3)', () => {
+    // The consumer module lives inside worker-gen in Rilis 1, so the process
+    // holds both URLs — but they are separate variables and the composition
+    // hands the outbox module its own client.
+    expect(workerKeys).toContain('DATABASE_URL_OUTBOX');
+    expect(webKeys).not.toContain('DATABASE_URL_OUTBOX');
+  });
+
+  it('standalone outbox schema carries no provider keys and no job-loop knobs', () => {
+    for (const key of outboxKeys) {
+      expect(key.startsWith('JOB_'), `outboxEnvSchema must not contain ${key}`).toBe(false);
+    }
+    expect(outboxKeys).not.toContain('JOB_PROCESSOR_ENABLED');
+    expect(outboxKeys.toSorted()).toEqual(
+      [
+        'DATABASE_URL_OUTBOX',
+        'NODE_ENV',
+        'OUTBOX_IDLE_BACKOFF_MS',
+        'OUTBOX_LEASE_SECONDS',
+        'OUTBOX_POLL_MS',
+        'OUTBOX_SHUTDOWN_DRAIN_MS',
+      ].toSorted(),
+    );
+  });
+});
+
+describe('outbox consumer env (D11/D12)', () => {
+  const workerBase = {
+    NODE_ENV: 'test',
+    DATABASE_URL_WORKER: 'postgres://x',
+    DATABASE_URL_OUTBOX: 'postgres://outbox',
+  };
+
+  it('worker requires the outbox role URL even when the processor is disabled', () => {
+    expect(() => loadWorkerEnv({ NODE_ENV: 'test', DATABASE_URL_WORKER: 'postgres://x' })).toThrow(
+      /DATABASE_URL_OUTBOX/,
+    );
+  });
+
+  it('uses the frozen D12 outbox defaults in both schemas', () => {
+    expect(loadWorkerEnv(workerBase)).toMatchObject({
+      OUTBOX_POLL_MS: 1000,
+      OUTBOX_IDLE_BACKOFF_MS: 5000,
+      OUTBOX_LEASE_SECONDS: 60,
+      OUTBOX_SHUTDOWN_DRAIN_MS: 30000,
+    });
+    expect(
+      loadOutboxEnv({ NODE_ENV: 'test', DATABASE_URL_OUTBOX: 'postgres://outbox' }),
+    ).toMatchObject({
+      OUTBOX_POLL_MS: 1000,
+      OUTBOX_IDLE_BACKOFF_MS: 5000,
+      OUTBOX_LEASE_SECONDS: 60,
+      OUTBOX_SHUTDOWN_DRAIN_MS: 30000,
+    });
+  });
+
+  it('rejects an idle backoff below the poll interval', () => {
+    expect(() =>
+      loadWorkerEnv({ ...workerBase, OUTBOX_POLL_MS: '2000', OUTBOX_IDLE_BACKOFF_MS: '1999' }),
+    ).toThrow(/idle backoff/i);
+    expect(() =>
+      loadOutboxEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
+        OUTBOX_POLL_MS: '2000',
+        OUTBOX_IDLE_BACKOFF_MS: '1999',
+      }),
+    ).toThrow(/idle backoff/i);
+  });
+
+  it('rejects a lease that cannot outlast one poll interval', () => {
+    expect(() =>
+      loadWorkerEnv({ ...workerBase, OUTBOX_POLL_MS: '1000', OUTBOX_LEASE_SECONDS: '1' }),
+    ).toThrow(/lease/i);
+    expect(() =>
+      loadOutboxEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
+        OUTBOX_POLL_MS: '1000',
+        OUTBOX_LEASE_SECONDS: '1',
+      }),
+    ).toThrow(/lease/i);
+  });
 });
 
 describe('loadWorkerEnv production guards', () => {
   const base = {
     NODE_ENV: 'production',
     DATABASE_URL_WORKER: 'postgres://x',
+    DATABASE_URL_OUTBOX: 'postgres://outbox',
     OPENROUTER_API_KEY: 'k',
   };
 
@@ -61,6 +146,7 @@ describe('loadWorkerEnv production guards', () => {
       loadWorkerEnv({
         NODE_ENV: 'production',
         DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
         JOB_PROCESSOR_ENABLED: 'true',
       }),
     ).toThrow(/provider key/);
@@ -70,6 +156,7 @@ describe('loadWorkerEnv production guards', () => {
     const env = loadWorkerEnv({
       NODE_ENV: 'test',
       DATABASE_URL_WORKER: 'postgres://x',
+      DATABASE_URL_OUTBOX: 'postgres://outbox',
       AI_ENABLE_MOCK: 'true',
     });
     expect(env.AI_ENABLE_MOCK).toBe(true);
@@ -78,7 +165,11 @@ describe('loadWorkerEnv production guards', () => {
 });
 
 describe('worker lifecycle env', () => {
-  const base = { NODE_ENV: 'production', DATABASE_URL_WORKER: 'postgres://x' };
+  const base = {
+    NODE_ENV: 'production',
+    DATABASE_URL_WORKER: 'postgres://x',
+    DATABASE_URL_OUTBOX: 'postgres://outbox',
+  };
 
   it('defaults processor disabled and allows disabled production without providers', () => {
     expect(loadWorkerEnv(base).JOB_PROCESSOR_ENABLED).toBe(false);
@@ -103,6 +194,7 @@ describe('worker lifecycle env', () => {
       loadWorkerEnv({
         NODE_ENV: 'test',
         DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
         AI_ENABLE_MOCK: 'true',
       }).AI_ENABLE_MOCK,
     ).toBe(true);
@@ -119,6 +211,7 @@ describe('worker lifecycle env', () => {
       loadWorkerEnv({
         NODE_ENV: 'test',
         DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
         ...(value === undefined ? {} : { JOB_PROCESSOR_ENABLED: value }),
       }).JOB_PROCESSOR_ENABLED,
     ).toBe(expected);
@@ -129,13 +222,18 @@ describe('worker lifecycle env', () => {
       loadWorkerEnv({
         NODE_ENV: 'test',
         DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
         JOB_PROCESSOR_ENABLED: value,
       }),
     ).toThrow(/Invalid worker env/);
   });
 
   it('uses exact lifecycle defaults', () => {
-    const env = loadWorkerEnv({ NODE_ENV: 'test', DATABASE_URL_WORKER: 'postgres://x' });
+    const env = loadWorkerEnv({
+      NODE_ENV: 'test',
+      DATABASE_URL_WORKER: 'postgres://x',
+      DATABASE_URL_OUTBOX: 'postgres://outbox',
+    });
     expect(env).toMatchObject({
       JOB_LEASE_SECONDS: 60,
       JOB_HEARTBEAT_SECONDS: 20,
@@ -164,11 +262,21 @@ describe('worker lifecycle env', () => {
       [field]: field === 'JOB_SHUTDOWN_DRAIN_MS' ? '7000' : '7',
     };
     expect(() =>
-      loadWorkerEnv({ NODE_ENV: 'test', DATABASE_URL_WORKER: 'postgres://x', ...validCompanions }),
+      loadWorkerEnv({
+        NODE_ENV: 'test',
+        DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
+        ...validCompanions,
+      }),
     ).not.toThrow();
     for (const value of ['0', '-1', '1.5', 'no', '']) {
       expect(() =>
-        loadWorkerEnv({ NODE_ENV: 'test', DATABASE_URL_WORKER: 'postgres://x', [field]: value }),
+        loadWorkerEnv({
+          NODE_ENV: 'test',
+          DATABASE_URL_WORKER: 'postgres://x',
+          DATABASE_URL_OUTBOX: 'postgres://outbox',
+          [field]: value,
+        }),
       ).toThrow(/Invalid worker env/);
     }
   });
@@ -178,6 +286,7 @@ describe('worker lifecycle env', () => {
       loadWorkerEnv({
         NODE_ENV: 'test',
         DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
         JOB_LEASE_SECONDS: '20',
         JOB_HEARTBEAT_SECONDS: '20',
       }),
@@ -186,6 +295,7 @@ describe('worker lifecycle env', () => {
       loadWorkerEnv({
         NODE_ENV: 'test',
         DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
         JOB_POLL_MS: '1001',
         JOB_ERROR_BACKOFF_MS: '1000',
       }),
@@ -194,6 +304,7 @@ describe('worker lifecycle env', () => {
       loadWorkerEnv({
         NODE_ENV: 'test',
         DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
         JOB_HEARTBEAT_SECONDS: '20',
         JOB_SHUTDOWN_DRAIN_MS: '19999',
       }),
@@ -202,6 +313,7 @@ describe('worker lifecycle env', () => {
       loadWorkerEnv({
         NODE_ENV: 'test',
         DATABASE_URL_WORKER: 'postgres://x',
+        DATABASE_URL_OUTBOX: 'postgres://outbox',
         JOB_POLL_MS: '1000',
         JOB_ERROR_BACKOFF_MS: '1000',
         JOB_SHUTDOWN_DRAIN_MS: '20000',
