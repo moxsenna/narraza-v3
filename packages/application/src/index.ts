@@ -308,6 +308,27 @@ export type {
   ModelPriceSnapshotSeedInput,
 } from './ai/model-price-port.js';
 export { seedMockPriceSnapshots } from './ai/seed-mock-prices.js';
+// M4 Block B: frozen workflow plans + paid-generation preparation.
+export type {
+  WorkflowPlanPort,
+  WorkflowPlanRecord,
+  WorkflowPlanCreateInput,
+} from './ai/workflow-plan-port.js';
+export {
+  buildWorkflowPlan,
+  createWorkflowPlanFreezeService,
+} from './ai/workflow-plan-freeze-service.js';
+export type {
+  BuildPlanErrorCode,
+  BuildWorkflowPlanInput,
+  BuildWorkflowPlanResult,
+  FrozenWorkflowPlan,
+} from './ai/workflow-plan-freeze-service.js';
+export { createPaidGenerationPreparationService } from './ai/paid-generation-preparation-service.js';
+export type {
+  PreparePaidGenerationInput,
+  PreparePaidGenerationResult,
+} from './ai/paid-generation-preparation-service.js';
 export {
   MOCK_PRICE_SNAPSHOT_FIXTURES,
   MOCK_PRICE_SNAPSHOT_ID,

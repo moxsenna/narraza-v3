@@ -18,6 +18,7 @@ export { createUnitOfWork } from './unit-of-work.js';
 export { createTxPorts } from './repos/create-tx-ports.js';
 export { createContextBundlePort } from './repos/context-bundle-port.js';
 export { createModelPricePort } from './repos/model-price-port.js';
+export { createWorkflowPlanPort } from './repos/workflow-plan-port.js';
 export { createCreditRetentionPort } from './repos/credit-retention-port.js';
 export { createOutboxDeliveryPort } from './repos/outbox-delivery-port.js';
 export { createOutboxDeliveryUnitOfWork } from './outbox-delivery-unit-of-work.js';

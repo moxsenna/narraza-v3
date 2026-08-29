@@ -25,6 +25,7 @@ import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
 import type { TxClient } from './tx-client.js';
 import { createUsableOutputClassifier } from './usable-output-classifier.js';
+import { createWorkflowPlanPort } from './workflow-plan-port.js';
 import { createWorkflowInvocationRepo } from './workflow-invocation-repo.js';
 
 export function createTxPorts(tx: TxClient): TxPorts {
@@ -46,6 +47,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     snapshot: createSnapshotPort(tx),
     contextBundle: createContextBundlePort(tx),
     modelPrice: createModelPricePort(tx),
+    workflowPlan: createWorkflowPlanPort(tx),
     ledger: createLedgerPort(tx),
     creditBalance: createCreditBalanceRepo(tx),
     creditBillingAllocation: createCreditBillingAllocationPort(tx),
