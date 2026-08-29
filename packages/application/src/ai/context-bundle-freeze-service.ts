@@ -1,6 +1,7 @@
 import { dependency } from '@narraza/core';
-type DependencyEntry = import('@narraza/core').dependency.DependencyEntry;
 const { buildDependencyManifest, canonicalSha256, dependencyManifestHash } = dependency;
+type DependencyEntry = Awaited<ReturnType<typeof buildDependencyManifest>>[number];
+import type { UnitOfWork } from '../ports/unit-of-work.js';
 import type { JsonObject } from '../ports/types.js';
 import type { SnapshotAppendInput } from '../ports/snapshot-port.js';
 import {
@@ -104,9 +105,7 @@ function computeBundleHash(input: {
   });
 }
 
-export function createContextBundleFreezeService(deps: {
-  unitOfWork: import('../ports/unit-of-work.js').UnitOfWork;
-}) {
+export function createContextBundleFreezeService(deps: { unitOfWork: UnitOfWork }) {
   return {
     async freezeBundle(input: FreezeBundleInput): Promise<FreezeBundleResult> {
       // 1. Deterministic dependency hash from the validated, sorted manifest.

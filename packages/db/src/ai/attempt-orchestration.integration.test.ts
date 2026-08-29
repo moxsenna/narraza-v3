@@ -287,7 +287,7 @@ schema.test(
       const result = await runPlan({
         identity: identityFor('orch-job-1'),
         plan: planSpec([WRITER_STAGE, JUDGE_STAGE]),
-        buildStageRequest: (stage) => ({
+        buildStageRequest: () => ({
           systemPrompt: 'You write scenes.',
           userPrompt: 'Scene 3.',
         }),
@@ -395,9 +395,9 @@ schema.test(
   async ({ client, databaseUrl }) => {
     await seedRunningJob(client, databaseUrl, 'orch-job-3');
     globalThis.__orchJobId = 'orch-job-3';
-    const prisma = createPrismaForUrl(databaseUrl);
     // First run: writer times out (thrown typed error).
-    let { runPlan, calls } = wire(databaseUrl, { scenarios: { writer: 'timeout' } });
+    const firstRun = wire(databaseUrl, { scenarios: { writer: 'timeout' } });
+    const { runPlan, calls } = firstRun;
     const first = await runPlan({
       identity: identityFor('orch-job-3'),
       plan: planSpec([WRITER_STAGE, JUDGE_STAGE]),
@@ -427,8 +427,7 @@ schema.test(
       `UPDATE generation_jobs SET fence_version = 2, lease_token = 'lease-orch-job-3-b' WHERE id = 'orch-job-3'`,
     );
     const second = wire(databaseUrl);
-    runPlan = second.runPlan;
-    const result = await runPlan({
+    const result = await second.runPlan({
       identity: { ...identityFor('orch-job-3'), leaseToken: 'lease-orch-job-3-b', fenceVersion: 2 },
       plan: planSpec([WRITER_STAGE, JUDGE_STAGE]),
       buildStageRequest: () => ({ systemPrompt: 's', userPrompt: 'u' }),
@@ -474,7 +473,6 @@ schema.test(
   async ({ client, databaseUrl }) => {
     await seedRunningJob(client, databaseUrl, 'orch-job-4');
     globalThis.__orchJobId = 'orch-job-4';
-    const prisma = createPrismaForUrl(databaseUrl);
     const writerCap1 = {
       ...WRITER_STAGE,
       routing: [{ ...WRITER_STAGE.routing[0]!, maxInvocations: 2 }],
@@ -550,7 +548,6 @@ schema.test(
       [ids.projectA],
     );
     globalThis.__orchJobId = 'orch-job-5';
-    const prisma = createPrismaForUrl(databaseUrl);
     const stale = wire(databaseUrl, { fenceBumpOnStage: 'judge' });
     const staleResult = await stale.runPlan({
       identity: identityFor('orch-job-5'),

@@ -204,7 +204,7 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
             dataClass: stage.dataClass,
             ...input.buildStageRequest(stage, 0),
           });
-        } catch (error) {
+        } catch {
           return {
             kind: 'recoverable',
             errorCode: 'executor_threw',

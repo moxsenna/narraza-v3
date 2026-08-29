@@ -5,6 +5,7 @@ type AiWorkflowPlanSpec = ai.AiWorkflowPlanSpec;
 type PriceSnapshotLike = ai.PriceSnapshotLike;
 type PlanHashInput = ai.PlanHashInput;
 import type { UnitOfWork } from '../ports/unit-of-work.js';
+import type { JsonObject } from '../ports/types.js';
 import type { WorkflowPlanRecord } from './workflow-plan-port.js';
 
 /**
@@ -200,7 +201,7 @@ export function createWorkflowPlanFreezeService(deps: { unitOfWork: UnitOfWork }
           planHash,
           estimatedMaxMicroIdr: plan.estimatedMaxMicroIdr,
           schemaVersion: plan.spec.schemaVersion,
-          payload: plan.spec as unknown as import('../ports/types.js').JsonObject,
+          payload: plan.spec as unknown as JsonObject,
           priceSnapshotIds,
         });
         if (created.kind === 'bundle_not_found') {
