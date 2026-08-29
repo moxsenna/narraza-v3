@@ -5,6 +5,8 @@ export {
   worstCaseBudgetMicroIdr,
   WorkflowPlanError,
 } from './workflow-plan.js';
+export { decideNextAction } from './next-action.js';
+export type { DecideNextActionOutcome, StageOutcomeRecord } from './next-action.js';
 export type {
   AiWorkflowPlanSpec,
   PlanHashInput,

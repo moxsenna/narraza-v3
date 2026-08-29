@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@narraza/core": "workspace:*",
-    "@narraza/shared": "workspace:*"
+    "@narraza/shared": "workspace:*",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "vitest": "4.1.10"

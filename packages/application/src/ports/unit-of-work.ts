@@ -23,6 +23,7 @@ import type { UsableOutputClassifier } from './usable-output-classifier.js';
 import type { ContextBundlePort } from '../ai/context-bundle-port.js';
 import type { ModelPriceSnapshotPort } from '../ai/model-price-port.js';
 import type { WorkflowPlanPort } from '../ai/workflow-plan-port.js';
+import type { AttemptRecoveryPort } from '../ai/attempt-recovery-port.js';
 import type { GenerationAttemptPort, WorkflowInvocationPort } from './workflow-invocation-port.js';
 
 /** D9: default read committed + row lock/CAS; serializable opt-in per use case. */
@@ -68,6 +69,8 @@ export interface TxPorts {
   readonly modelPrice?: ModelPriceSnapshotPort;
   /** M4 Block B opt-in capability; optional for legacy UnitOfWork test doubles. */
   readonly workflowPlan?: WorkflowPlanPort;
+  /** M4 Block C opt-in capability; optional for legacy UnitOfWork test doubles. */
+  readonly attemptRecovery?: AttemptRecoveryPort;
   readonly job: JobPort;
   readonly workflowInvocation: WorkflowInvocationPort;
   readonly generationAttempt: GenerationAttemptPort;

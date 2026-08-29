@@ -329,6 +329,20 @@ export type {
   PreparePaidGenerationInput,
   PreparePaidGenerationResult,
 } from './ai/paid-generation-preparation-service.js';
+// M4 Block C: attempt recovery + orchestrator (executor injected at composition).
+export {
+  ORPHAN_ATTEMPT_ERROR_CODE,
+  orphanAttemptPayload,
+} from './ai/attempt-recovery-port.js';
+export type { AttemptRecoveryPort } from './ai/attempt-recovery-port.js';
+export { createAttemptRecoveryService } from './ai/attempt-recovery-service.js';
+export {
+  createAttemptOrchestrator,
+  type AttemptOrchestratorDeps,
+  type OrchestratorStageRequest,
+  type RunPlanInput,
+  type RunPlanResult,
+} from './ai/attempt-orchestrator.js';
 export {
   MOCK_PRICE_SNAPSHOT_FIXTURES,
   MOCK_PRICE_SNAPSHOT_ID,
