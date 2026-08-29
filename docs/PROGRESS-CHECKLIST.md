@@ -137,9 +137,9 @@ started early.
   - [x] Missing-reservation funding incidents: nonlegacy terminal jobs fail closed with durable typed incident `credit.job_missing_reservation` (dedupe `incident:job-missing-reservation:{jobId}`); `pre_d4_legacy` exempt
   - [x] Tests: `credit-quote`, `reservation-exposure`, `failed-job-zero-charge`, `credit-rounding`, `ledger-reconciliation`, `usable-output-settlement`, `credit-retention` (20 cases), `missing-reservation-incident` (9 cases)
   - Note (PM ratification recorded at Batch B): Task 12 retention maintenance wiring in worker-gen is approved. "Worker source diff empty" means no additional unauthorized worker behavior and no AI processor activation — not deletion of the approved retention wiring. Processor remains disabled (`JOB_PROCESSOR_ENABLED=false` gates claim/polling only; reclaim and retention stay active). D11/D12 semantics unchanged.
-- [ ] **W3.4 Outbox** _(Fable)_
-  - [ ] OutboxEvent + receipts (processing/completed/uncertain/dead + deliveryGeneration); consumer module in worker (D11); idempotent handler; dead replay = new generation, same dedupeKey
-  - [ ] Tests: `outbox-idempotent`, `outbox-uncertain-delivery`, `outbox-replay-generation`
+- [x] **W3.4 Outbox** _(Fable)_ — implementation reviewed and approved by external PM (final corrective head `0ef7fec`); awaiting CI and merge closure
+  - [x] OutboxEvent + receipts (processing/completed/uncertain/dead + deliveryGeneration); consumer module in worker (D11); idempotent handler; dead replay = new generation, same dedupeKey
+  - [x] Tests: `outbox-idempotent`, `outbox-uncertain-delivery`, `outbox-replay-generation`
 - [ ] **W3.5 UI mechanics** _(Opus)_
   - [ ] `CreditQuoteCard` generic (all paid actions, D4)
   - [ ] `JobPhasePanel` (public phases, cancel, no %) + polling (D12) + recovery banner + JOB_ALREADY_ACTIVE
