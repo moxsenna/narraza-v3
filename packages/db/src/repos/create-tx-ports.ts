@@ -3,6 +3,7 @@ import { dbNow, dbOperationalNow } from '../db-now.js';
 import { createAiUsagePort } from './ai-usage-port.js';
 import { createAuditPort } from './audit-port.js';
 import { createChangeSetRepo } from './change-set-repo.js';
+import { createContextBundlePort } from './context-bundle-port.js';
 import { createCharacterRepo } from './character-repo.js';
 import { createConceptRepo } from './concept-repo.js';
 import { createCreditBalanceRepo } from './credit-balance-repo.js';
@@ -14,6 +15,7 @@ import { createFoundationRepo } from './foundation-repo.js';
 import { createIntakeRepo } from './intake-repo.js';
 import { createJobRepo } from './job-repo.js';
 import { createLedgerPort } from './ledger-port.js';
+import { createModelPricePort } from './model-price-port.js';
 import { createOutlineRepo } from './outline-repo.js';
 import { createOutboxPort } from './outbox-port.js';
 import { createProjectRepo } from './project-repo.js';
@@ -42,6 +44,8 @@ export function createTxPorts(tx: TxClient): TxPorts {
     audit: createAuditPort(tx),
     outbox: createOutboxPort(tx),
     snapshot: createSnapshotPort(tx),
+    contextBundle: createContextBundlePort(tx),
+    modelPrice: createModelPricePort(tx),
     ledger: createLedgerPort(tx),
     creditBalance: createCreditBalanceRepo(tx),
     creditBillingAllocation: createCreditBillingAllocationPort(tx),

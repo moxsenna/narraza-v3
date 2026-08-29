@@ -20,6 +20,8 @@ import type { QuotePort } from './quote-port.js';
 import type { RevealRepo } from './reveal-repo.js';
 import type { SnapshotPort } from './snapshot-port.js';
 import type { UsableOutputClassifier } from './usable-output-classifier.js';
+import type { ContextBundlePort } from '../ai/context-bundle-port.js';
+import type { ModelPriceSnapshotPort } from '../ai/model-price-port.js';
 import type { GenerationAttemptPort, WorkflowInvocationPort } from './workflow-invocation-port.js';
 
 /** D9: default read committed + row lock/CAS; serializable opt-in per use case. */
@@ -59,6 +61,10 @@ export interface TxPorts {
   readonly creditRetention: CreditRetentionPort;
   /** W3.3 opt-in capability; optional for legacy UnitOfWork test doubles. */
   readonly usableOutputClassifier?: UsableOutputClassifier;
+  /** M4 Block A opt-in capability; optional for legacy UnitOfWork test doubles. */
+  readonly contextBundle?: ContextBundlePort;
+  /** M4 Block A opt-in capability; optional for legacy UnitOfWork test doubles. */
+  readonly modelPrice?: ModelPriceSnapshotPort;
   readonly job: JobPort;
   readonly workflowInvocation: WorkflowInvocationPort;
   readonly generationAttempt: GenerationAttemptPort;

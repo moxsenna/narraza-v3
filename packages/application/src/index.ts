@@ -284,6 +284,38 @@ export type {
   Mailer,
 } from './auth/ports.js';
 export { type AuthConfig, type EmailTokenPurpose } from './auth/constants.js';
+
+// M4 Block A: frozen context bundles + deterministic mock price fixtures.
+export { toStoredDataClass } from './ai/context-bundle-port.js';
+export type {
+  ContextBundlePort,
+  ContextBundleRecord,
+  ContextBundleCreateInput,
+  ContextBundleSnapshot,
+  StoredDataClass,
+} from './ai/context-bundle-port.js';
+export {
+  createContextBundleFreezeService,
+  type FreezeBundleInput,
+  type FreezeBundleResult,
+  type FreezeBundleErrorCode,
+  type FrozenBundle,
+  type ContextPacketLike,
+} from './ai/context-bundle-freeze-service.js';
+export type {
+  ModelPriceSnapshotPort,
+  ModelPriceSnapshotRecord,
+  ModelPriceSnapshotSeedInput,
+} from './ai/model-price-port.js';
+export { seedMockPriceSnapshots } from './ai/seed-mock-prices.js';
+export {
+  MOCK_PRICE_SNAPSHOT_FIXTURES,
+  MOCK_PRICE_SNAPSHOT_ID,
+  MOCK_PROVIDER_ID,
+  MOCK_WRITER_MODEL_ID,
+  MOCK_JUDGE_MODEL_ID,
+  MOCK_PRICE_EFFECTIVE_AT,
+} from './ai/mock-price-fixtures.js';
 export { type AuthError, type AuthErrorCode } from './auth/errors.js';
 
 // Task 6: Credit quote confirmation service
