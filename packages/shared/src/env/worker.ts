@@ -18,6 +18,10 @@ export const workerEnvSchema = z
     NODE_ENV: nodeEnvSchema,
 
     DATABASE_URL_WORKER: z.string().min(1),
+    // Separate least-privilege role for the embedded outbox consumer (S6.3).
+    // The consumer never borrows the generation-worker connection, so the
+    // future process split is a PM2 change rather than a code change (D11).
+    DATABASE_URL_OUTBOX: z.string().min(1),
 
     OPENROUTER_API_KEY: z.string().min(1).optional(),
     GEMINI_API_KEY: z.string().min(1).optional(),
@@ -34,9 +38,12 @@ export const workerEnvSchema = z
     RETENTION_SWEEP_MINUTES: intFromEnv(60),
     RETENTION_MAX_AGE_HOURS: intFromEnv(24),
 
-    // Outbox consumer module (D11/D12).
+    // Outbox consumer module (D11/D12). Runs independently of
+    // JOB_PROCESSOR_ENABLED, like the retention sweep.
     OUTBOX_POLL_MS: intFromEnv(1000),
     OUTBOX_IDLE_BACKOFF_MS: intFromEnv(5000),
+    OUTBOX_LEASE_SECONDS: intFromEnv(60),
+    OUTBOX_SHUTDOWN_DRAIN_MS: intFromEnv(30000),
   })
   .superRefine((env, context) => {
     const issue = (path: string, message: string) =>
@@ -49,6 +56,12 @@ export const workerEnvSchema = z
     }
     if (env.JOB_SHUTDOWN_DRAIN_MS < env.JOB_HEARTBEAT_SECONDS * 1000) {
       issue('JOB_SHUTDOWN_DRAIN_MS', 'shutdown drain must be at least one heartbeat interval');
+    }
+    if (env.OUTBOX_IDLE_BACKOFF_MS < env.OUTBOX_POLL_MS) {
+      issue('OUTBOX_IDLE_BACKOFF_MS', 'idle backoff must be at least the poll interval');
+    }
+    if (env.OUTBOX_LEASE_SECONDS * 1000 <= env.OUTBOX_POLL_MS) {
+      issue('OUTBOX_LEASE_SECONDS', 'lease must outlast one poll interval');
     }
   });
 

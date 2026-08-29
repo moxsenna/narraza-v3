@@ -75,6 +75,21 @@ export type {
   MissingJobReservationIncidentResult,
   OutboxPort,
 } from './outbox-port.js';
+export type {
+  OutboxDeliveryEvent,
+  OutboxDeliveryReceipt,
+  OutboxClaim,
+  ClaimNextOutboxInput,
+  ClaimNextOutboxResult,
+  OutboxFinalizeFence,
+  OutboxFailureFence,
+  OutboxFinalizeResult,
+  ReplayDeadOutboxInput,
+  ReplayDeadOutboxResult,
+  OutboxNotReplayableReason,
+  OutboxDeliveryPort,
+  OutboxDeliveryUnitOfWork,
+} from './outbox-delivery-port.js';
 export type { SnapshotAppendInput, SnapshotPort } from './snapshot-port.js';
 export type {
   ReleaseQueuedCancellationInput,

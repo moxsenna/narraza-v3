@@ -35,6 +35,11 @@ export interface ComposedLoop {
 export interface CompositionDependencies {
   processor?: JobProcessor;
   createLoop: (input: { processor?: JobProcessor; settings: JobLoopSettings }) => ComposedLoop;
+  /**
+   * D11/S8.4: the outbox consumer is a separate maintenance module inside this process.
+   * It must start regardless of JOB_PROCESSOR_ENABLED, like the retention sweeper.
+   */
+  createOutboxLoop: () => ComposedLoop;
   registerSignal: (signal: 'SIGTERM' | 'SIGINT', handler: () => void) => void;
   logger: { info: (value: object) => void; error: (value: object) => void };
   setExitCode: (code: number) => void;
@@ -49,16 +54,27 @@ export function composeWorker(env: LifecycleEnv, deps: CompositionDependencies):
     ...(processor ? { processor } : {}),
     settings: workerSettingsFromEnv(env),
   });
+  const outboxLoop = deps.createOutboxLoop();
   let shutdownPromise: Promise<void> | undefined;
+  const shutdownAll = async (): Promise<void> => {
+    const results = await Promise.allSettled([loop.shutdown(), outboxLoop.shutdown()]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure) throw failure.reason;
+  };
   const shutdown = (): void => {
-    shutdownPromise ??= loop.shutdown().catch((error: unknown) => {
+    shutdownPromise ??= shutdownAll().catch((error: unknown) => {
       deps.logger.error({ event: 'worker_shutdown_error', error });
       deps.setExitCode(1);
     });
   };
   deps.registerSignal('SIGTERM', shutdown);
   deps.registerSignal('SIGINT', shutdown);
-  deps.logger.info({ event: 'worker_startup', processor_configured: processor !== undefined });
+  deps.logger.info({
+    event: 'worker_startup',
+    processor_configured: processor !== undefined,
+    outbox_consumer: true,
+  });
   loop.start();
-  return loop;
+  outboxLoop.start();
+  return { start: () => undefined, shutdown: () => shutdownPromise ?? shutdownAll() };
 }

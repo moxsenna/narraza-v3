@@ -47,6 +47,11 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Outbox handler idempotent double delivery                                       | S8       | `outbox-idempotent`               | integration         |
 | Outbox retry after external side effect uses same dedupe key                    | S8       | `outbox-uncertain-delivery`       | integration         |
 | Dead outbox replay creates new delivery generation, not new event               | S8       | `outbox-replay-generation`        | integration         |
+| Claim is globally oldest-first across fresh and expired reclaim work; attemptCount fences stale finalize | S8.4/D9 | `outbox-claim-fence` | integration |
+| Outbox consumer runs independent of `JOB_PROCESSOR_ENABLED`; empty registry idles; embedded and standalone compose one module | D11/D12 | `outbox-worker-wiring` | unit |
+| Outbox handler idempotent double delivery                                       | S8       | `outbox-idempotent`               | integration         |
+| Outbox retry after external side effect uses same dedupe key                    | S8       | `outbox-uncertain-delivery`       | integration         |
+| Dead outbox replay creates new delivery generation, not new event               | S8       | `outbox-replay-generation`        | integration         |
 | Cancel queued releases slot + reservation                                       | S8       | `cancel-queued`                   | integration         |
 | Manual retry creates new job                                                    | S8       | `retry-new-job`                   | integration         |
 | Active user required                                                            | S6       | `active-user-guard`               | unit                |
@@ -128,3 +133,22 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Canonical operations hash covers semantic material and is permutation-stable | S3 | `operations-hash` | unit |
 
 When adding invariants: append row, implement test, wire CI job, then merge.
+
+## W3.4 outbox delivery — test target locations
+
+The five W3.4 targets above resolve to these files. `integration` targets run
+against real PostgreSQL (Testcontainers, `packages/db/vitest.schema.config.ts`);
+`unit` targets run in the package's default Vitest project.
+
+| Test target                 | File                                                                      | Blocks                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `outbox-idempotent`         | `packages/db/src/outbox/outbox-idempotent.integration.test.ts`            | `outbox-idempotent`                                                                                      |
+| `outbox-uncertain-delivery` | `packages/db/src/outbox/outbox-uncertain-delivery.integration.test.ts`    | `outbox-uncertain-delivery`, `outbox-terminal-never-redelivered`                                         |
+| `outbox-replay-generation`  | `packages/db/src/outbox/outbox-replay-generation.integration.test.ts`     | `outbox-replay-generation`, `outbox-replay-concurrency`                                                  |
+| `outbox-claim-fence`        | `packages/db/src/outbox/outbox-idempotent.integration.test.ts`            | `outbox-claim-fence`, `outbox-claim-mixed-order`, `outbox-claim-mixed-concurrency`, `outbox-claim-selection`, `outbox-finalize-guards` |
+| `outbox-worker-wiring`      | `apps/worker-gen/src/main.test.ts`, `apps/worker-outbox/src/main.test.ts`  | `outbox-worker-wiring (embedded, D11)`, `outbox-worker-wiring (standalone, D11)`                          |
+
+Application-level contract coverage (registry, handler-outside-transaction
+ordering, idempotency key stability, loop cadence and shutdown) lives in
+`packages/application/src/outbox/outbox-delivery-service.test.ts` and
+`packages/application/src/outbox/outbox-consumer-loop.test.ts`, both in `unit`.
