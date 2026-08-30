@@ -38,6 +38,11 @@ function deterministicId(prefix: string, requestId: string): string {
   return `${prefix}-${createHash('sha256').update(requestId).digest('hex').slice(0, 32)}`;
 }
 
+/** Opaque stable counter key; DB never receives raw user identity as key_hash. */
+function fairUseKey(userId: string): string {
+  return createHash('sha256').update(`m4-intake-fair-use\0${userId}`).digest('hex');
+}
+
 function exactReplayMatches(
   job: GenerationJobRecord,
   input: CreateSystemFundedIntakeInput,
@@ -93,7 +98,7 @@ export function createSystemFundedIntakeService(deps: { readonly unitOfWork: Uni
             }
 
             const admitted = await intake.acceptDailyGeneration({
-              userId: input.userId,
+              userId: fairUseKey(input.userId),
               limit: dailyLimit,
             });
             if (admitted.kind === 'limited') {

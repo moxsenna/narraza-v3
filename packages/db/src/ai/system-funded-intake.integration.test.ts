@@ -159,8 +159,15 @@ schema.test(
          FROM rate_limit_counters WHERE kind=$1 AND key_hash=$2`,
         [INTAKE_FAIR_USE_COUNTER_KIND, ids.userA],
       );
-      expect(counter.rows).toHaveLength(1);
-      expect(counter.rows[0]?.count).toBe(60);
+      expect(counter.rows).toHaveLength(0);
+      const opaqueCounter = await client.query<{ count: number; key_hash: string }>(
+        `SELECT count,key_hash FROM rate_limit_counters WHERE kind=$1`,
+        [INTAKE_FAIR_USE_COUNTER_KIND],
+      );
+      expect(opaqueCounter.rows).toHaveLength(1);
+      expect(opaqueCounter.rows[0]?.key_hash).toMatch(/^[a-f0-9]{64}$/);
+      expect(opaqueCounter.rows[0]?.key_hash).not.toBe(ids.userA);
+      expect(opaqueCounter.rows[0]?.count).toBe(60);
 
       const rows = await client.query<{ jobs: string; reservations: string }>(
         `SELECT

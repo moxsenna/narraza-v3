@@ -10,6 +10,7 @@ import type {
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { TxPorts, UnitOfWork } from '../ports/unit-of-work.js';
 import type {
+  CreditReservationRecord,
   GenerationJobRecord,
   JobLeaseIdentity,
   JsonObject,
@@ -28,6 +29,29 @@ import {
 } from './job-service.js';
 
 const fixedDate = new Date('2026-07-26T12:00:00.000Z');
+
+function reservation(overrides: Partial<CreditReservationRecord> = {}): CreditReservationRecord {
+  return {
+    id: 'reservation-old',
+    userId: 'user-1',
+    projectId: 'project-1',
+    jobId: 'job-1',
+    projectJobId: 'project-1',
+    status: 'released',
+    fundingModel: 'user_paid',
+    reservedMicroIdr: 1_000n,
+    settledMicroIdr: 0n,
+    releasedMicroIdr: 1_000n,
+    exposureMicroIdr: 0n,
+    closingAt: null,
+    quoteId: 'quote-1',
+    confirmationRequestId: 'confirmation-1',
+    schemaVersion: 1,
+    createdAt: fixedDate,
+    updatedAt: fixedDate,
+    ...overrides,
+  };
+}
 
 function job(overrides: Partial<GenerationJobRecord> = {}): GenerationJobRecord {
   return {
@@ -56,6 +80,7 @@ function job(overrides: Partial<GenerationJobRecord> = {}): GenerationJobRecord 
 interface HarnessOptions {
   readonly projectDeletedAt?: Date | null;
   readonly lockedJob?: GenerationJobRecord | null;
+  readonly lockedReservation?: CreditReservationRecord | null;
   readonly releaseResult?:
     | { readonly kind: 'released' }
     | { readonly kind: 'already_released' }
@@ -109,15 +134,36 @@ function makeHarness(options: HarnessOptions = {}) {
     }),
   } satisfies LedgerPort;
 
+  const creditReservation = {
+    lockBound: vi.fn(async () => {
+      calls.push('creditReservation.lockBound');
+      return options.lockedReservation === undefined ? reservation() : options.lockedReservation;
+    }),
+    applyReconciliationTarget: vi.fn(async () => {
+      calls.push('creditReservation.applyReconciliationTarget');
+      return { kind: 'reconciled' as const };
+    }),
+  };
+
   const ports = {
     project: {
       lockForUpdate: vi.fn(async () => {
         calls.push('project.lockForUpdate');
-        return { deletedAt: options.projectDeletedAt ?? null };
+        return {
+          ownerUserId: 'user-1',
+          deletedAt: options.projectDeletedAt ?? null,
+        };
       }),
     },
     job: jobPort,
     ledger: ledgerPort,
+    creditReservation,
+    workflowInvocation: {
+      countUnresolvedAttempts: vi.fn(async () => {
+        calls.push('workflowInvocation.countUnresolvedAttempts');
+        return 0;
+      }),
+    },
     allocateId: () => {
       calls.push('allocateId');
       return `allocated-${++allocated}`;
@@ -152,6 +198,7 @@ function makeHarness(options: HarnessOptions = {}) {
     calls,
     jobPort,
     ledgerPort,
+    creditReservation,
     ports,
     unitOfWork,
     executeCount: () => executeCount,
@@ -176,6 +223,7 @@ describe('job cancellation', () => {
     expect(h.calls).toEqual([
       'begin',
       'job.lockForUpdate',
+      'creditReservation.lockBound',
       'allocateId',
       'ledger.releaseQueuedCancellation',
       'job.cancelQueued',
@@ -214,6 +262,52 @@ describe('job cancellation', () => {
     expect(h.ledgerPort.releaseQueuedCancellation).not.toHaveBeenCalled();
   });
 
+  it('cancels system-funded queued job by persisted funding model with zero ledger impact', async () => {
+    const cancelledJob = job({ kind: 'chat_intake_reply', status: 'cancelled' });
+    const h = makeHarness({
+      lockedJob: job({ kind: 'chat_intake_reply' }),
+      lockedReservation: reservation({
+        status: 'open',
+        fundingModel: 'system_funded',
+        releasedMicroIdr: 0n,
+        exposureMicroIdr: 1_000n,
+        quoteId: null,
+        confirmationRequestId: 'system-budget:job-1',
+      }),
+      cancelQueuedResult: { kind: 'cancelled', job: cancelledJob },
+    });
+
+    const result = await createJobService(h.unitOfWork).cancel({
+      projectId: 'project-1',
+      jobId: 'job-1',
+    });
+
+    expect(result).toEqual({ kind: 'cancelled', job: cancelledJob });
+    expect(h.ledgerPort.releaseQueuedCancellation).not.toHaveBeenCalled();
+    expect(h.creditReservation.applyReconciliationTarget).toHaveBeenCalledWith({
+      reservationId: 'reservation-old',
+      userId: 'user-1',
+      projectId: 'project-1',
+      jobProjectId: 'project-1',
+      jobId: 'job-1',
+      settledTargetMicroIdr: 0n,
+      releasedTargetMicroIdr: 1_000n,
+      exposureTargetMicroIdr: 0n,
+      terminalReason: 'cancelled',
+    });
+    expect(h.calls).toEqual([
+      'begin',
+      'job.lockForUpdate',
+      'creditReservation.lockBound',
+      'job.cancelQueued',
+      'project.lockForUpdate',
+      'creditReservation.lockBound',
+      'workflowInvocation.countUnresolvedAttempts',
+      'creditReservation.applyReconciliationTarget',
+      'commit',
+    ]);
+  });
+
   it('treats an already-released reservation as idempotent success without rollback', async () => {
     const h = makeHarness({ releaseResult: { kind: 'already_released' } });
 
@@ -226,6 +320,7 @@ describe('job cancellation', () => {
     expect(h.calls).toEqual([
       'begin',
       'job.lockForUpdate',
+      'creditReservation.lockBound',
       'allocateId',
       'ledger.releaseQueuedCancellation',
       'job.cancelQueued',
@@ -352,6 +447,7 @@ describe('job cancellation', () => {
     expect(h.calls).toEqual([
       'begin',
       'job.lockForUpdate',
+      'creditReservation.lockBound',
       'allocateId',
       'ledger.releaseQueuedCancellation',
       'rollback',
@@ -371,6 +467,7 @@ describe('job cancellation', () => {
     expect(h.calls).toEqual([
       'begin',
       'job.lockForUpdate',
+      'creditReservation.lockBound',
       'allocateId',
       'ledger.releaseQueuedCancellation',
       'job.cancelQueued',
