@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation';
 
-import { SceneGenerationPanel } from '../../../../../../../components/credits/SceneGenerationPanel';
 import { resolveChapterContext } from '../../../../../../../lib/server/capability-resolvers/chapter-context';
-import { findSceneJobState } from '../../../../../../../server/domain/generation';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +15,6 @@ export default async function ChapterTulisPage({
   if (context.kind !== 'resolved') notFound();
 
   const { projectTitle, chapterTitle, chapterOrdinal } = context;
-  const jobLookup = await findSceneJobState(projectId, chapterId, null);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
@@ -35,12 +32,17 @@ export default async function ChapterTulisPage({
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <SceneGenerationPanel
-            projectId={projectId}
-            chapterId={chapterId}
-            initialJobRef={jobLookup.kind === 'found' ? jobLookup.jobRef : null}
-            initialJob={jobLookup.kind === 'found' ? jobLookup.view : null}
-          />
+          <section
+            aria-label="Buat adegan"
+            className="rounded-2xl border border-border-default bg-surface p-5 sm:p-6"
+            data-testid="scene-generation-unavailable"
+          >
+            <h2 className="text-base font-bold text-text-primary">Buat adegan</h2>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">
+              Pembuatan adegan otomatis belum dapat dilakukan di sini. Kamu akan bisa memulai proses
+              terjadwal dengan perkiraan biaya ketika fitur ini dirilis.
+            </p>
+          </section>
 
           <div className="rounded-2xl border border-border-default bg-surface p-4">
             <label htmlFor="prose-editor" className="block text-sm font-semibold text-text-primary">

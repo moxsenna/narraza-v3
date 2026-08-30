@@ -176,7 +176,7 @@ export const CAPABILITIES = {
   ),
   'project.manuscript.view': presentation('project.manuscript.view', 'Lihat naskah'),
   'project.publish.view': presentation('project.publish.view', 'Lihat paket publish'),
-  'chapter.write.compose': serverDerived('chapter.write.compose', 'Buat adegan'),
+  'chapter.write.compose': presentation('chapter.write.compose', 'Buat adegan'),
   'chapter.check.run': presentation('chapter.check.run', 'Cek cerita', 'VALIDATION_REQUIRED'),
   'chapter.complete.run': presentation(
     'chapter.complete.run',

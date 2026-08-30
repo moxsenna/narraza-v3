@@ -1,6 +1,7 @@
 'use server';
 
 import type { JobPublicView } from '../../lib/frontend/job-phase';
+import { resolveGenerationHarnessAccess } from '../../lib/server/preview/generation-harness';
 import {
   assertSceneChapterAccess,
   cancelSceneGenerationJob,
@@ -60,7 +61,9 @@ export async function requestSceneGenerationQuoteAction(
   const chapterId = String(formData.get('chapterId') ?? '');
   if (!projectId || !chapterId) return chapterAccessError();
 
-  const access = await assertSceneChapterAccess(projectId, chapterId);
+  // Mutation gate: quote issuance is a harness-only capability until M4 owns
+  // real generation. Production resolves to a non-enumerating failure.
+  const access = await resolveGenerationHarnessAccess(projectId, chapterId);
   if (access.kind !== 'allowed') return chapterAccessError();
 
   const result = await issueSceneGenerationQuote(projectId, chapterId, access.userId);
@@ -95,7 +98,7 @@ export async function confirmSceneGenerationQuoteAction(
     return { kind: 'error', message: NOT_FOUND_MESSAGE };
   }
 
-  const access = await assertSceneChapterAccess(projectId, chapterId);
+  const access = await resolveGenerationHarnessAccess(projectId, chapterId);
   if (access.kind !== 'allowed') return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
   const result = await confirmSceneGenerationQuote(projectId, chapterId, access.userId, quoteId);
@@ -160,7 +163,8 @@ export async function cancelSceneGenerationJobAction(
   const chapterId = String(formData.get('chapterId') ?? '');
   if (!projectId || !chapterId) return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
-  const access = await assertSceneChapterAccess(projectId, chapterId);
+  // Mutation gate: cancellation only exists where the harness can create jobs.
+  const access = await resolveGenerationHarnessAccess(projectId, chapterId);
   if (access.kind !== 'allowed') return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
   const result = await cancelSceneGenerationJob(projectId, chapterId);
