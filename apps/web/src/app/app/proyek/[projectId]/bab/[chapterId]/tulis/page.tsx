@@ -63,8 +63,8 @@ export default async function ChapterTulisPage({
               Penulisan dari halaman ini belum tersedia
             </p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Menulis dan menyunting naskah secara manual belum dapat dilakukan di sini. Kamu bisa
-              memulai proses pembuatan adegan melalui panel di atas.
+              Menulis dan menyunting naskah secara manual belum dapat dilakukan di sini. Pembuatan
+              adegan otomatis juga belum tersedia pada tahap ini.
             </p>
           </section>
         </div>
