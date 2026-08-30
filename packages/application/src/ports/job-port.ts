@@ -125,6 +125,12 @@ export interface JobPort {
   insert(input: JobInsertInput): Promise<JobInsertResult>;
   findById(input: JobLookupInput): Promise<GenerationJobRecord | null>;
   listActiveByProject(projectId: string): Promise<readonly GenerationJobRecord[]>;
+  /**
+   * Read-only UI lookup: the most recent immutable terminal job of `kind` for
+   * the project. Terminal jobs are immutable, so this carries no lease or
+   * state-machine semantics; it only surfaces a finished outcome.
+   */
+  findLatestTerminalByProject(projectId: string, kind: string): Promise<GenerationJobRecord | null>;
   lockForUpdate(input: JobLookupInput): Promise<GenerationJobRecord | null>;
   /** Locks exact job without requiring live lease ownership; used after terminalization. */
   lockForReconciliation(input: JobLookupInput): Promise<GenerationJobRecord | null>;

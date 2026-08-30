@@ -218,6 +218,23 @@ export function createJobRepo(tx: TxClient): JobPort {
       return rows.map(toRecord);
     },
 
+    async findLatestTerminalByProject(
+      projectId: string,
+      kind: string,
+    ): Promise<GenerationJobRecord | null> {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT ${COLUMN_LIST}
+           FROM generation_jobs
+          WHERE project_id = $1 AND kind = $2 AND status IN ('succeeded','failed','dead','cancelled')
+          ORDER BY updated_at DESC, id DESC
+          LIMIT 1`,
+        projectId,
+        kind,
+      )) as RawRow[];
+      const row = rows[0];
+      return row ? toRecord(row) : null;
+    },
+
     async lockForUpdate(input: JobLookupInput): Promise<GenerationJobRecord | null> {
       const rows = (await tx.$queryRawUnsafe(
         `SELECT ${COLUMN_LIST}
