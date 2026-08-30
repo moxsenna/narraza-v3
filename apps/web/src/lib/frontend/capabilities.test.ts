@@ -25,6 +25,7 @@ test('locks exact approved action policy sets', () => {
     'auth.verification',
     'legal.privacy',
     'legal.terms',
+    'app.credit.view',
   ]);
   expect(keysWithPolicy('SERVER_DERIVED')).toEqual([
     'app.dashboard.view',
@@ -36,20 +37,19 @@ test('locks exact approved action policy sets', () => {
     'project.outline.create',
     'project.secrets.read',
     'project.facts.read',
+    'chapter.write.compose',
     'shell.logout',
     'shell.project-navigation',
     'shell.mobile-more',
   ]);
   expect(keysWithPolicy('UNAVAILABLE')).toEqual([
     'app.project.import',
-    'app.credit.view',
     'app.settings.view',
     'project.chat.ai-reply',
     'project.concept.choose',
     'project.write.resume',
     'project.manuscript.view',
     'project.publish.view',
-    'chapter.write.compose',
     'chapter.check.run',
     'chapter.complete.run',
     'chapter.manuscript.view',
@@ -87,6 +87,7 @@ test('keeps every sensitive real declaration server-derived', () => {
     'project.outline.create',
     'project.secrets.read',
     'project.facts.read',
+    'chapter.write.compose',
     'shell.logout',
     'shell.project-navigation',
     'shell.mobile-more',
