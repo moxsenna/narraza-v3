@@ -140,15 +140,17 @@ started early.
 - [x] **W3.4 Outbox** _(Fable)_ — implementation reviewed and approved by external PM (final corrective head `0ef7fec`); awaiting CI and merge closure
   - [x] OutboxEvent + receipts (processing/completed/uncertain/dead + deliveryGeneration); consumer module in worker (D11); idempotent handler; dead replay = new generation, same dedupeKey
   - [x] Tests: `outbox-idempotent`, `outbox-uncertain-delivery`, `outbox-replay-generation`
-- [ ] **W3.5 UI mechanics** _(Opus)_
-  - [ ] `CreditQuoteCard` generic (all paid actions, D4)
-  - [ ] `JobPhasePanel` (public phases, cancel, no %) + polling (D12) + recovery banner + JOB_ALREADY_ACTIVE
-  - [ ] Credit page (normal/low) + header chip from same `CreditSummaryView`
-  - [ ] Early e2e: `job-recovery` (mock job), `credit-summary`
+- [x] **W3.5 UI mechanics** _(Opus)_ — implemented on `feat/m3-w3.5` (base `b10475d2`); full local gate regression green (see verification-matrix W3.5 section); Draft PR pending CI
+  - [x] `CreditQuoteCard` generic (all paid actions, D4) — real `issueCreditQuote` bound to plan/dependency hashes; expiry/insufficient/error states honest
+  - [x] `JobPhasePanel` (public phases, cancel, no %) + polling (D12: 2.5s ×1.5 → 10s) + recovery banner + JOB_ALREADY_ACTIVE fail-closed (`ambiguous`)
+  - [x] Credit page (normal/low) + header chip from same `CreditSummaryView` (single D6 conversion in application layer; `toCreditSummaryDisplay` never re-converts)
+  - [x] Early e2e: `job-recovery` (mock job), `credit-summary` — green on desktop and mobile projects
+  - [x] Truthful terminal persistence: `JobPort.findLatestTerminalByProject` (read-only) surfaces the finished outcome after refresh; start flow stays available
+  - [x] E2E: `m3-cancel-zero-charge` (queued cancel, failed zero-charge, confirm tampering) — green on desktop and mobile
 - **Exit gate M3**
-  - [ ] Mock job end-to-end from UI: quote → confirm → phases → success/fail → credit consistent; refresh mid → recover
-  - [ ] All S8 + credit matrix tests green
-  - [ ] `kill -9` worker mid-job → correct reclaim, no double publish (manual + fence test)
+  - [x] Mock job end-to-end from UI: quote → confirm → phases → success/fail → credit consistent; refresh mid → recover (`tests/e2e/job-recovery.spec.ts`, `tests/e2e/credit-summary.spec.ts`, `tests/e2e/m3-cancel-zero-charge.spec.ts`; full Playwright aggregate 55 passed / 1 by-design desktop-only skip, desktop+mobile)
+  - [x] All S8 + credit matrix tests green — packages unit 38 shared + 670 core + 281 application; DB integration 315 (PostgreSQL 16, serial); web unit+contract 87; worker-gen 36
+  - [x] `kill -9` worker mid-job → correct reclaim, no double publish (local evidence: `node tests/evidence/process-crash-reclaim.mjs` → 13/13 PASS: SIGKILL via cross-platform Node child-process API, lease expiry → reclaim sweep → fence 1→3 → stale fence publish rejected (`lost`) → new worker fenced publish exactly once → reservation released zero-charge → ledger book conserved; Windows `taskkill` not required, not CI-wired per PM constraint)
 
 ---
 

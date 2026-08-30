@@ -128,11 +128,49 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Production quote confirmation serializes against concurrent production retention sweep (both interleavings) | D12/S9 | `credit-retention-confirmation-race` | integration |
 | Nonlegacy terminal job without reservation fails closed financially with one durable typed incident; pre_d4_legacy exempt | D4/S8 | `missing-reservation-incident` | integration |
 | Fenced publish preflight rejects unbounded would-be-success before callback/classifier/settlement | D4/S8 | `lease-fence-publish` | integration |
+| Credit page and header chip render one server-derived `CreditSummaryView` snapshot; conversion to credits happens only in the application layer, never re-applied in web | D6/S9 | `credit-summary-view` | unit,e2e |
+| Public job phases only (`queued|running|succeeded|failed|dead|cancelled`); no fabricated percentages or fabricated terminal states | D12 | `job-public-phase` | unit |
+| UI polling starts at 2.5s with ×1.5 backoff capped at 10s; transient read failures stay recoverable and never map to terminal phases | D12 | `job-poll-backoff` | unit |
+| Active job recovers across refresh with server-derived banner; more than one active scene job fails closed (`ambiguous`), never `jobs[0]` selection | D12/S8 | `job-recovery` | e2e |
+| Confirm replay after job start never creates a duplicate job | S8/D4 | `job-replay` | e2e |
+| Queued cancel and failed-without-usable-output release held credits with zero user charge through real reconciliation | D4 | `m3-cancel-zero-charge` | e2e,integration |
+| Confirm form tampering (foreign projectId) fails closed as NOT_FOUND without side effects | S9 | `confirm-tamper` | e2e |
+| Hard worker process death → lease expiry → reclaim sweep → new ownership with advanced fence → stale fence cannot publish → no duplicate publish → credit conserved | S8/D4 | `process-crash-reclaim` | local evidence (not CI-wired) |
 
 | Operation DAG order and cycle members are stable across input permutations | S3 | `operation-topo-sort` | unit |
 | Canonical operations hash covers semantic material and is permutation-stable | S3 | `operations-hash` | unit |
 
 When adding invariants: append row, implement test, wire CI job, then merge.
+
+## W3.5 UI mechanics — test target locations
+
+`unit` targets run in `apps/web` Vitest (or package unit suites); `e2e` targets
+run in Playwright against both the `desktop` (1280×800) and `mobile`
+(375×812) projects with the real Next.js server, real PostgreSQL (E2E
+container), Mailpit, and real M3 job/credit services driven through the UI.
+`process-crash-reclaim` is a standalone cross-platform evidence harness
+(`tests/evidence/process-crash-reclaim.mjs` + worker child
+`tests/evidence/process-crash-reclaim-worker.mjs`); it deliberately uses only
+the Node child-process API (`kill('SIGKILL')` = `TerminateProcess` on Windows,
+SIGKILL on POSIX) so it can run in any CI, but it is run as local evidence and
+is not wired into the required CI set.
+
+| Test target            | File                                                                                                   | Blocks                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| `credit-summary-view`  | `apps/web/src/lib/frontend/credit-display.test.ts`, `apps/web/src/lib/server/credit-view-model.ts`, `tests/e2e/credit-summary.spec.ts` | `credit-summary-view` |
+| `job-public-phase`     | `apps/web/src/lib/frontend/job-phase.test.ts`                                                          | `job-public-phase`                  |
+| `job-poll-backoff`     | `apps/web/src/components/credits/JobPhasePanel.tsx`, `apps/web/src/app/w3-5.contract.test.ts`          | `job-poll-backoff`                  |
+| `job-recovery`         | `tests/e2e/job-recovery.spec.ts`                                                                       | `job-recovery`, `job-replay`        |
+| `m3-cancel-zero-charge`| `tests/e2e/m3-cancel-zero-charge.spec.ts`, `packages/db/src/job/failed-job-zero-charge.integration.test.ts` | `m3-cancel-zero-charge`         |
+| `confirm-tamper`       | `tests/e2e/m3-cancel-zero-charge.spec.ts`                                                              | `confirm-tamper`                    |
+| `process-crash-reclaim`| `tests/evidence/process-crash-reclaim.mjs`                                                             | `process-crash-reclaim`             |
+
+Backend surface added for W3.5 is read-only and narrow: `JobPort.findLatestTerminalByProject`
+(immutable terminal lookup for the truthful outcome panel), `CreditReservationPort.findByJob`
+(reservation evidence for terminal jobs), and public exports of the approved
+D6 rounding helpers (`MICRO_IDR_PER_CREDIT`, `microIdrToCreditsFloor`,
+`microIdrToCreditsCeil`). No schema, migration, state-machine, reservation,
+outbox, or AI changes.
 
 ## W3.4 outbox delivery — test target locations
 
