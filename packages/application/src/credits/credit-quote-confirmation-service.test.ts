@@ -157,6 +157,7 @@ function makeHarness(options: HarnessOptions = {}) {
       return options.replayJob === undefined ? makeJob() : options.replayJob;
     }),
     listActiveByProject: vi.fn(),
+    findLatestTerminalByProject: vi.fn(),
     lockForUpdate: vi.fn(),
     claimNext: vi.fn(),
     heartbeat: vi.fn(),

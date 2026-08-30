@@ -154,7 +154,7 @@ export const CAPABILITIES = {
   'app.dashboard.view': serverDerived('app.dashboard.view', 'Buat proyek'),
   'app.project.create': serverDerived('app.project.create', 'Buat proyek'),
   'app.project.import': disabled('app.project.import', 'Impor draft', 'IMPORT_OUT_OF_SCOPE'),
-  'app.credit.view': presentation('app.credit.view', 'Lihat penggunaan'),
+  'app.credit.view': staticAvailable('app.credit.view', 'Lihat penggunaan'),
   'app.settings.view': presentation('app.settings.view', 'Buka pengaturan'),
   'project.home.view': serverDerived('project.home.view', 'Lihat proyek'),
   'project.chat.user-message': serverDerived('project.chat.user-message', 'Kirim pesan'),
@@ -176,7 +176,7 @@ export const CAPABILITIES = {
   ),
   'project.manuscript.view': presentation('project.manuscript.view', 'Lihat naskah'),
   'project.publish.view': presentation('project.publish.view', 'Lihat paket publish'),
-  'chapter.write.compose': presentation('chapter.write.compose', 'Tulis bab'),
+  'chapter.write.compose': presentation('chapter.write.compose', 'Buat adegan'),
   'chapter.check.run': presentation('chapter.check.run', 'Cek cerita', 'VALIDATION_REQUIRED'),
   'chapter.complete.run': presentation(
     'chapter.complete.run',

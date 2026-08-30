@@ -74,6 +74,7 @@ function makeHarness(options: HarnessOptions = {}) {
     insert: vi.fn(),
     findById: vi.fn(),
     listActiveByProject: vi.fn(),
+    findLatestTerminalByProject: vi.fn(),
     lockForUpdate: vi.fn(async () => {
       calls.push('job.lockForUpdate');
       return options.lockedJob === undefined ? job() : options.lockedJob;

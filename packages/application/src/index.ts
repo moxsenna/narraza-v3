@@ -180,6 +180,11 @@ export {
 
 export { computeCreditSummaryView } from './credits/credit-summary.js';
 export {
+  MICRO_IDR_PER_CREDIT,
+  microIdrToCreditsFloor,
+  microIdrToCreditsCeil,
+} from './credits/credit-rounding.js';
+export {
   createCreditRetentionService,
   DEFAULT_RETENTION_MAX_AGE_HOURS,
   DEFAULT_RETENTION_BATCH_SIZE,

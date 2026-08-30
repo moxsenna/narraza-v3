@@ -174,7 +174,11 @@ describe('M0 W0.5 public shell', () => {
     expect(nav).not.toMatch(/<a[^>]+aria-disabled="true"/);
     expect(nav).toContain('CAPABILITY_REASON_MESSAGES[capability.reasonCode]');
     expect(nav).toMatch(/aria-disabled="true"[\s\S]{0,500}\{reason\}/);
-    expect(`${layout}\n${source('messages/app-id.ts')}`).toContain('Kredit — segera hadir');
+    expect(
+      `${source('components/composites/AppHeader.tsx')}\n${source('messages/app-id.ts')}`,
+    ).toContain('Kredit — segera hadir');
+    expect(layout).toContain('getCurrentUser()');
+    expect(layout).toContain('getCreditSummaryViewForUser(user.userId)');
 
     const groups = ['PERSIAPAN', 'PERENCANAAN', 'PENULISAN', 'PEMERIKSAAN', 'PUBLIKASI', 'LAINNYA'];
     const items = [

@@ -128,11 +128,74 @@ Multiple jobs for one invariant: use comma-separated list (e.g. `contract,e2e`).
 | Production quote confirmation serializes against concurrent production retention sweep (both interleavings) | D12/S9 | `credit-retention-confirmation-race` | integration |
 | Nonlegacy terminal job without reservation fails closed financially with one durable typed incident; pre_d4_legacy exempt | D4/S8 | `missing-reservation-incident` | integration |
 | Fenced publish preflight rejects unbounded would-be-success before callback/classifier/settlement | D4/S8 | `lease-fence-publish` | integration |
+| Production product surface never offers the M3 mock generation capability: no quote, reservation, or job can be created from the placeholder plan path; `chapter.write.compose` stays PRESENTATION until M4 owns real generation | S9/D4 | `generation-truthful` | unit,e2e |
+| The M3 mock vertical is exposed only through a fail-closed harness boundary (production/staging/unknown → non-enumerating 404; authenticated owner-scoped chapter context required); the same production W3.5 components call the REAL M3 services there | S9 | `generation-harness` | unit,e2e |
+| Quote confirmation is exactly idempotent: reservation/job ids derive deterministically (namespaced SHA-1 UUIDv5) from the server-issued quote id, so a repeated or concurrent confirm of the same quote yields `exact_replay` semantics with one reservation and one job — Task 6 is not weakened | Task 6/D4 | `confirm-replay` | integration,e2e |
+| Terminal outcome recovery is scoped per chapter: payload eligibility filters before ordering/limit, so a newer terminal job from another chapter (or kind) never hides an older chapter's truthful outcome | D12/S8 | `terminal-recovery` | integration,e2e |
+| Credit page and header chip render one server-derived `CreditSummaryView` snapshot; conversion to credits happens only in the application layer, never re-applied in web | D6/S9 | `credit-summary-view` | unit,e2e |
+| Public job phases only (`queued|running|succeeded|failed|dead|cancelled`); no fabricated percentages or fabricated terminal states | D12 | `job-public-phase` | unit |
+| UI polling starts at 2.5s with ×1.5 backoff capped at 10s; transient read failures stay recoverable and never map to terminal phases | D12 | `job-poll-backoff` | unit |
+| Active job recovers across refresh with server-derived banner; more than one active scene job fails closed (`ambiguous`), never `jobs[0]` selection | D12/S8 | `job-recovery` | e2e |
+| Queued cancel and failed-without-usable-output release held credits with zero user charge through real reconciliation | D4 | `m3-cancel-zero-charge` | e2e,integration |
+| Confirm form tampering (foreign projectId) fails closed as NOT_FOUND without side effects | S9 | `confirm-tamper` | e2e |
+| Hard worker process death → lease expiry → reclaim sweep → new ownership with advanced fence → stale fence cannot publish → no duplicate publish → credit conserved | S8/D4 | `process-crash-reclaim` | local evidence (not CI-wired) |
 
 | Operation DAG order and cycle members are stable across input permutations | S3 | `operation-topo-sort` | unit |
 | Canonical operations hash covers semantic material and is permutation-stable | S3 | `operations-hash` | unit |
 
 When adding invariants: append row, implement test, wire CI job, then merge.
+
+## W3.5 UI mechanics — corrected architecture
+
+Two separated concerns (PM corrective review):
+
+1. **Production W3.5 mechanics components** — `CreditQuoteCard`, `JobPhasePanel`,
+   polling, cancel, `CreditSummaryView` surfaces — are real production
+   components. The production product path (`/tulis`) does NOT offer generation:
+   `chapter.write.compose` stays PRESENTATION and the page renders the honest
+   unavailable state. M4 owns activation of real AI generation
+   (AIWorkflowPlan, pricing, JobProcessor).
+2. **M3 mock vertical harness** — a fail-closed surface in the approved preview
+   tree (`/app/__preview/m3-generation/[projectId]/[chapterId]`) that renders the
+   same production components against the REAL M3 quote/confirm/job services so
+   the E2E mock driver can prove the full vertical. The boundary
+   (`lib/server/preview/generation-harness.ts`) refuses production/staging/unknown
+   outright and always requires authenticated owner-scoped chapter access; the
+   three mutating server actions (quote request, confirm, cancel) re-derive the
+   same fail-closed decision server-side, so a leaked action id cannot mutate in
+   production.
+
+`unit` targets run in `apps/web` Vitest (or package unit suites); `e2e` targets
+run in Playwright against both the `desktop` (1280×800) and `mobile`
+(375×812) projects with the real Next.js server, real PostgreSQL (E2E
+container), Mailpit, and real M3 job/credit services. `process-crash-reclaim`
+is a standalone cross-platform evidence harness
+(`tests/evidence/process-crash-reclaim.mjs` + worker child
+`tests/evidence/process-crash-reclaim-worker.mjs`); it deliberately uses only
+the Node child-process API (`kill('SIGKILL')` = `TerminateProcess` on Windows,
+SIGKILL on POSIX) so it can run in any CI, but it is run as local evidence and
+is not wired into the required CI set.
+
+| Test target             | File                                                                                                   | Blocks                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `generation-truthful`   | `apps/web/src/lib/frontend/capabilities.ts`, `apps/web/src/app/w3-5.contract.test.ts`, `tests/e2e/job-recovery.spec.ts` (production fail-closed) | `generation-truthful` |
+| `generation-harness`    | `apps/web/src/lib/server/preview/generation-harness.ts`, `apps/web/src/app/(preview)/app/%5F_preview/m3-generation/[projectId]/[chapterId]/page.tsx`, `apps/web/src/server/domain/generation-actions.ts` | `generation-harness` |
+| `confirm-replay`        | `apps/web/src/lib/server/confirmation-identity.ts` (+test), `packages/db/src/schema-test/credit-quote.integration.test.ts` (exact replay + concurrent convergence), `tests/e2e/job-recovery.spec.ts` (real double confirm) | `confirm-replay` |
+| `terminal-recovery`     | `packages/db/src/job/job-terminal-lookup.integration.test.ts`, `tests/e2e/job-recovery.spec.ts` (multi-chapter refresh) | `terminal-recovery` |
+| `credit-summary-view`   | `apps/web/src/lib/frontend/credit-display.test.ts`, `apps/web/src/lib/server/credit-view-model.ts`, `tests/e2e/credit-summary.spec.ts` | `credit-summary-view` |
+| `job-public-phase`      | `apps/web/src/lib/frontend/job-phase.test.ts`                                                          | `job-public-phase`                            |
+| `job-poll-backoff`      | `apps/web/src/components/credits/JobPhasePanel.tsx`, `apps/web/src/app/w3-5.contract.test.ts`          | `job-poll-backoff`                            |
+| `job-recovery`          | `tests/e2e/job-recovery.spec.ts`                                                                       | `job-recovery`                                |
+| `m3-cancel-zero-charge` | `tests/e2e/m3-cancel-zero-charge.spec.ts`, `packages/db/src/job/failed-job-zero-charge.integration.test.ts` | `m3-cancel-zero-charge`                   |
+| `confirm-tamper`        | `tests/e2e/m3-cancel-zero-charge.spec.ts`                                                              | `confirm-tamper`                              |
+| `process-crash-reclaim` | `tests/evidence/process-crash-reclaim.mjs`                                                             | `process-crash-reclaim`                       |
+
+Backend surface added for W3.5 is read-only and narrow: `JobPort.findLatestTerminalByProject`
+(immutable terminal lookup with payload-scoped eligibility applied before
+ordering/limit), `CreditReservationPort.findByJob` (reservation evidence for
+terminal jobs), and public exports of the approved D6 rounding helpers
+(`MICRO_IDR_PER_CREDIT`, `microIdrToCreditsFloor`, `microIdrToCreditsCeil`).
+No schema, migration, state-machine, reservation, outbox, or AI changes.
 
 ## W3.4 outbox delivery — test target locations
 
