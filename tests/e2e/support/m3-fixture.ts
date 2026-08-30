@@ -36,6 +36,37 @@ export async function seedM3ChapterForCurrentUser({
   return fixture;
 }
 
+/** Adds a second chapter under the same arc for multi-chapter recovery evidence. */
+export async function seedSecondChapterInProject(
+  fixture: M3Fixture,
+  title: string,
+): Promise<string> {
+  if (!DATABASE_URL) throw new Error('DATABASE_URL or DATABASE_URL_WEB required for M3 fixture');
+  const [application, db] = await Promise.all([
+    import('../../../packages/application/dist/index.js'),
+    import('../../../packages/db/dist/index.js'),
+  ]);
+  const prisma = db.createPrismaClient(DATABASE_URL);
+  try {
+    const arc = await prisma.arc.findFirst({ where: { projectId: fixture.projectId } });
+    if (!arc) throw new Error('fixture project has no arc');
+    const result = await application.createUpsertOutlineNode(db.createUnitOfWork(prisma))({
+      ownerUserId: fixture.userId,
+      projectId: fixture.projectId,
+      entityType: 'chapter',
+      parentId: arc.id,
+      title,
+      ordinal: 2,
+      narrativeSequence: 2,
+    });
+    if (!result.ok)
+      throw new Error(`second chapter seed failed: ${result.error.publicMessageCode}`);
+    return result.value.node.id;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export async function grantBookCredit(userId: string, amountMicroIdr: bigint): Promise<void> {
   if (!DATABASE_URL) throw new Error('DATABASE_URL or DATABASE_URL_WEB required for M3 fixture');
   const db = await import('../../../packages/db/dist/index.js');
@@ -157,6 +188,17 @@ export async function countProjectJobs(projectId: string): Promise<number> {
   const prisma = db.createPrismaClient(DATABASE_URL);
   try {
     return await prisma.generationJob.count({ where: { projectId } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function countProjectReservations(projectId: string): Promise<number> {
+  if (!DATABASE_URL) throw new Error('DATABASE_URL or DATABASE_URL_WEB required for M3 driver');
+  const db = await import('../../../packages/db/dist/index.js');
+  const prisma = db.createPrismaClient(DATABASE_URL);
+  try {
+    return await prisma.creditReservation.count({ where: { projectId } });
   } finally {
     await prisma.$disconnect();
   }

@@ -8,6 +8,11 @@ import { createM3JobDriver, seedM3ChapterForCurrentUser } from './support/m3-fix
 
 const MICRO_IDR_PER_CREDIT = 10_000_000n;
 
+/** Fail-closed generation harness (preview tree): the only surface where the
+ * M3 quote/job mechanics can be exercised. */
+const harnessUrl = (projectId: string, chapterId: string) =>
+  `/app/__preview/m3-generation/${projectId}/${chapterId}`;
+
 test.describe.configure({ timeout: 180_000 });
 
 test('header chip and credit page show the same server snapshot', async ({ page }, testInfo) => {
@@ -42,7 +47,7 @@ test('held credits appear while a job is reserved and release after completion',
   const driver = await createM3JobDriver(fixture.projectId);
 
   try {
-    await page.goto(`/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/tulis`);
+    await page.goto(harnessUrl(fixture.projectId, fixture.chapterId));
     await page.getByRole('button', { name: 'Buat adegan' }).click();
     await expect(page.getByTestId('credit-quote-card')).toBeVisible();
     await page.getByRole('button', { name: 'Konfirmasi & mulai' }).click();
@@ -87,7 +92,7 @@ test('low balance blocks confirmation and renders the low-balance state', async 
   await page.goto('/app/kredit');
   await expect(page.getByTestId('credit-low-balance')).toBeVisible();
 
-  await page.goto(`/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/tulis`);
+  await page.goto(harnessUrl(fixture.projectId, fixture.chapterId));
   await page.getByRole('button', { name: 'Buat adegan' }).click();
   const card = page.getByTestId('credit-quote-card');
   await expect(card).toBeVisible();

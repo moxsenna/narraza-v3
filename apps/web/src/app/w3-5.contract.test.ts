@@ -18,8 +18,10 @@ describe('W3.5 credit quote and job phase contracts', () => {
     ]) {
       expect(actions).toContain(`export async function ${action}`);
     }
-    // Every action passes through the same owner-derived chapter access guard.
-    expect(actions.match(/assertSceneChapterAccess\(/g)?.length).toBeGreaterThanOrEqual(4);
+    // Mutating actions re-derive the fail-closed harness decision; the polled
+    // read passes through the same owner-derived chapter access guard.
+    expect(actions.match(/resolveGenerationHarnessAccess\(/g)?.length).toBe(3);
+    expect(actions).toContain('assertSceneChapterAccess(projectId, chapterId)');
     expect(adapter).toContain('getMyProject(projectId)');
     expect(adapter).toContain("node.entityType === 'chapter'");
     // More than one active scene job violates the backend invariant: fail closed.
@@ -30,7 +32,7 @@ describe('W3.5 credit quote and job phase contracts', () => {
   test('quote confirmation keeps server-side idempotency and never trusts client hashes', () => {
     const adapter = source('server/domain/generation.ts');
 
-    expect(adapter).toContain('confirmationRequestId: quoteId');
+    expect(adapter).toContain('...deriveSceneConfirmationIdentity(quoteId)');
     expect(adapter).toContain('deriveSceneGenerationHashes(projectId, chapterId)');
     expect(adapter).toContain('jobKind: SCENE_GENERATION_JOB_KIND');
     expect(adapter).not.toMatch(/formData\.get\('(workflowPlanHash|dependencyHash|requestId)'\)/);
@@ -64,7 +66,8 @@ describe('W3.5 credit quote and job phase contracts', () => {
     const kreditPage = source('app/app/kredit/page.tsx');
     const adapter = source('server/domain/generation.ts');
 
-    expect(layout).toContain('getMyCreditSummaryView()');
+    expect(layout).toContain('getCreditSummaryViewForUser(user.userId)');
+    expect(layout).toContain('getCurrentUser()');
     expect(kreditPage).toContain('getMyCreditSummaryView()');
     expect(adapter).toContain('createCreditSummaryService(getUnitOfWork())');
     expect(adapter).toContain('toCreditSummaryDisplay');
@@ -79,14 +82,61 @@ describe('W3.5 credit quote and job phase contracts', () => {
     expect(source('components/composites/HeaderCreditChip.tsx')).toContain('/app/kredit');
   });
 
-  test('chapter workspace mounts the real generation flow while keeping honest unavailable copy', () => {
+  test('production chapter workspace stays fail-closed; the harness owns the mock vertical', () => {
     const page = source('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx');
+    const harness = source(
+      'app/(preview)/app/%5F_preview/m3-generation/[projectId]/[chapterId]/page.tsx',
+    );
+    const boundary = source('lib/server/preview/generation-harness.ts');
 
-    expect(page).toContain('<SceneGenerationPanel');
-    expect(page).toContain('findSceneJobState(projectId, chapterId, null)');
-    expect(page).toContain('Penulisan dari halaman ini belum tersedia');
+    // Product truthfulness: the production route never mounts the generation
+    // panel and never derives a plan hash until M4 owns real generation.
+    expect(page).not.toContain('<SceneGenerationPanel');
+    expect(page).toContain('scene-generation-unavailable');
+    expect(page).toContain('Pembuatan adegan otomatis belum dapat dilakukan di sini');
     expect(page).toContain('resolveChapterContext(projectId, chapterId)');
     expect(page).toContain("context.kind !== 'resolved'");
+
+    // The M3 mock vertical runs through the fail-closed preview harness with
+    // the same production W3.5 components and the real job-state lookup.
+    expect(harness).toContain('<SceneGenerationPanel');
+    expect(harness).toContain('findSceneJobState(projectId, chapterId, null)');
+    expect(harness).toContain('resolveGenerationHarnessAccess(projectId, chapterId)');
+    expect(boundary).toContain("'production' || input.environment === 'staging'");
+    expect(boundary).toContain("if (input.environment === 'unknown') return { allowed: false };");
+    expect(boundary).toContain('assertSceneChapterAccess(projectId, chapterId)');
+  });
+
+  test('generation mutations are gated by the harness boundary in production', () => {
+    const actions = source('server/domain/generation-actions.ts');
+
+    // Every state-creating/cancelling action re-derives the fail-closed
+    // harness decision server-side; a leaked action id cannot mutate.
+    expect(actions.match(/resolveGenerationHarnessAccess\(/g)?.length).toBe(3);
+  });
+
+  test('confirmation identity is deterministic for Task 6 exact replay', () => {
+    const generation = source('server/domain/generation.ts');
+    const identity = source('lib/server/confirmation-identity.ts');
+
+    // No random reservation/job ids on the confirm path: the same quote must
+    // always derive the same confirmation identity.
+    expect(identity).toContain('deriveSceneConfirmationIdentity');
+    expect(identity).toContain('bytes[6] = (bytes[6]! & 0x0f) | 0x50');
+    expect(generation).toContain('...deriveSceneConfirmationIdentity(quoteId)');
+    expect(generation).not.toContain('reservationId: randomUUID()');
+    expect(generation).not.toContain('jobId: randomUUID()');
+  });
+
+  test('terminal recovery lookup scopes the chapter before ordering and limit', () => {
+    const port = source('../../../packages/application/src/ports/job-port.ts');
+    const repo = source('../../../packages/db/src/repos/job-repo.ts');
+    const generation = source('server/domain/generation.ts');
+
+    expect(port).toContain('payloadFilter: JsonObject');
+    expect(repo).toContain('AND payload @> $3::jsonb');
+    expect(repo.indexOf('payload @>')).toBeLessThan(repo.indexOf('ORDER BY updated_at DESC'));
+    expect(generation).toContain('payloadFilter: { chapterId }');
   });
 
   test('quote card states cover expiry, confirmation error, and insufficient balance honestly', () => {

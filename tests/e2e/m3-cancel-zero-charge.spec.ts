@@ -13,6 +13,11 @@ import {
 
 const MICRO_IDR_PER_CREDIT = 10_000_000n;
 
+/** Fail-closed generation harness (preview tree): the only surface where the
+ * M3 quote/job mechanics can be exercised. */
+const harnessUrl = (projectId: string, chapterId: string) =>
+  `/app/__preview/m3-generation/${projectId}/${chapterId}`;
+
 test.describe.configure({ timeout: 180_000 });
 
 test('queued cancel releases held credits with zero charge', async ({ page }, testInfo) => {
@@ -23,7 +28,7 @@ test('queued cancel releases held credits with zero charge', async ({ page }, te
     grantMicroIdr: 100n * MICRO_IDR_PER_CREDIT,
   });
 
-  await page.goto(`/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/tulis`);
+  await page.goto(harnessUrl(fixture.projectId, fixture.chapterId));
   await page.getByRole('button', { name: 'Buat adegan' }).click();
   await page.getByRole('button', { name: 'Konfirmasi & mulai' }).click();
   const panel = page.getByTestId('job-phase-panel');
@@ -36,6 +41,8 @@ test('queued cancel releases held credits with zero charge', async ({ page }, te
 
   await expect(panel).toContainText('Proses dibatalkan', { timeout: 20_000 });
   await expect(panel).toContainText('Kreditmu tidak dipotong');
+  // The harness page stands outside the app shell; read the chip on /app.
+  await page.goto('/app');
   await expect(page.getByTestId('header-credit-chip')).toContainText('100');
 
   await page.goto('/app/kredit');
@@ -55,7 +62,7 @@ test('failed job without usable output charges zero and stays recoverable-free',
   const driver = await createM3JobDriver(fixture.projectId);
 
   try {
-    await page.goto(`/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/tulis`);
+    await page.goto(harnessUrl(fixture.projectId, fixture.chapterId));
     await page.getByRole('button', { name: 'Buat adegan' }).click();
     await page.getByRole('button', { name: 'Konfirmasi & mulai' }).click();
     const panel = page.getByTestId('job-phase-panel');
@@ -69,6 +76,8 @@ test('failed job without usable output charges zero and stays recoverable-free',
 
     await expect(panel).toContainText('Proses gagal', { timeout: 20_000 });
     await expect(panel).toContainText('Kreditmu tidak dipotong');
+    // The harness page stands outside the app shell; read the chip on /app.
+    await page.goto('/app');
     await expect(page.getByTestId('header-credit-chip')).toContainText('100');
 
     await page.goto('/app/kredit');
@@ -89,7 +98,7 @@ test('tamperring with the confirm form project fails closed without side effects
     grantMicroIdr: 100n * MICRO_IDR_PER_CREDIT,
   });
 
-  await page.goto(`/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/tulis`);
+  await page.goto(harnessUrl(fixture.projectId, fixture.chapterId));
   await page.getByRole('button', { name: 'Buat adegan' }).click();
   await expect(page.getByTestId('credit-quote-card')).toBeVisible();
 
