@@ -11,7 +11,12 @@ export interface JobLoopSettings {
   retentionMaxAgeHours: number;
 }
 
-export type JobProcessor = (job: unknown, signal: AbortSignal) => Promise<void>;
+export type JobProcessorResult =
+  { readonly kind: 'terminalized' } | { readonly kind: 'requeue'; readonly delayMs: number };
+export type JobProcessor = (
+  job: unknown,
+  signal: AbortSignal,
+) => Promise<JobProcessorResult | void>;
 type Timer = ReturnType<typeof setTimeout>;
 type LoopService = Pick<
   JobService,
@@ -172,7 +177,10 @@ export function createJobLoop(deps: JobLoopDependencies) {
         stage.stale = false;
         stage.phase = 'processing';
         stage.processorSettled = false;
-        stage.processorDone = deps.processor(result.job, controller.signal);
+        let processorResult: JobProcessorResult | undefined;
+        stage.processorDone = deps.processor(result.job, controller.signal).then((value) => {
+          processorResult = value || undefined;
+        });
         stage.done = (async () => {
           await stage.processorDone;
           stage.processorSettled = true;
@@ -184,8 +192,26 @@ export function createJobLoop(deps: JobLoopDependencies) {
               : shutdownDeadline - deps.settings.heartbeatMs;
           if (
             !stage.stale &&
+            processorResult?.kind === 'requeue' &&
             (processingDeadline === undefined || Date.now() < processingDeadline)
           ) {
+            stage.phase = 'finalizing';
+            const requeued = await deps.service.requeue({
+              ...stage.identity,
+              delayMs: processorResult.delayMs,
+            });
+            if (requeued.kind !== 'requeued') stage.stale = true;
+          } else if (processorResult?.kind === 'terminalized') {
+            // Processor owns fenced publish and terminalization. Loop must never
+            // publish a second time after AttemptOrchestrator completes.
+            stage.phase = 'finalizing';
+          } else if (
+            !stage.stale &&
+            processorResult === undefined &&
+            (processingDeadline === undefined || Date.now() < processingDeadline)
+          ) {
+            // Backward-compatible seam for pre-M4 injected processors. Production
+            // M4 processor always returns an explicit ownership result.
             stage.phase = 'publishing';
             const published = await deps.service.withFencedPublish(stage.identity, async () => {});
             stage.phase = 'finalizing';

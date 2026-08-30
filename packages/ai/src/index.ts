@@ -30,5 +30,17 @@ export {
   RESTRICTED_DATA_CLASSES,
 } from './model-policy.js';
 export { createMockProvider, DEFAULT_MOCK_SCENARIO, type MockFixture } from './mock-provider.js';
+export {
+  createOpenRouterProvider,
+  createGeminiProvider,
+  type HttpAdapterOptions,
+} from './http-adapters.js';
 export { PROMPT_ENVELOPE_VERSION, renderPrompt } from './prompt-envelope.js';
 export type { PromptContentBlock, RenderedPrompt, RenderPromptInput } from './prompt-envelope.js';
+export {
+  createM4MockProvider,
+  M4_MOCK_FIXTURES,
+  mockScenarioForStage,
+  projectWorkflowPrompt,
+  workflowOutputSchema,
+} from './workflow-contracts.js';

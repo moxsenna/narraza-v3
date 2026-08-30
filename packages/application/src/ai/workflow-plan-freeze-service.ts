@@ -35,15 +35,11 @@ const WORKFLOW_STAGE_TEMPLATES: Readonly<
     }[]
   >
 > = Object.freeze({
-  chat_intake: [intakeStage()],
-  chat_intake_reply: [intakeStage()],
-  intake_reply: [intakeStage()],
-  concept_generation: [plannerGenerate('concepts')],
-  create_concepts: [plannerGenerate('concepts')],
-  foundation_generation: [plannerGenerate('foundation')],
-  character_generation: [plannerGenerate('characters')],
-  outline_generation: [plannerGenerate('outline')],
-  scene_generation: [...beatWriteStages()],
+  chat_intake_reply: [intakeStage(), parseRepair('intake_reply_parse_repair')],
+  concept_generation: [plannerGenerate('concepts'), parseRepair('concepts_parse_repair')],
+  foundation_generation: [plannerGenerate('foundation'), parseRepair('foundation_parse_repair')],
+  character_generation: [plannerGenerate('characters'), parseRepair('characters_parse_repair')],
+  outline_generation: [plannerGenerate('outline'), parseRepair('outline_parse_repair')],
   beat_write_judge: [...beatWriteStages()],
   safe_repair: [
     {
@@ -53,6 +49,7 @@ const WORKFLOW_STAGE_TEMPLATES: Readonly<
       dataClass: 'writer_safe',
       runPolicy: 'always',
     },
+    parseRepair('repair_parse_repair'),
   ],
   publish_package: [
     {
@@ -62,6 +59,7 @@ const WORKFLOW_STAGE_TEMPLATES: Readonly<
       dataClass: 'review_safe',
       runPolicy: 'always',
     },
+    parseRepair('publish_package_parse_repair'),
   ],
 } as const);
 
@@ -72,6 +70,16 @@ function intakeStage() {
     packetKind: 'extraction' as const,
     dataClass: 'review_safe',
     runPolicy: 'always' as const,
+  };
+}
+
+function parseRepair(stageKey: string) {
+  return {
+    stageKey,
+    purpose: 'parse_repair' as const,
+    packetKind: 'repair' as const,
+    dataClass: 'writer_safe',
+    runPolicy: 'on_parse_failure' as const,
   };
 }
 
@@ -94,12 +102,21 @@ function beatWriteStages() {
       dataClass: 'writer_safe',
       runPolicy: 'always' as const,
     },
+    parseRepair('writer_parse_repair'),
     {
       stageKey: 'judge',
       purpose: 'judge' as const,
       packetKind: 'validator' as const,
       dataClass: 'author_private',
       runPolicy: 'always' as const,
+    },
+    parseRepair('judge_parse_repair'),
+    {
+      stageKey: 'judge_repair',
+      purpose: 'judge_output_repair' as const,
+      packetKind: 'repair' as const,
+      dataClass: 'writer_safe',
+      runPolicy: 'on_judge_fail' as const,
     },
   ];
 }

@@ -138,8 +138,12 @@ export function decideNextAction(
   // the plan — otherwise it terminates on the most recent failure.
   const last = ordered[ordered.length - 1]!;
   const lastOutcome = outcomeOf(last.stageKey);
-  if (lastOutcome && lastOutcome.status === 'succeeded') {
-    return { kind: 'plan_complete', lastStageKey: last.stageKey };
+  const mostRecent = outcomes[outcomes.length - 1];
+  if (
+    (lastOutcome && lastOutcome.status === 'succeeded') ||
+    (last.runPolicy !== 'always' && mostRecent?.status === 'succeeded')
+  ) {
+    return { kind: 'plan_complete', lastStageKey: mostRecent?.stageKey ?? last.stageKey };
   }
   const failures = outcomes.filter((record) => record.status === 'failed');
   const lastFailure = failures[failures.length - 1];

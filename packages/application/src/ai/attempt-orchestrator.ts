@@ -42,6 +42,7 @@ export interface OrchestratorStageRequest {
   /** Execution profile selected for this attempt (explicit, never a hidden fallback). */
   readonly providerId: string;
   readonly requestedModelId: string;
+  readonly profileIndex: number;
   readonly structuredOutput: boolean;
   readonly timeoutMs: number;
   readonly dataClass: string;
@@ -76,7 +77,13 @@ export interface RunPlanInput {
     profileIndex: number,
   ) => Omit<
     OrchestratorStageRequest,
-    'stage' | 'providerId' | 'requestedModelId' | 'structuredOutput' | 'timeoutMs' | 'dataClass'
+    | 'stage'
+    | 'providerId'
+    | 'requestedModelId'
+    | 'profileIndex'
+    | 'structuredOutput'
+    | 'timeoutMs'
+    | 'dataClass'
   >;
   /** Optional CPU parse gate; a parse failure triggers `on_parse_failure` stages. */
   readonly parseGate?: (
@@ -109,6 +116,17 @@ function invocationIdFor(jobId: string, stageKey: string): string {
 
 function newAttemptId(jobId: string, stageKey: string, allocate: () => string): string {
   return `wf-att:${jobId}:${stageKey}:${allocate()}`;
+}
+
+/** Explicit route selection across cumulative per-profile ceilings. */
+function profileIndexForAttempt(stage: WorkflowPlanStage, usedAttempts: number): number {
+  let remaining = usedAttempts;
+  for (let index = 0; index < stage.routing.length; index += 1) {
+    const profile = stage.routing[index]!;
+    if (remaining < profile.maxInvocations) return index;
+    remaining -= profile.maxInvocations;
+  }
+  throw new Error(`workflow stage '${stage.stageKey}' invocation ceiling exhausted`);
 }
 
 export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
@@ -166,7 +184,9 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
         }
 
         const stage = next.stage;
-        const profile = stage.routing[0]!;
+        const usedAttempts = attemptsByStage[stage.stageKey] ?? 0;
+        const profileIndex = profileIndexForAttempt(stage, usedAttempts);
+        const profile = stage.routing[profileIndex]!;
 
         const invocationId = invocationIdFor(identity.jobId, stage.stageKey);
         const attemptId = newAttemptId(identity.jobId, stage.stageKey, allocate);
@@ -178,7 +198,12 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
           attemptId,
           stageKey: stage.stageKey,
           schemaVersion: 1,
-          payload: { providerId: profile.providerId, requestedModelId: profile.requestedModelId },
+          payload: {
+            providerId: profile.providerId,
+            requestedModelId: profile.requestedModelId,
+            resolvedModelId: profile.resolvedModelId,
+            profileIndex,
+          },
         });
         if (begun.kind !== 'started') {
           // We no longer own the job (stale lease, cancellation requested,
@@ -191,6 +216,8 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
             stageKey: stage.stageKey,
           };
         }
+        // Every durable begin consumes capacity, including provider uncertainty.
+        attemptsByStage[stage.stageKey] = usedAttempts + 1;
 
         // Provider call OUTSIDE any transaction.
         let executed: ExecutorOutcome;
@@ -199,10 +226,11 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
             stage,
             providerId: profile.providerId,
             requestedModelId: profile.requestedModelId,
+            profileIndex,
             structuredOutput: profile.structuredOutput,
             timeoutMs: profile.timeoutMs,
             dataClass: stage.dataClass,
-            ...input.buildStageRequest(stage, 0),
+            ...input.buildStageRequest(stage, profileIndex),
           });
         } catch {
           return {
