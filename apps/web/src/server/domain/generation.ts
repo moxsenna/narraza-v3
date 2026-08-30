@@ -15,6 +15,7 @@ import {
 } from '@narraza/application';
 import type { CreditSummaryDisplayView } from '../../lib/frontend/credit-display';
 import { isNonterminalPhase, type JobPublicView } from '../../lib/frontend/job-phase';
+import { deriveSceneConfirmationIdentity } from '../../lib/server/confirmation-identity';
 import { toJobPublicView } from '../../lib/server/generation-view-model';
 import { toCreditSummaryDisplay } from '../../lib/server/credit-view-model';
 import { getCurrentUser } from '../auth/session';
@@ -123,12 +124,17 @@ export async function findSceneJobState(
   const sceneJob = sceneJobs[0];
   if (!sceneJob) {
     // No active job: surface the most recent finished outcome for this chapter
-    // so a refresh never erases the truthful terminal state. Terminal jobs are
+    // so a refresh never erases the truthful terminal state. Chapter scope is
+    // applied inside the query (before ordering/limit), terminal jobs are
     // immutable, so this lookup has no state-machine implications.
     const latestTerminal = await unitOfWork.execute((ports) =>
-      ports.job.findLatestTerminalByProject(projectId, SCENE_GENERATION_JOB_KIND),
+      ports.job.findLatestTerminalByProject({
+        projectId,
+        kind: SCENE_GENERATION_JOB_KIND,
+        payloadFilter: { chapterId },
+      }),
     );
-    if (!latestTerminal || !jobInChapter(latestTerminal, chapterId)) return { kind: 'none' };
+    if (!latestTerminal) return { kind: 'none' };
     const terminalView = await unitOfWork.execute((ports) =>
       toJobPublicView(ports, latestTerminal),
     );
@@ -139,11 +145,21 @@ export async function findSceneJobState(
   return { kind: 'found', jobRef: sceneJob.id, view: { ...view, recovered: true } };
 }
 
+/**
+ * Narrow credit-summary loader for an already-authenticated userId (the app
+ * shell holds the single getCurrentUser authority and passes the id down).
+ */
+export async function getCreditSummaryViewForUser(
+  userId: string,
+): Promise<CreditSummaryDisplayView> {
+  const summary = createCreditSummaryService(getUnitOfWork());
+  return toCreditSummaryDisplay(await summary.getSummary({ userId }));
+}
+
 export async function getMyCreditSummaryView(): Promise<CreditSummaryDisplayView | null> {
   const userId = await requireActiveUserId();
   if (!userId) return null;
-  const summary = createCreditSummaryService(getUnitOfWork());
-  return toCreditSummaryDisplay(await summary.getSummary({ userId }));
+  return getCreditSummaryViewForUser(userId);
 }
 
 export type SceneQuoteIssuance =
@@ -226,13 +242,9 @@ export async function confirmSceneGenerationQuote(
     userId,
     projectId,
     quoteId,
-    // Deterministic replay key: a repeated confirm of the same quote resolves
-    // to the same reservation and job instead of creating a duplicate.
-    confirmationRequestId: quoteId,
+    ...deriveSceneConfirmationIdentity(quoteId),
     expectedWorkflowPlanHash: workflowPlanHash,
     expectedDependencyHash: dependencyHash,
-    reservationId: randomUUID(),
-    jobId: randomUUID(),
     jobKind: SCENE_GENERATION_JOB_KIND,
     bundleId: null,
     workflowPlanId: null,

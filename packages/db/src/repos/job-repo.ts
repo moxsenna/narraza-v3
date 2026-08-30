@@ -218,18 +218,25 @@ export function createJobRepo(tx: TxClient): JobPort {
       return rows.map(toRecord);
     },
 
-    async findLatestTerminalByProject(
-      projectId: string,
-      kind: string,
-    ): Promise<GenerationJobRecord | null> {
+    async findLatestTerminalByProject(input: {
+      projectId: string;
+      kind: string;
+      payloadFilter: JsonObject;
+    }): Promise<GenerationJobRecord | null> {
+      // Payload eligibility filters BEFORE ordering/limit so the latest
+      // terminal job is always selected within the requested payload scope.
       const rows = (await tx.$queryRawUnsafe(
         `SELECT ${COLUMN_LIST}
            FROM generation_jobs
-          WHERE project_id = $1 AND kind = $2 AND status IN ('succeeded','failed','dead','cancelled')
+          WHERE project_id = $1
+            AND kind = $2
+            AND status IN ('succeeded','failed','dead','cancelled')
+            AND payload @> $3::jsonb
           ORDER BY updated_at DESC, id DESC
           LIMIT 1`,
-        projectId,
-        kind,
+        input.projectId,
+        input.kind,
+        JSON.stringify(input.payloadFilter),
       )) as RawRow[];
       const row = rows[0];
       return row ? toRecord(row) : null;

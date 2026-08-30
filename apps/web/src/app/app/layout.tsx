@@ -5,15 +5,16 @@ import { makeShellAccountViewModel } from '../../lib/frontend/view-model';
 import { APP_MESSAGES_ID } from '../../messages/app-id';
 import { logoutAction } from '../../server/auth/actions';
 import { getCurrentUser } from '../../server/auth/session';
-import { getMyCreditSummaryView } from '../../server/domain/generation';
+import { getCreditSummaryViewForUser } from '../../server/domain/generation';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect('/masuk');
 
   // Same CreditSummaryView source as /app/kredit (D6): one snapshot contract
-  // for the header chip and the credit page.
-  const credit = await getMyCreditSummaryView();
+  // for the header chip and the credit page. The session above is the single
+  // shell auth authority; the loader only takes the authenticated userId.
+  const credit = await getCreditSummaryViewForUser(user.userId);
 
   return (
     <div className="min-h-screen overflow-x-clip bg-canvas text-primary">

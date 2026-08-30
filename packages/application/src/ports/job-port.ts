@@ -127,10 +127,16 @@ export interface JobPort {
   listActiveByProject(projectId: string): Promise<readonly GenerationJobRecord[]>;
   /**
    * Read-only UI lookup: the most recent immutable terminal job of `kind` for
-   * the project. Terminal jobs are immutable, so this carries no lease or
-   * state-machine semantics; it only surfaces a finished outcome.
+   * the project whose payload contains every `payloadFilter` entry. Payload
+   * eligibility is applied before ordering/limit, the lookup is project-scoped,
+   * and terminal jobs are immutable — so it carries no lease or state-machine
+   * semantics; it only surfaces a finished outcome.
    */
-  findLatestTerminalByProject(projectId: string, kind: string): Promise<GenerationJobRecord | null>;
+  findLatestTerminalByProject(input: {
+    readonly projectId: string;
+    readonly kind: string;
+    readonly payloadFilter: JsonObject;
+  }): Promise<GenerationJobRecord | null>;
   lockForUpdate(input: JobLookupInput): Promise<GenerationJobRecord | null>;
   /** Locks exact job without requiring live lease ownership; used after terminalization. */
   lockForReconciliation(input: JobLookupInput): Promise<GenerationJobRecord | null>;

@@ -177,7 +177,8 @@ describe('M0 W0.5 public shell', () => {
     expect(
       `${source('components/composites/AppHeader.tsx')}\n${source('messages/app-id.ts')}`,
     ).toContain('Kredit — segera hadir');
-    expect(layout).toContain('getMyCreditSummaryView');
+    expect(layout).toContain('getCurrentUser()');
+    expect(layout).toContain('getCreditSummaryViewForUser(user.userId)');
 
     const groups = ['PERSIAPAN', 'PERENCANAAN', 'PENULISAN', 'PEMERIKSAAN', 'PUBLIKASI', 'LAINNYA'];
     const items = [
