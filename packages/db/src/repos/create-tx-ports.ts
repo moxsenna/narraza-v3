@@ -27,6 +27,7 @@ import type { TxClient } from './tx-client.js';
 import { createUsableOutputClassifier } from './usable-output-classifier.js';
 import { createWorkflowPlanPort } from './workflow-plan-port.js';
 import { createAttemptRecoveryPort } from './attempt-recovery-port.js';
+import { createSystemFundedIntakePort } from './system-funded-intake-port.js';
 import { createWorkflowInvocationRepo } from './workflow-invocation-repo.js';
 
 export function createTxPorts(tx: TxClient): TxPorts {
@@ -50,6 +51,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     modelPrice: createModelPricePort(tx),
     workflowPlan: createWorkflowPlanPort(tx),
     attemptRecovery: createAttemptRecoveryPort(tx),
+    systemFundedIntake: createSystemFundedIntakePort(tx),
     ledger: createLedgerPort(tx),
     creditBalance: createCreditBalanceRepo(tx),
     creditBillingAllocation: createCreditBillingAllocationPort(tx),

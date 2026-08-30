@@ -335,10 +335,7 @@ export type {
   PreparePaidGenerationResult,
 } from './ai/paid-generation-preparation-service.js';
 // M4 Block C: attempt recovery + orchestrator (executor injected at composition).
-export {
-  ORPHAN_ATTEMPT_ERROR_CODE,
-  orphanAttemptPayload,
-} from './ai/attempt-recovery-port.js';
+export { ORPHAN_ATTEMPT_ERROR_CODE, orphanAttemptPayload } from './ai/attempt-recovery-port.js';
 export type { AttemptRecoveryPort } from './ai/attempt-recovery-port.js';
 export { createAttemptRecoveryService } from './ai/attempt-recovery-service.js';
 export {
@@ -357,6 +354,18 @@ export {
   MOCK_PRICE_EFFECTIVE_AT,
 } from './ai/mock-price-fixtures.js';
 export { type AuthError, type AuthErrorCode } from './auth/errors.js';
+// M4 Block D: exact system-funded intake admission and reservation/job binding.
+export {
+  INTAKE_FAIR_USE_COUNTER_KIND,
+  type SystemFundedIntakePort,
+} from './ai/system-funded-intake-port.js';
+export {
+  DEFAULT_INTAKE_FAIR_USE_DAILY_LIMIT,
+  SystemFundedIntakeRollbackError,
+  createSystemFundedIntakeService,
+  type CreateSystemFundedIntakeInput,
+  type CreateSystemFundedIntakeResult,
+} from './ai/system-funded-intake-service.js';
 
 // Task 6: Credit quote confirmation service
 export { createCreditQuoteConfirmationService } from './credits/credit-quote-confirmation-service.js';
