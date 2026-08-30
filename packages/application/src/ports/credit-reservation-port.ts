@@ -55,6 +55,12 @@ export interface CreditReservationPort {
     readonly jobId: string;
   }): Promise<CreditReservationRecord | null>;
 
+  /** Read-only lookup of the reservation bound to a project job; no locks, no writes. */
+  findByJob(input: {
+    readonly projectId: string;
+    readonly jobId: string;
+  }): Promise<CreditReservationRecord | null>;
+
   // Task 7/8: Apply reconciliation targets using ABSOLUTE TARGETS (Blocker 2)
   applyReconciliationTarget(
     input: ApplyReconciliationTargetInput,

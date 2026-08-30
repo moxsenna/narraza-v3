@@ -49,7 +49,7 @@ export function MobileMoreSheet({
         { label: 'Fakta', capabilityKey: 'project.facts.read', href: `${base}/fakta` },
         { label: 'Naskah', capabilityKey: 'project.manuscript.view' },
         { label: 'Paket Publish', capabilityKey: 'project.publish.view' },
-        { label: 'Kredit & Penggunaan', capabilityKey: 'app.credit.view' },
+        { label: 'Kredit & Penggunaan', capabilityKey: 'app.credit.view', href: '/app/kredit' },
         { label: 'Pengaturan', capabilityKey: 'app.settings.view' },
       ]
     : [];

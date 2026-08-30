@@ -32,6 +32,18 @@ export default async function ChapterTulisPage({
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          <section
+            aria-label="Buat adegan"
+            className="rounded-2xl border border-border-default bg-surface p-5 sm:p-6"
+            data-testid="scene-generation-unavailable"
+          >
+            <h2 className="text-base font-bold text-text-primary">Buat adegan</h2>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">
+              Pembuatan adegan otomatis belum dapat dilakukan di sini. Kamu akan bisa memulai proses
+              terjadwal dengan perkiraan biaya ketika fitur ini dirilis.
+            </p>
+          </section>
+
           <div className="rounded-2xl border border-border-default bg-surface p-4">
             <label htmlFor="prose-editor" className="block text-sm font-semibold text-text-primary">
               Naskah Bab
@@ -47,9 +59,12 @@ export default async function ChapterTulisPage({
           </div>
 
           <section className="mt-4" data-testid="capability-notice">
-            <p className="text-sm font-semibold text-text-primary">Penulisan bab belum tersedia</p>
+            <p className="text-sm font-semibold text-text-primary">
+              Penulisan dari halaman ini belum tersedia
+            </p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Penulisan dari halaman ini belum tersedia.
+              Menulis dan menyunting naskah secara manual belum dapat dilakukan di sini. Pembuatan
+              adegan otomatis juga belum tersedia pada tahap ini.
             </p>
           </section>
         </div>

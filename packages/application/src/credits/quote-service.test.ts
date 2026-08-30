@@ -95,6 +95,7 @@ function makeHarness(options: HarnessOptions = {}) {
     insert: vi.fn(),
     findById: vi.fn(),
     listActiveByProject: vi.fn(),
+    findLatestTerminalByProject: vi.fn(),
     lockForUpdate: vi.fn(),
     claimNext: vi.fn(),
     heartbeat: vi.fn(),
