@@ -32,8 +32,21 @@ gated by this list.
 
 A routing attempt that would send restricted context to a non-allowlisted
 provider throws `ModelPolicyViolation` (`code = 'model_policy_violation'`) — a
-configuration error, surfaced at composition/startup in Block D wiring, never a
-runtime retry.
+configuration error, never a runtime retry. It is enforced at two layers:
+
+1. **Startup composition** — `apps/worker-gen/src/main.ts`
+   (`assertRestrictedRoutingServiceable`) proves, before an enabled job
+   processor can claim anything, that at least one configured provider is
+   restricted_allowed for every restricted class the frozen workflow catalogue
+   (`workflowDataClasses`/`frozenWorkflowKinds`) can route. With the initial
+   allowlist mock-only and the mock forbidden in production
+   (`AI_ENABLE_MOCK` guard), an enabled production processor cannot boot —
+   M4 product activation stays explicitly blocked until D14 sign-off, and a
+   misconfigured worker fails closed at boot instead of failing every
+   restricted job one at a time at runtime.
+2. **Adapter boundary** — `assertModelPolicy` runs inside every provider
+   adapter (and again in the worker processor over the frozen routes) at the
+   last point before a call leaves the process.
 
 ## Related invariants
 

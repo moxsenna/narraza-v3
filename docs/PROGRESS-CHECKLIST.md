@@ -17,8 +17,8 @@ started early.
 | M0  | Repo, scaffold, auth, shell, CI            | ✅ **done** (merged `master`, 8 CI checks green, branch protection on)                                               |
 | M1  | Domain core & critical schema              | 🔄 W1.1–W1.5 merged to `master` (PR #1–#5); exit gate M1 still open (S3/S7 unit coverage + migration drift re-check) |
 | M2  | Ports, UnitOfWork, user-origin flow        | ✅ **done** (PR #6 merged; latest-head CI run 30166400617, 8/8 green)                                                |
-| M3  | Jobs, worker, outbox, credit               | 🔄 W3.1 done; next W3.2                                                                                              |
-| M4  | AI layer (mock + real adapters)            | ⬜ not started                                                                                                       |
+| M3  | Jobs, worker, outbox, credit               | ✅ **done** (PR #20 merged as `84f5e82` into `master`, 8/8 CI)                                                        |
+| M4  | AI layer (mock + real adapters)            | 🔄 backend complete on `feat/m4-ai-foundation` (Draft PR, gates green); product UI activation deferred (D14 mock-only) |
 | M5  | Proposal accept, working draft, validation | ⬜ not started                                                                                                       |
 | M6  | Full UI, design system, a11y, e2e          | ⬜ not started                                                                                                       |
 | M7  | Staging hardening                          | ⬜ not started                                                                                                       |
@@ -158,35 +158,35 @@ started early.
 
 ## M4 — AI layer (mock + real adapters)
 
-- [ ] **W4.1 Port & mock provider** _(Opus, after pattern)_
-  - [ ] `buildWorkflowPlan`, `executeSingleAttempt`, `parseOutput`, `classifyError`, `decideNextAction`
-  - [ ] Mock provider deterministic per fixture + fault injection; `AI_ENABLE_MOCK` non-prod only
-- [ ] **W4.2 Routing & pricing** _(Opus)_
-  - [ ] RoutingPlan per stage + execution profiles; tier→profile; worst-case budget → quote basis
-  - [ ] `ModelPriceSnapshot` immutable + seeding; ceil estimates; requested vs resolved model ID
-  - [ ] Tests: `request-beat-snapshot`, `credit-quote-plan-binding` (full)
-- [ ] **W4.3 Prompt projectors + parsing (D13)** _(Fable for 1st pattern + injection wrapping; Opus for rest)_
-  - [ ] Typed projector per contract (intake-reply, concept×3, foundation-fill, character-build, outline-10, beat-write, judge, repair, extraction, publish-package)
-  - [ ] Explicit version + content hash; delimiter-wrap user content; zod `.strict()`; parse-repair path
-  - [ ] Judge → publicMessageCode (+internalRationale restricted)
-  - [ ] Tests: contract fixtures per projector, `proposal-operation-hash`, `prompt-injection-guard`
-- [ ] **W4.4 Model policy (D14)** _(Fable — security/governance decision)_
-  - [ ] `packages/ai/model-policy.ts` + `docs/model-policy.md`; restricted packet → allowlist only, else config error
-  - [ ] Test: `model-policy-allowlist`
-  - [ ] **Gate:** final no-training/no-retention provider list reviewed & signed by owner
-- [ ] **W4.5 Real adapters** _(Opus)_ — OpenRouter + Gemini (normalized errors, timeout, usage); env-gated; first used staging M7
-- [ ] **W4.6 Wire product workflows** _(Opus)_
-  - [ ] Intake reply (free fair-use D4, no card); signal extraction → sufficiency indicator
-  - [ ] Concept-gen (3) → pick → foundation draft (`concept-accept` full)
-  - [ ] Foundation-fill, character-build, outline-10 → proposals (Accept/Edit/Reject), not direct canon
-  - [ ] Beat-write: writer→judge in one plan; 1–3 candidates → GeneratedCandidate
-  - [ ] Repair: sanitized directives → new version+proposal; full re-extraction
-  - [ ] Publish-package → ArtifactProposal
-  - [ ] Integration tests per workflow (success, parse-fail→repair, total-fail→zero-charge)
+- [x] **W4.1 Port & mock provider** _(Opus, after pattern)_
+  - [x] `buildWorkflowPlan`, `executeSingleAttempt`, `parseOutput`, `classifyError`, `decideNextAction`
+  - [x] Mock provider deterministic per fixture + fault injection; `AI_ENABLE_MOCK` non-prod only
+- [x] **W4.2 Routing & pricing** _(Opus)_
+  - [x] RoutingPlan per stage + execution profiles; tier→profile; worst-case budget → quote basis
+  - [x] `ModelPriceSnapshot` immutable + seeding; ceil estimates; requested vs resolved model ID
+  - [x] Tests: `request-beat-snapshot`, `credit-quote-plan-binding` (full, expectations aligned to the five-stage frozen catalogue)
+- [x] **W4.3 Prompt projectors + parsing (D13)** _(Fable for 1st pattern + injection wrapping; Opus for rest)_
+  - [x] Typed projector per contract (intake-reply, concept×3, foundation-fill, character-build, outline-10, beat-write, judge, repair, extraction, publish-package)
+  - [x] Explicit version + content hash; delimiter-wrap user content; zod `.strict()`; parse-repair path
+  - [x] Judge → publicMessageCode (+internalRationale restricted)
+  - [x] Tests: contract fixtures per projector, `proposal-operation-hash`, `prompt-injection-guard`
+- [x] **W4.4 Model policy (D14)** _(Fable — security/governance decision)_
+  - [x] `packages/ai/model-policy.ts` + `docs/model-policy.md`; restricted packet → allowlist only, else config error; worker startup refuses restricted-unroutable processors (`assertRestrictedRoutingServiceable`)
+  - [x] Test: `model-policy-allowlist`
+  - [ ] **Gate:** final no-training/no-retention provider list reviewed & signed by owner — allowlist remains mock-only pending sign-off
+- [x] **W4.5 Real adapters** _(Opus)_ — OpenRouter + Gemini (normalized errors, timeout, usage, frozen input ceiling); env-gated; code present, first real use staging M7
+- [x] **W4.6 Wire product workflows** _(Opus)_ — backend complete (system-funded intake, worker processor, fenced Tx C projection); product UI surfaces stay deferred
+  - [x] Intake reply (free fair-use D4 60/day, no card, `rate_limit_counters` zero-new-table); sufficiency indicator = UI, deferred
+  - [x] Concept-gen (3) → pick → foundation draft (`concept-accept` full)
+  - [x] Foundation-fill, character-build, outline-10 → proposals (Accept/Edit/Reject), not direct canon
+  - [x] Beat-write: writer→judge in one plan; judge repair path; candidates → GeneratedCandidate
+  - [x] Repair: sanitized directives → new version+proposal; full re-extraction
+  - [x] Publish-package → ArtifactProposal
+  - [x] Integration tests per workflow (success, parse-fail→repair, total-fail→zero-charge, cancel, orphan recovery, stale fence) — `m4-actual-worker-certification`
 - **Exit gate M4**
-  - [ ] From UI (dev, mock): chat reply; 3 concepts; foundation filled; outline 10; scene with 1–3 candidates; repair; publish package
-  - [ ] `command-no-ai`, `model-policy-allowlist`, `prompt-injection-guard`, parse contracts — green
-  - [ ] Model policy doc approved
+  - [ ] From UI (dev, mock): chat reply; 3 concepts; foundation filled; outline 10; scene with 1–3 candidates; repair; publish package — **deferred with product UI activation** (production capability stays PRESENTATION; D14 allowlist is mock-only and production forbids the mock, so activation conditions are not all true — do not guess)
+  - [x] `command-no-ai`, `model-policy-allowlist`, `prompt-injection-guard`, parse contracts — green
+  - [ ] Model policy doc approved — PROVISIONAL, owner sign-off pending (see `docs/model-policy.md`)
 
 ---
 
