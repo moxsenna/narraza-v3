@@ -43,11 +43,39 @@ function fairUseKey(userId: string): string {
   return createHash('sha256').update(`m4-intake-fair-use\0${userId}`).digest('hex');
 }
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const record = value as JsonObject;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+    .join(',')}}`;
+}
+
+function requestFingerprint(input: CreateSystemFundedIntakeInput): string {
+  return createHash('sha256')
+    .update(
+      canonicalJson({
+        userId: input.userId,
+        projectId: input.projectId,
+        bundleId: input.bundleId,
+        workflowPlanId: input.workflowPlanId,
+        workflowPlanHash: input.workflowPlanHash,
+        dependencyHash: input.dependencyHash,
+        budgetMicroIdr: input.budgetMicroIdr.toString(),
+        payload: input.payload,
+      }),
+    )
+    .digest('hex');
+}
+
 function exactReplayMatches(
   job: GenerationJobRecord,
   input: CreateSystemFundedIntakeInput,
   jobId: string,
   reservationId: string,
+  fingerprint: string,
 ): boolean {
   return (
     job.id === jobId &&
@@ -58,7 +86,8 @@ function exactReplayMatches(
     job.reservationId === reservationId &&
     job.payload.requestId === input.requestId &&
     job.payload.workflowPlanHash === input.workflowPlanHash &&
-    job.payload.dependencyHash === input.dependencyHash
+    job.payload.dependencyHash === input.dependencyHash &&
+    job.payload.requestFingerprint === fingerprint
   );
 }
 
@@ -72,6 +101,7 @@ export function createSystemFundedIntakeService(deps: { readonly unitOfWork: Uni
       const jobId = deterministicId('intake-job', input.requestId);
       const reservationId = deterministicId('intake-res', input.requestId);
       const dedupeKey = `system-budget:${jobId}`;
+      const fingerprint = requestFingerprint(input);
 
       try {
         return await deps.unitOfWork.execute<CreateSystemFundedIntakeResult>(
@@ -79,10 +109,35 @@ export function createSystemFundedIntakeService(deps: { readonly unitOfWork: Uni
             const intake = ports.systemFundedIntake;
             if (!intake) throw new Error('system-funded intake port not configured');
 
-            // Replay is free: exact persisted request returns before quota mutation.
+            const binding = await intake.loadBinding({
+              projectId: input.projectId,
+              workflowPlanId: input.workflowPlanId,
+              bundleId: input.bundleId,
+            });
+            if (
+              binding === null ||
+              binding.workflowKind !== 'chat_intake_reply' ||
+              binding.workflowPlanHash !== input.workflowPlanHash ||
+              binding.dependencyHash !== input.dependencyHash ||
+              binding.estimatedMaxMicroIdr !== input.budgetMicroIdr
+            ) {
+              return { kind: 'conflict' };
+            }
+
+            // Replay is free: exact persisted request and live reservation binding
+            // return before quota mutation.
             const replay = await ports.job.findById({ projectId: input.projectId, jobId });
             if (replay) {
-              return exactReplayMatches(replay, input, jobId, reservationId)
+              const reservation = await ports.creditReservation.lockBound({
+                reservationId,
+                projectId: input.projectId,
+                jobId,
+              });
+              return exactReplayMatches(replay, input, jobId, reservationId, fingerprint) &&
+                reservation !== null &&
+                reservation.userId === input.userId &&
+                reservation.fundingModel === 'system_funded' &&
+                reservation.reservedMicroIdr === binding.estimatedMaxMicroIdr
                 ? { kind: 'exact_replay', job: replay, reservationId }
                 : { kind: 'conflict' };
             }
@@ -95,6 +150,33 @@ export function createSystemFundedIntakeService(deps: { readonly unitOfWork: Uni
               project.status !== 'active'
             ) {
               return { kind: 'not_found' };
+            }
+
+            // A concurrent identical request can commit while this transaction waits
+            // for the project lock. Re-check replay before consuming quota.
+            const replayAfterLock = await ports.job.findById({
+              projectId: input.projectId,
+              jobId,
+            });
+            if (replayAfterLock) {
+              const reservation = await ports.creditReservation.lockBound({
+                reservationId,
+                projectId: input.projectId,
+                jobId,
+              });
+              return exactReplayMatches(
+                replayAfterLock,
+                input,
+                jobId,
+                reservationId,
+                fingerprint,
+              ) &&
+                reservation !== null &&
+                reservation.userId === input.userId &&
+                reservation.fundingModel === 'system_funded' &&
+                reservation.reservedMicroIdr === binding.estimatedMaxMicroIdr
+                ? { kind: 'exact_replay', job: replayAfterLock, reservationId }
+                : { kind: 'conflict' };
             }
 
             const admitted = await intake.acceptDailyGeneration({
@@ -110,7 +192,7 @@ export function createSystemFundedIntakeService(deps: { readonly unitOfWork: Uni
               userId: input.userId,
               projectId: input.projectId,
               jobId,
-              budgetMicroIdr: input.budgetMicroIdr,
+              budgetMicroIdr: binding.estimatedMaxMicroIdr,
               dedupeKey,
             });
             if (created.kind !== 'created') throw new SystemFundedIntakeRollbackError();
@@ -131,7 +213,8 @@ export function createSystemFundedIntakeService(deps: { readonly unitOfWork: Uni
                 ...input.payload,
                 requestId: input.requestId,
                 workflowPlanHash: input.workflowPlanHash,
-                dependencyHash: input.dependencyHash,
+                dependencyHash: binding.dependencyHash,
+                requestFingerprint: fingerprint,
                 systemBudgetDedupeKey: dedupeKey,
               },
             });

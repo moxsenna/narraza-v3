@@ -49,12 +49,42 @@ function toRecord(row: RawReservationRow): CreditReservationRecord {
 
 export function createSystemFundedIntakePort(tx: TxClient): SystemFundedIntakePort {
   return {
+    async loadBinding(input) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT p.workflow_kind,p.plan_hash,p.estimated_max_micro_idr,b.dependency_hash
+           FROM ai_workflow_plans p
+           JOIN generation_context_bundles b
+             ON b.project_id=p.project_id AND b.id=p.bundle_id
+          WHERE p.project_id=$1 AND p.id=$2 AND p.bundle_id=$3
+          LIMIT 1`,
+        input.projectId,
+        input.workflowPlanId,
+        input.bundleId,
+      )) as Array<{
+        workflow_kind: string;
+        plan_hash: string;
+        estimated_max_micro_idr: bigint | string;
+        dependency_hash: string;
+      }>;
+      const row = rows[0];
+      return row
+        ? {
+            workflowKind: row.workflow_kind,
+            workflowPlanHash: row.plan_hash,
+            dependencyHash: row.dependency_hash,
+            estimatedMaxMicroIdr: BigInt(row.estimated_max_micro_idr),
+          }
+        : null;
+    },
+
     async acceptDailyGeneration(input) {
       const rows = (await tx.$queryRawUnsafe(
         `WITH jakarta_day AS (
            SELECT
-             ((now() AT TIME ZONE 'Asia/Jakarta')::date AT TIME ZONE 'Asia/Jakarta') AS starts_at,
-             (((now() AT TIME ZONE 'Asia/Jakarta')::date + 1) AT TIME ZONE 'Asia/Jakarta') AS ends_at
+             ((now() AT TIME ZONE 'Asia/Jakarta')::date::timestamp
+               AT TIME ZONE 'Asia/Jakarta') AS starts_at,
+             (((now() AT TIME ZONE 'Asia/Jakarta')::date + 1)::timestamp
+               AT TIME ZONE 'Asia/Jakarta') AS ends_at
          )
          INSERT INTO rate_limit_counters
            (id,kind,key_hash,window_starts_at,count,expires_at,updated_at)
