@@ -138,6 +138,33 @@ describe('decideNextAction', () => {
     expect(failedRepair).toMatchObject({ kind: 'terminal_failed', stageKey: 'parse_repair' });
   });
 
+  it('does not route one stage parse failure into another stage named repair', () => {
+    const catalogPlan: Spec = {
+      ...PLAN,
+      stages: [
+        { ...PLAN.stages[0]!, stageKey: 'writer' },
+        { ...PLAN.stages[1]!, stageKey: 'writer_parse_repair' },
+        { ...PLAN.stages[2]!, stageKey: 'judge' },
+        { ...PLAN.stages[1]!, stageKey: 'judge_parse_repair' },
+      ],
+    };
+    const outcomes: StageOutcomeRecord[] = [
+      { stageKey: 'writer', status: 'failed', parseFailed: true, errorCode: 'malformed_json' },
+      {
+        stageKey: 'writer_parse_repair',
+        status: 'failed',
+        parseFailed: true,
+        errorCode: 'malformed_json',
+      },
+    ];
+
+    expect(decideNextAction(catalogPlan, outcomes, { writer: 1, writer_parse_repair: 1 })).toEqual({
+      kind: 'terminal_failed',
+      errorCode: 'malformed_json',
+      stageKey: 'writer_parse_repair',
+    });
+  });
+
   it('terminates an always-stage whose invocation cap is consumed', () => {
     const exhausted = decideNextAction(PLAN, [], { writer: 2 });
     expect(exhausted).toMatchObject({

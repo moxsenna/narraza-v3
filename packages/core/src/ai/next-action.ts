@@ -73,8 +73,13 @@ export function decideNextAction(
   const triggersFor = (stage: WorkflowPlanStage, index: number): boolean => {
     const trigger = previousOutcome(ordered, index, outcomes);
     if (!trigger) return false;
+    const parseRepairBase = stage.stageKey.endsWith('_parse_repair')
+      ? stage.stageKey.slice(0, -'_parse_repair'.length)
+      : null;
     return (
-      (stage.runPolicy === 'on_parse_failure' && trigger.parseFailed === true) ||
+      (stage.runPolicy === 'on_parse_failure' &&
+        trigger.parseFailed === true &&
+        (parseRepairBase === null || trigger.stageKey === parseRepairBase)) ||
       (stage.runPolicy === 'on_judge_fail' && trigger.judgeVerdictFailed === true) ||
       (stage.runPolicy === 'on_repairable_failure' &&
         trigger.status === 'failed' &&
