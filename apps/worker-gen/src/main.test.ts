@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createM4MockProvider, createOpenRouterProvider, type ProviderPort } from '@narraza/ai';
 import { composeWorker, workerSettingsFromEnv } from './composition.js';
-import { assertRestrictedRoutingServiceable } from './main.js';
+import { assertRestrictedRoutingServiceable } from './restricted-routing.js';
 
 const env = {
   JOB_PROCESSOR_ENABLED: false,
