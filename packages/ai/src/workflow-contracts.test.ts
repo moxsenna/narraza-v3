@@ -63,6 +63,8 @@ describe('M4 workflow contracts', () => {
         requestedModelId: 'mock/narra-writer-v1',
         structuredOutput: true,
         timeoutMs: 1_000,
+        maxInputTokens: 1_000,
+        maxOutputTokens: 100,
         dataClass: 'writer_safe',
         systemPrompt: 'system',
         userPrompt: 'user',

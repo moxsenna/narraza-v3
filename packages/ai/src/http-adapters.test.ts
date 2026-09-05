@@ -7,6 +7,8 @@ const base = {
   requestedModelId: 'test-model',
   structuredOutput: true,
   timeoutMs: 5_000,
+  maxInputTokens: 1_000,
+  maxOutputTokens: 321,
   dataClass: 'review_safe' as const,
   systemPrompt: 'system',
   userPrompt: 'user',
@@ -29,6 +31,9 @@ describe('real provider adapters (no-network contract)', () => {
       fetch,
     }).executeSingleAttempt(base);
     expect(fetch).toHaveBeenCalledOnce();
+    expect(JSON.parse((fetch.mock.calls[0]?.[1] as RequestInit).body as string)).toMatchObject({
+      max_tokens: 321,
+    });
     expect(result).toMatchObject({
       providerRequestId: 'or-request',
       rawBody: '{"ok":true}',
@@ -51,11 +56,23 @@ describe('real provider adapters (no-network contract)', () => {
       base,
     );
     expect(fetch).toHaveBeenCalledOnce();
+    expect(JSON.parse((fetch.mock.calls[0]?.[1] as RequestInit).body as string)).toMatchObject({
+      generationConfig: { maxOutputTokens: 321, responseMimeType: 'application/json' },
+    });
     expect(result).toMatchObject({
       providerRequestId: 'gem-request',
       rawBody: '{"ok":true}',
       usage: { inputTokens: 9, outputTokens: 4, providerReportedCostMicroIdr: null },
     });
+  });
+
+  it.each([
+    ['OpenRouter', createOpenRouterProvider({ apiKey: 'test-key', fetch: vi.fn() })],
+    ['Gemini', createGeminiProvider({ apiKey: 'test-key', fetch: vi.fn() })],
+  ])('%s rejects UTF-8 input above frozen ceiling before fetch', async (_name, provider) => {
+    await expect(
+      provider.executeSingleAttempt({ ...base, userPrompt: 'é', maxInputTokens: 8 }),
+    ).rejects.toMatchObject({ name: 'ProviderInputLimitError' });
   });
 
   it.each([

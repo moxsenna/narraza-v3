@@ -21,6 +21,9 @@ export interface SingleAttemptRequest {
   readonly requestedModelId: string;
   readonly structuredOutput: boolean;
   readonly timeoutMs: number;
+  /** Frozen ceilings from the selected workflow execution profile. */
+  readonly maxInputTokens: number;
+  readonly maxOutputTokens: number;
   /** Data class of the source packet; restricted classes require an allowlisted provider. */
   readonly dataClass: AttemptDataClass;
   readonly systemPrompt: string;

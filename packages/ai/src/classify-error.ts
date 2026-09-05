@@ -50,6 +50,16 @@ export class ProviderRateLimitedError extends Error {
   }
 }
 
+export class ProviderInputLimitError extends Error {
+  constructor(
+    readonly actualInputUnits: number,
+    readonly maxInputUnits: number,
+  ) {
+    super('provider input exceeds frozen ceiling');
+    this.name = 'ProviderInputLimitError';
+  }
+}
+
 export function classifyProviderError(error: unknown): NormalizedProviderError {
   if (error instanceof ProviderTimeoutError) {
     return { kind: 'timeout', retryable: true, errorCode: 'provider_timeout' };
@@ -62,6 +72,9 @@ export function classifyProviderError(error: unknown): NormalizedProviderError {
   }
   if (error instanceof ProviderUnavailableError) {
     return { kind: 'provider_unavailable', retryable: true, errorCode: 'provider_unavailable' };
+  }
+  if (error instanceof ProviderInputLimitError) {
+    return { kind: 'context_length', retryable: false, errorCode: 'context_length' };
   }
   const name = error instanceof Error ? error.name : '';
   // Abort-like cancellations from the caller surface as timeouts: the provider

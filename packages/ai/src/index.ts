@@ -15,6 +15,7 @@ export {
   classifyProviderError,
   ProviderRateLimitedError,
   ProviderRefusalError,
+  ProviderInputLimitError,
   ProviderTimeoutError,
   ProviderUnavailableError,
 } from './classify-error.js';
@@ -31,6 +32,7 @@ export {
 } from './model-policy.js';
 export { createMockProvider, DEFAULT_MOCK_SCENARIO, type MockFixture } from './mock-provider.js';
 export {
+  assertSingleAttemptInputCeiling,
   createOpenRouterProvider,
   createGeminiProvider,
   type HttpAdapterOptions,
