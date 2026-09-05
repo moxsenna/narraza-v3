@@ -165,6 +165,11 @@ export type {
   UnitOfWork,
 } from './ports/index.js';
 
+export type {
+  M4ProductOutputPort,
+  PublishM4ProductOutputInput,
+} from './ai/m4-product-output-port.js';
+
 export {
   createCreditQuoteService,
   type IssueQuoteInput,
@@ -297,6 +302,7 @@ export type {
   ContextBundleRecord,
   ContextBundleCreateInput,
   ContextBundleSnapshot,
+  FrozenContextPacketRecord,
   StoredDataClass,
 } from './ai/context-bundle-port.js';
 export {
@@ -322,6 +328,8 @@ export type {
 export {
   buildWorkflowPlan,
   createWorkflowPlanFreezeService,
+  frozenWorkflowKinds,
+  workflowDataClasses,
 } from './ai/workflow-plan-freeze-service.js';
 export type {
   BuildPlanErrorCode,

@@ -23,45 +23,44 @@ export type BuildPlanErrorCode =
   'unknown_workflow_kind' | 'price_snapshot_not_found' | 'invalid_plan';
 
 /** Frozen stage templates per workflow kind (server-side; never sent raw to clients). */
-const WORKFLOW_STAGE_TEMPLATES: Readonly<
-  Record<
-    string,
-    readonly {
-      readonly stageKey: string;
-      readonly purpose: AiWorkflowPlanSpec['stages'][number]['purpose'];
-      readonly packetKind: AiWorkflowPlanSpec['stages'][number]['packetKind'];
-      readonly dataClass: string;
-      readonly runPolicy: AiWorkflowPlanSpec['stages'][number]['runPolicy'];
-    }[]
-  >
-> = Object.freeze({
-  chat_intake_reply: [intakeStage(), parseRepair('intake_reply_parse_repair')],
-  concept_generation: [plannerGenerate('concepts'), parseRepair('concepts_parse_repair')],
-  foundation_generation: [plannerGenerate('foundation'), parseRepair('foundation_parse_repair')],
-  character_generation: [plannerGenerate('characters'), parseRepair('characters_parse_repair')],
-  outline_generation: [plannerGenerate('outline'), parseRepair('outline_parse_repair')],
-  beat_write_judge: [...beatWriteStages()],
-  safe_repair: [
-    {
-      stageKey: 'repair',
-      purpose: 'structured_repair',
-      packetKind: 'repair',
-      dataClass: 'writer_safe',
-      runPolicy: 'always',
-    },
-    parseRepair('repair_parse_repair'),
-  ],
-  publish_package: [
-    {
-      stageKey: 'publish_package',
-      purpose: 'extraction',
-      packetKind: 'extraction',
-      dataClass: 'review_safe',
-      runPolicy: 'always',
-    },
-    parseRepair('publish_package_parse_repair'),
-  ],
-} as const);
+interface WorkflowStageTemplate {
+  readonly stageKey: string;
+  readonly purpose: AiWorkflowPlanSpec['stages'][number]['purpose'];
+  readonly packetKind: AiWorkflowPlanSpec['stages'][number]['packetKind'];
+  readonly dataClass: string;
+  readonly runPolicy: AiWorkflowPlanSpec['stages'][number]['runPolicy'];
+  readonly maxInvocations?: number;
+}
+
+const WORKFLOW_STAGE_TEMPLATES: Readonly<Record<string, readonly WorkflowStageTemplate[]>> =
+  Object.freeze({
+    chat_intake_reply: [intakeStage(), parseRepair('intake_reply_parse_repair')],
+    concept_generation: [plannerGenerate('concepts'), parseRepair('concepts_parse_repair')],
+    foundation_generation: [plannerGenerate('foundation'), parseRepair('foundation_parse_repair')],
+    character_generation: [plannerGenerate('characters'), parseRepair('characters_parse_repair')],
+    outline_generation: [plannerGenerate('outline'), parseRepair('outline_parse_repair')],
+    beat_write_judge: [...beatWriteStages()],
+    safe_repair: [
+      {
+        stageKey: 'repair',
+        purpose: 'structured_repair',
+        packetKind: 'repair',
+        dataClass: 'writer_safe',
+        runPolicy: 'always',
+      },
+      parseRepair('repair_parse_repair'),
+    ],
+    publish_package: [
+      {
+        stageKey: 'publish_package',
+        purpose: 'extraction',
+        packetKind: 'extraction',
+        dataClass: 'review_safe',
+        runPolicy: 'always',
+      },
+      parseRepair('publish_package_parse_repair'),
+    ],
+  } as const);
 
 function intakeStage() {
   return {
@@ -80,6 +79,7 @@ function parseRepair(stageKey: string) {
     packetKind: 'repair' as const,
     dataClass: 'writer_safe',
     runPolicy: 'on_parse_failure' as const,
+    maxInvocations: 1,
   };
 }
 
@@ -109,6 +109,7 @@ function beatWriteStages() {
       packetKind: 'validator' as const,
       dataClass: 'author_private',
       runPolicy: 'always' as const,
+      maxInvocations: 1,
     },
     parseRepair('judge_parse_repair'),
     {
@@ -117,8 +118,25 @@ function beatWriteStages() {
       packetKind: 'repair' as const,
       dataClass: 'writer_safe',
       runPolicy: 'on_judge_fail' as const,
+      maxInvocations: 1,
     },
   ];
+}
+
+/**
+ * Every data class the frozen catalogue can route to a provider, for a given
+ * workflow kind. Startup composition uses this to prove — before claiming any
+ * job — that the providers it configured are actually permitted to receive the
+ * classes those workflows carry (D14).
+ */
+export function workflowDataClasses(workflowKind: string): readonly string[] | null {
+  const template = WORKFLOW_STAGE_TEMPLATES[workflowKind];
+  return template ? [...new Set(template.map((stage) => stage.dataClass))] : null;
+}
+
+/** Workflow kinds the frozen catalogue knows, in declaration order. */
+export function frozenWorkflowKinds(): readonly string[] {
+  return Object.keys(WORKFLOW_STAGE_TEMPLATES);
 }
 
 export interface BuildWorkflowPlanInput {
@@ -150,9 +168,14 @@ export function buildWorkflowPlan(input: BuildWorkflowPlanInput): BuildWorkflowP
   const spec: AiWorkflowPlanSpec = {
     schemaVersion: 1,
     workflowKind: input.workflowKind,
-    stages: template.map((stage) => ({
+    stages: template.map(({ maxInvocations, ...stage }) => ({
       ...stage,
-      routing: [input.profile],
+      routing: [
+        {
+          ...input.profile,
+          maxInvocations: maxInvocations ?? input.profile.maxInvocations,
+        },
+      ],
     })),
   };
 
