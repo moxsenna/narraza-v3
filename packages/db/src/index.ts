@@ -20,6 +20,7 @@ export { createContextBundlePort } from './repos/context-bundle-port.js';
 export { createModelPricePort } from './repos/model-price-port.js';
 export { createWorkflowPlanPort } from './repos/workflow-plan-port.js';
 export { createAttemptRecoveryPort } from './repos/attempt-recovery-port.js';
+export { createM4ProductOutputPort } from './repos/m4-product-output-port.js';
 export { createCreditRetentionPort } from './repos/credit-retention-port.js';
 export { createOutboxDeliveryPort } from './repos/outbox-delivery-port.js';
 export { createOutboxDeliveryUnitOfWork } from './outbox-delivery-unit-of-work.js';

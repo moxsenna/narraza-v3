@@ -92,6 +92,7 @@ export interface FencedPublishSentinelInput {
 
 export interface FencedPublishContext {
   readonly appendSentinel: (input: FencedPublishSentinelInput) => Promise<void>;
+  readonly publishM4ProductOutput?: NonNullable<TxPorts['m4ProductOutput']>['publish'];
 }
 
 export interface FencedPublishOptions {
@@ -549,6 +550,9 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
                 occurredAt,
               });
             },
+            ...(ports.m4ProductOutput
+              ? { publishM4ProductOutput: ports.m4ProductOutput.publish }
+              : {}),
           };
           await publish(context);
 

@@ -25,6 +25,7 @@ import type { ModelPriceSnapshotPort } from '../ai/model-price-port.js';
 import type { WorkflowPlanPort } from '../ai/workflow-plan-port.js';
 import type { AttemptRecoveryPort } from '../ai/attempt-recovery-port.js';
 import type { SystemFundedIntakePort } from '../ai/system-funded-intake-port.js';
+import type { M4ProductOutputPort } from '../ai/m4-product-output-port.js';
 import type { GenerationAttemptPort, WorkflowInvocationPort } from './workflow-invocation-port.js';
 
 /** D9: default read committed + row lock/CAS; serializable opt-in per use case. */
@@ -74,6 +75,8 @@ export interface TxPorts {
   readonly attemptRecovery?: AttemptRecoveryPort;
   /** M4 Block D opt-in capability; optional for legacy UnitOfWork test doubles. */
   readonly systemFundedIntake?: SystemFundedIntakePort;
+  /** M4 product projection inside fenced Tx C; optional for legacy test doubles. */
+  readonly m4ProductOutput?: M4ProductOutputPort;
   readonly job: JobPort;
   readonly workflowInvocation: WorkflowInvocationPort;
   readonly generationAttempt: GenerationAttemptPort;

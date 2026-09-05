@@ -42,6 +42,14 @@ export interface ContextBundleSnapshot {
   readonly contentHash: string;
 }
 
+export interface FrozenContextPacketRecord {
+  readonly packetKind: string;
+  readonly dataClass: StoredDataClass;
+  readonly dependencyHash: string;
+  readonly contentHash: string;
+  readonly payload: JsonObject;
+}
+
 export interface ContextBundleRecord {
   readonly id: string;
   readonly projectId: string;
@@ -66,4 +74,10 @@ export interface ContextBundleCreateInput {
 export interface ContextBundlePort {
   createBundle(input: ContextBundleCreateInput): Promise<void>;
   findBundleByHash(projectId: string, bundleHash: string): Promise<ContextBundleRecord | null>;
+  findBundleById(projectId: string, bundleId: string): Promise<ContextBundleRecord | null>;
+  findPacketByKind(
+    projectId: string,
+    bundleId: string,
+    packetKind: string,
+  ): Promise<FrozenContextPacketRecord | null>;
 }

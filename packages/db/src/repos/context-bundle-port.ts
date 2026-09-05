@@ -65,5 +65,73 @@ export function createContextBundlePort(tx: TxClient): ContextBundlePort {
       };
       return record;
     },
+
+    async findBundleById(projectId: string, bundleId: string) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT id, project_id, bundle_hash, dependency_hash, schema_version,
+                payload, expires_at, consumed_at
+           FROM generation_context_bundles
+          WHERE project_id = $1 AND id = $2
+          LIMIT 1`,
+        projectId,
+        bundleId,
+      )) as Array<{
+        id: string;
+        project_id: string;
+        bundle_hash: string;
+        dependency_hash: string;
+        schema_version: number;
+        payload: unknown;
+        expires_at: Date;
+        consumed_at: Date | null;
+      }>;
+      const row = rows[0];
+      return row
+        ? {
+            id: row.id,
+            projectId: row.project_id,
+            bundleHash: row.bundle_hash,
+            dependencyHash: row.dependency_hash,
+            schemaVersion: row.schema_version,
+            payload: row.payload as ContextBundleRecord['payload'],
+            expiresAt: row.expires_at,
+            consumedAt: row.consumed_at,
+          }
+        : null;
+    },
+
+    async findPacketByKind(projectId: string, bundleId: string, packetKind: string) {
+      const rows = (await tx.$queryRawUnsafe(
+        `SELECT s.packet_kind, s.data_class, s.dependency_hash, s.content_hash, s.payload
+           FROM generation_context_bundles b
+           JOIN context_snapshots s
+             ON s.project_id = b.project_id
+            AND s.id = b.id || ':' || $3
+          WHERE b.project_id = $1
+            AND b.id = $2
+            AND s.packet_kind = $3
+            AND s.dependency_hash = b.dependency_hash
+          LIMIT 1`,
+        projectId,
+        bundleId,
+        packetKind,
+      )) as Array<{
+        packet_kind: string;
+        data_class: 'restricted' | 'writer_safe' | 'review_safe';
+        dependency_hash: string;
+        content_hash: string;
+        payload: unknown;
+      }>;
+      const row = rows[0];
+      return row
+        ? {
+            packetKind: row.packet_kind,
+            dataClass: row.data_class,
+            dependencyHash: row.dependency_hash,
+            contentHash: row.content_hash,
+            payload: row.payload as ContextBundleRecord['payload'],
+          }
+        : null;
+    },
   };
 }
