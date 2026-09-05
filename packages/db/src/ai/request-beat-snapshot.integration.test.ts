@@ -120,9 +120,11 @@ schema.test('request-beat-snapshot', async ({ client, databaseUrl }) => {
     expect(quote.workflowPlanHash).toBe(planHash);
     expect(quote.dependencyHash).toBe(bundle.dependencyHash);
     expect(quote.maxAmountMicroIdr).toBe(first.plan.estimatedMaxMicroIdr);
-    // The single profile is applied to BOTH stages: (500*20 + 200*60)
-    // = 22_000 per call x 2 invocations x 2 stages = 88_000.
-    expect(quote.maxAmountMicroIdr).toBe(88_000n);
+    // The frozen template now expands beat_write_judge to five stages with
+    // per-stage invocation caps: writer 2, judge 1, and the three repair
+    // stages 1 each — 6 worst-case calls. (500*20 + 200*60) = 22_000 per
+    // call x 6 = 132_000.
+    expect(quote.maxAmountMicroIdr).toBe(132_000n);
     expect(quote.requestId).toBe('req-rbs-1');
 
     // Freeze ordering: bundle and plan rows exist BEFORE the quote row.
@@ -149,7 +151,10 @@ schema.test('request-beat-snapshot', async ({ client, databaseUrl }) => {
     expect(planRow.payload.workflowKind).toBe('beat_write_judge');
     expect(planRow.payload.stages.map((stage: { stageKey: string }) => stage.stageKey)).toEqual([
       'writer',
+      'writer_parse_repair',
       'judge',
+      'judge_parse_repair',
+      'judge_repair',
     ]);
 
     // Later source mutation: a NEW request freezes NEW artifacts and gets a

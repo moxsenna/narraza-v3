@@ -60,7 +60,7 @@ async function seedAndPrepare(
   await client.query(
     `INSERT INTO credit_ledger
        (id,user_id,entry_type,direction,amount_micro_idr,dedupe_key,created_at)
-     VALUES ('cqb-grant-1',$1,'grant','credit',100000,'cqb-grant-dedupe-1',now())`,
+     VALUES ('cqb-grant-1',$1,'grant','credit',200000,'cqb-grant-dedupe-1',now())`,
     [ids.userA],
   );
   const unitOfWork = createUnitOfWork(createPrismaForUrl(databaseUrl));
