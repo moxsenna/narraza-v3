@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { GenerationJobRecord, UnitOfWork } from '@narraza/application';
+import type { ProviderPort } from '@narraza/ai';
 import { createM4JobProcessor, M4_WORKFLOW_KINDS } from './m4-job-processor.js';
 
 const claimed = (kind: string): GenerationJobRecord => ({
@@ -60,5 +61,92 @@ describe('M4 job processor boundary', () => {
       kind: 'requeue',
       delayMs: 0,
     });
+  });
+
+  it('terminalizes unsupported restricted frozen route before beginAttempt or provider', async () => {
+    const executeSingleAttempt = vi.fn();
+    const beginAttempt = vi.fn();
+    const transitionRunningToTerminal = vi.fn(async () => ({
+      kind: 'terminalized' as const,
+      job: { ...claimed('concept_generation'), status: 'failed' as const },
+    }));
+    const packet = {
+      packetKind: 'planner',
+      payload: {
+        kind: 'planner',
+        dataClass: 'author_private',
+        metadata: { projectId: 'project-1', dependencyHash: 'dependency-1' },
+      },
+    };
+    const uow = {
+      execute: async (operation: (ports: unknown) => Promise<unknown>) =>
+        operation({
+          project: {
+            lockForUpdate: vi.fn(async () => ({ ownerUserId: 'user-1', deletedAt: null })),
+          },
+          job: {
+            lockForUpdate: vi.fn(async () => claimed('concept_generation')),
+            transitionRunningToTerminal,
+            lockLiveOwnerForAttempt: vi.fn(),
+          },
+          workflowInvocation: { beginAttempt },
+          workflowPlan: {
+            findPlanById: vi.fn(async () => ({
+              id: 'plan-1',
+              bundleId: 'bundle-1',
+              workflowKind: 'concept_generation',
+              planHash: 'plan-hash',
+              payload: {
+                schemaVersion: 1,
+                workflowKind: 'concept_generation',
+                stages: [
+                  {
+                    stageKey: 'concepts',
+                    purpose: 'generate',
+                    packetKind: 'planner',
+                    dataClass: 'author_private',
+                    runPolicy: 'always',
+                    routing: [
+                      {
+                        providerId: 'openrouter',
+                        requestedModelId: 'model',
+                        resolvedModelId: 'model',
+                        structuredOutput: true,
+                        timeoutMs: 1_000,
+                        maxInputTokens: 100,
+                        maxOutputTokens: 100,
+                        priceSnapshotId: 'price',
+                        maxInvocations: 1,
+                      },
+                    ],
+                  },
+                ],
+              },
+            })),
+          },
+          contextBundle: {
+            findBundleById: vi.fn(async () => ({ id: 'bundle-1', dependencyHash: 'dependency-1' })),
+            findPacketByKind: vi.fn(async () => packet),
+          },
+        }),
+    } as unknown as UnitOfWork;
+    const job = {
+      ...claimed('concept_generation'),
+      payload: { workflowPlanHash: 'plan-hash', dependencyHash: 'dependency-1' },
+    };
+    const provider = { executeSingleAttempt } as ProviderPort;
+    const processor = createM4JobProcessor({
+      unitOfWork: uow,
+      providers: new Map([['openrouter', provider]]),
+    });
+
+    await expect(processor(job, new AbortController().signal)).resolves.toEqual({
+      kind: 'terminalized',
+    });
+    expect(transitionRunningToTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-1', status: 'failed' }),
+    );
+    expect(beginAttempt).not.toHaveBeenCalled();
+    expect(executeSingleAttempt).not.toHaveBeenCalled();
   });
 });

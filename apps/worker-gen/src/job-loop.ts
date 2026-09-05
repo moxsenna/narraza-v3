@@ -12,7 +12,9 @@ export interface JobLoopSettings {
 }
 
 export type JobProcessorResult =
-  { readonly kind: 'terminalized' } | { readonly kind: 'requeue'; readonly delayMs: number };
+  | { readonly kind: 'terminalized' }
+  | { readonly kind: 'requeue'; readonly delayMs: number }
+  | { readonly kind: 'ownership_lost' };
 export type JobProcessor = (
   job: unknown,
   signal: AbortSignal,
@@ -204,6 +206,9 @@ export function createJobLoop(deps: JobLoopDependencies) {
           } else if (processorResult?.kind === 'terminalized') {
             // Processor owns fenced publish and terminalization. Loop must never
             // publish a second time after AttemptOrchestrator completes.
+            stage.phase = 'finalizing';
+          } else if (processorResult?.kind === 'ownership_lost') {
+            stage.stale = true;
             stage.phase = 'finalizing';
           } else if (
             !stage.stale &&
