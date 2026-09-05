@@ -23,6 +23,16 @@ export function createAttemptRecoveryService(deps: { unitOfWork: UnitOfWork }) {
       });
     },
 
+    async loadStageWinners(input: { projectId: string; jobId: string }) {
+      return deps.unitOfWork.execute(async (ports) => {
+        const recovery = ports.attemptRecovery;
+        if (!recovery) {
+          throw new Error('attempt recovery: attemptRecovery port not configured');
+        }
+        return recovery.loadStageWinners(input);
+      });
+    },
+
     async countStageAttempts(input: {
       projectId: string;
       jobId: string;

@@ -188,6 +188,8 @@ function wire(
         requestedModelId: request.requestedModelId,
         structuredOutput: request.structuredOutput,
         timeoutMs: request.timeoutMs,
+        maxInputTokens: request.maxInputTokens,
+        maxOutputTokens: request.maxOutputTokens,
         dataClass: request.dataClass as 'writer_safe',
         systemPrompt: request.systemPrompt,
         userPrompt: request.userPrompt,
@@ -210,7 +212,7 @@ function wire(
       if (parsed.kind === 'parse_failed') {
         return {
           kind: 'billable',
-          status: 'succeeded',
+          status: 'failed',
           providerRequestId: response.providerRequestId,
           resultHash,
           schemaVersion: 1,
@@ -377,7 +379,7 @@ schema.test(
       ).rows;
       expect(rows.filter((row) => row.stage_key === 'writer')).toHaveLength(1);
       expect(rows.find((row) => row.stage_key === 'writer')).toMatchObject({
-        status: 'succeeded',
+        status: 'failed',
         error_code: 'malformed_json',
       });
       const repair = rows.find((row) => row.stage_key === 'parse_repair');
@@ -387,6 +389,158 @@ schema.test(
     } finally {
       await prisma.$disconnect();
     }
+  },
+);
+
+schema.test(
+  'restart after malformed writer runs one repair and never repairs again after publish',
+  async ({ client, databaseUrl }) => {
+    await seedRunningJob(client, databaseUrl, 'orch-job-parse-restart');
+    globalThis.__orchJobId = 'orch-job-parse-restart';
+    const firstPrisma = createPrismaForUrl(databaseUrl);
+    const firstWorkflow = createWorkflowInvocationService(createUnitOfWork(firstPrisma));
+    const firstIdentity = identityFor('orch-job-parse-restart');
+    const begun = await firstWorkflow.beginAttempt({
+      ...firstIdentity,
+      invocationId: 'wf-inv:orch-job-parse-restart:writer',
+      attemptId: 'wf-att:orch-job-parse-restart:writer:malformed',
+      stageKey: 'writer',
+      schemaVersion: 1,
+      payload: { providerId: 'mock', profileIndex: 0 },
+    });
+    expect(begun.kind).toBe('started');
+    const finalized = await firstWorkflow.finalizeAttempt({
+      ...firstIdentity,
+      invocationId: 'wf-inv:orch-job-parse-restart:writer',
+      attemptId: 'wf-att:orch-job-parse-restart:writer:malformed',
+      status: 'failed',
+      providerRequestId: 'mock-malformed',
+      resultHash: createHash('sha256').update('not-json{{').digest('hex'),
+      schemaVersion: 1,
+      payload: { parseFailed: true, errorCode: 'malformed_json' },
+      usage: {
+        priceSnapshotId: `${MOCK_PRICE_SNAPSHOT_ID}-writer`,
+        inputTokens: 10,
+        outputTokens: 5,
+        providerCostMicroIdr: 500n,
+      },
+    });
+    expect(finalized).toMatchObject({ kind: 'finalized', winner: 'attempt_failed' });
+    await firstPrisma.$disconnect();
+
+    await client.query(
+      `UPDATE generation_jobs
+          SET fence_version = 2, lease_token = 'lease-orch-job-parse-restart-b'
+        WHERE id = 'orch-job-parse-restart'`,
+    );
+    const restarted = wire(databaseUrl, { scenarios: { parse_repair: 'repaired' } });
+    let publishedOutputs: Readonly<Record<string, unknown>> | undefined;
+    const repaired = await restarted.runPlan({
+      identity: {
+        ...identityFor('orch-job-parse-restart'),
+        leaseToken: 'lease-orch-job-parse-restart-b',
+        fenceVersion: 2,
+      },
+      plan: planSpec([WRITER_STAGE, parseRepairStage()]),
+      buildStageRequest: () => ({ systemPrompt: 's', userPrompt: 'u' }),
+      publish: async ({ stageOutputs }) => {
+        publishedOutputs = stageOutputs;
+      },
+    });
+    expect(repaired).toMatchObject({ kind: 'published' });
+    expect(restarted.calls()).toBe(1);
+    expect(publishedOutputs).toEqual({ parse_repair: { scene: 'Laut tenang.' } });
+
+    const afterPublish = wire(databaseUrl, { scenarios: { parse_repair: 'repaired' } });
+    const rerun = await afterPublish.runPlan({
+      identity: {
+        ...identityFor('orch-job-parse-restart'),
+        leaseToken: 'lease-orch-job-parse-restart-b',
+        fenceVersion: 2,
+      },
+      plan: planSpec([WRITER_STAGE, parseRepairStage()]),
+      buildStageRequest: () => ({ systemPrompt: 's', userPrompt: 'u' }),
+      publish: async () => undefined,
+    });
+    expect(rerun).toMatchObject({ kind: 'publish_denied' });
+    expect(afterPublish.calls()).toBe(0);
+
+    const rows = (
+      await client.query(
+        `SELECT i.stage_key, i.winner_attempt_id, a.id, a.status
+           FROM workflow_invocations i
+           JOIN generation_attempts a ON a.invocation_id = i.id
+          WHERE i.job_id = 'orch-job-parse-restart'
+          ORDER BY i.stage_key, a.ordinal`,
+      )
+    ).rows;
+    expect(rows.find((row) => row.stage_key === 'writer')).toMatchObject({
+      status: 'failed',
+      winner_attempt_id: null,
+    });
+    expect(rows.filter((row) => row.stage_key === 'parse_repair')).toHaveLength(1);
+    expect(
+      rows.filter((row) => row.stage_key === 'parse_repair' && row.status === 'succeeded'),
+    ).toHaveLength(1);
+  },
+);
+
+schema.test(
+  'reclaimed worker resumes after durable writer winner and publishes original output',
+  async ({ client, databaseUrl }) => {
+    await seedRunningJob(client, databaseUrl, 'orch-job-reclaim-winner');
+    globalThis.__orchJobId = 'orch-job-reclaim-winner';
+    const reclaimJudgeStage = {
+      ...JUDGE_STAGE,
+      routing: [{ ...JUDGE_STAGE.routing[0], maxInvocations: 2 }],
+    };
+    const first = wire(databaseUrl, { scenarios: { judge: 'timeout' } });
+    const firstResult = await first.runPlan({
+      identity: identityFor('orch-job-reclaim-winner'),
+      plan: planSpec([WRITER_STAGE, reclaimJudgeStage]),
+      buildStageRequest: () => ({ systemPrompt: 's', userPrompt: 'u' }),
+      publish: async () => undefined,
+    });
+    expect(firstResult).toMatchObject({ kind: 'recoverable', stageKey: 'judge' });
+    expect(first.calls()).toBe(2);
+
+    await client.query(
+      `UPDATE generation_jobs
+          SET fence_version = 2, lease_token = 'lease-orch-job-reclaim-winner-b'
+        WHERE id = 'orch-job-reclaim-winner'`,
+    );
+    const second = wire(databaseUrl);
+    let publishedOutputs: Readonly<Record<string, unknown>> | undefined;
+    const secondResult = await second.runPlan({
+      identity: {
+        ...identityFor('orch-job-reclaim-winner'),
+        leaseToken: 'lease-orch-job-reclaim-winner-b',
+        fenceVersion: 2,
+      },
+      plan: planSpec([WRITER_STAGE, reclaimJudgeStage]),
+      buildStageRequest: () => ({ systemPrompt: 's', userPrompt: 'u' }),
+      publish: async ({ stageOutputs }) => {
+        publishedOutputs = stageOutputs;
+      },
+    });
+
+    expect(secondResult).toMatchObject({ kind: 'published' });
+    expect(second.calls()).toBe(1);
+    expect(publishedOutputs).toMatchObject({ writer: { scene: 'Laut berderak.' } });
+    const counts = (
+      await client.query(
+        `SELECT i.stage_key, count(*)::int AS count
+           FROM generation_attempts a
+           JOIN workflow_invocations i ON i.id = a.invocation_id
+          WHERE a.job_id = 'orch-job-reclaim-winner'
+          GROUP BY i.stage_key
+          ORDER BY i.stage_key`,
+      )
+    ).rows;
+    expect(counts).toEqual([
+      { stage_key: 'judge', count: 2 },
+      { stage_key: 'writer', count: 1 },
+    ]);
   },
 );
 
@@ -534,6 +688,79 @@ schema.test(
 );
 
 schema.test(
+  'owned terminal plan failure releases full system-funded reservation with zero ledger',
+  async ({ client, databaseUrl }) => {
+    await seedRunningJob(client, databaseUrl, 'orch-job-system-failed');
+    await client.query(
+      `INSERT INTO credit_reservations
+         (id, user_id, project_id, job_project_id, job_id, status, funding_model,
+          reserved_micro_idr, settled_micro_idr, released_micro_idr, exposure_micro_idr,
+          created_at, updated_at)
+       VALUES ('orch-reservation-system-failed', $1, $2, $2, 'orch-job-system-failed',
+               'open', 'system_funded', 10000, 0, 0, 10000, now(), now())`,
+      [ids.userA, ids.projectA],
+    );
+    await client.query(
+      `UPDATE generation_jobs
+          SET kind = 'chat_intake_reply', reservation_id = 'orch-reservation-system-failed'
+        WHERE id = 'orch-job-system-failed'`,
+    );
+    const prisma = createPrismaForUrl(databaseUrl);
+    const unitOfWork = createUnitOfWork(prisma);
+    const orchestrator = createAttemptOrchestrator({
+      workflow: createWorkflowInvocationService(unitOfWork),
+      jobs: createJobService(unitOfWork),
+      attemptRecovery: createAttemptRecoveryService({ unitOfWork }),
+      executeStage: async () => ({
+        kind: 'billable',
+        status: 'succeeded',
+        providerRequestId: 'missing-output',
+        resultHash: createHash('sha256').update('missing-output').digest('hex'),
+        schemaVersion: 1,
+        payload: {},
+        usage: {
+          priceSnapshotId: `${MOCK_PRICE_SNAPSHOT_ID}-writer`,
+          inputTokens: 0,
+          outputTokens: 0,
+          providerCostMicroIdr: 0n,
+        },
+      }),
+    });
+    try {
+      const result = await orchestrator.runPlan({
+        identity: identityFor('orch-job-system-failed'),
+        plan: planSpec([WRITER_STAGE]),
+        buildStageRequest: () => ({ systemPrompt: 's', userPrompt: 'u' }),
+        publish: async () => undefined,
+      });
+      expect(result).toMatchObject({
+        kind: 'plan_failed',
+        errorCode: 'successful_stage_output_missing',
+      });
+      const state = (
+        await client.query(
+          `SELECT j.status, r.status reservation_status,
+                  r.reserved_micro_idr::text, r.released_micro_idr::text,
+                  (SELECT count(*)::int FROM credit_ledger) ledger
+             FROM generation_jobs j
+             JOIN credit_reservations r ON r.id = j.reservation_id
+            WHERE j.id = 'orch-job-system-failed'`,
+        )
+      ).rows[0];
+      expect(state).toEqual({
+        status: 'failed',
+        reservation_status: 'released',
+        reserved_micro_idr: '10000',
+        released_micro_idr: '10000',
+        ledger: 0,
+      });
+    } finally {
+      await prisma.$disconnect();
+    }
+  },
+);
+
+schema.test(
   'attempt-orchestration stale fence cannot publish and cancel blocks success',
   async ({ client, databaseUrl }) => {
     // One shared seed: both scenarios run inside this container.
@@ -584,11 +811,7 @@ schema.test(
     // M3 refuses NEW attempts on a cancel-requested job: the writer attempt
     // that was already in flight completes and finalizes, then the judge
     // begin is denied and the orchestrator leaves the job to the cancel path.
-    expect(cancelResult).toMatchObject({
-      kind: 'plan_failed',
-      errorCode: 'begin_denied:not_authorized',
-      stageKey: 'judge',
-    });
+    expect(cancelResult).toEqual({ kind: 'ownership_lost', phase: 'begin' });
     const cancelledJob = (
       await client.query(
         `SELECT status, cancel_requested_at FROM generation_jobs WHERE id = 'orch-job-6'`,

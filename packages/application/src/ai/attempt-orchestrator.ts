@@ -7,6 +7,7 @@ const { decideNextAction } = ai;
 type WorkflowPlanStage = ai.WorkflowPlanStage;
 type StageOutcomeRecord = ai.StageOutcomeRecord;
 import { ORPHAN_ATTEMPT_ERROR_CODE } from './attempt-recovery-port.js';
+import type { M4ProductOutputPort } from './m4-product-output-port.js';
 
 /** UoW-backed recovery service (see createAttemptRecoveryService). */
 interface AttemptRecoveryService {
@@ -15,6 +16,14 @@ interface AttemptRecoveryService {
     readonly jobId: string;
     readonly errorCode: string;
   }): Promise<{ readonly closed: number }>;
+  loadStageWinners(input: { readonly projectId: string; readonly jobId: string }): Promise<
+    readonly {
+      readonly stageKey: string;
+      readonly status: 'succeeded' | 'failed';
+      readonly schemaVersion: number;
+      readonly payload: JsonObject;
+    }[]
+  >;
   countStageAttempts(input: {
     readonly projectId: string;
     readonly jobId: string;
@@ -45,6 +54,8 @@ export interface OrchestratorStageRequest {
   readonly profileIndex: number;
   readonly structuredOutput: boolean;
   readonly timeoutMs: number;
+  readonly maxInputTokens: number;
+  readonly maxOutputTokens: number;
   readonly dataClass: string;
   readonly systemPrompt: string;
   readonly userPrompt: string;
@@ -83,6 +94,8 @@ export interface RunPlanInput {
     | 'profileIndex'
     | 'structuredOutput'
     | 'timeoutMs'
+    | 'maxInputTokens'
+    | 'maxOutputTokens'
     | 'dataClass'
   >;
   /** Optional CPU parse gate; a parse failure triggers `on_parse_failure` stages. */
@@ -92,6 +105,7 @@ export interface RunPlanInput {
   ) => { readonly parseFailed: boolean };
   /** Fenced publish callback for the final stage (writes product rows). */
   readonly publish: (context: {
+    readonly stageOutputs: Readonly<Record<string, JsonObject>>;
     readonly appendSentinel: (input: {
       readonly aggregateType: string;
       readonly aggregateId: string;
@@ -100,6 +114,7 @@ export interface RunPlanInput {
       readonly schemaVersion?: number;
       readonly payload: JsonObject;
     }) => Promise<void>;
+    readonly publishM4ProductOutput?: M4ProductOutputPort['publish'];
   }) => Promise<void>;
 }
 
@@ -107,6 +122,7 @@ export type RunPlanResult =
   | { readonly kind: 'published'; readonly stageOutcomes: readonly StageOutcomeRecord[] }
   | { readonly kind: 'recoverable'; readonly errorCode: string; readonly stageKey: string }
   | { readonly kind: 'plan_failed'; readonly errorCode: string; readonly stageKey: string }
+  | { readonly kind: 'ownership_lost'; readonly phase: 'begin' | 'finalize' | 'finish' }
   | { readonly kind: 'publish_denied'; readonly outcome: string };
 
 /** Deterministic invocation identity: one invocation per (job, stage). */
@@ -140,11 +156,23 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
 
     async runPlan(input: RunPlanInput): Promise<RunPlanResult> {
       const { identity, plan } = input;
+      const failOwnedPlan = async (errorCode: string, stageKey: string): Promise<RunPlanResult> => {
+        const finished = await deps.jobs.finish({ ...identity, status: 'failed' });
+        if (
+          finished.kind === 'terminalized' ||
+          finished.kind === 'already_terminal' ||
+          (finished.kind === 'funding_model_violation' && 'job' in finished)
+        ) {
+          return { kind: 'plan_failed', errorCode, stageKey };
+        }
+        return { kind: 'ownership_lost', phase: 'finish' };
+      };
 
       // Recovery first (PM Decision 2): any `started` attempt in this job was
       // left by a dead worker — close it durably before anything new runs.
       // Abandoned attempts keep counting against the stage invocation cap.
       const outcomes: StageOutcomeRecord[] = [];
+      const stageOutputs: Record<string, JsonObject> = {};
       const attemptsByStage: Record<string, number> = {};
       if (deps.attemptRecovery) {
         await deps.attemptRecovery.closeOrphanedStartedAttempts({
@@ -152,6 +180,65 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
           jobId: identity.jobId,
           errorCode: ORPHAN_ATTEMPT_ERROR_CODE,
         });
+        const winners = await deps.attemptRecovery.loadStageWinners({
+          projectId: identity.projectId,
+          jobId: identity.jobId,
+        });
+        const planStageKeys = new Set(plan.stages.map((stage) => stage.stageKey));
+        for (const winner of winners) {
+          const stage = plan.stages.find((candidate) => candidate.stageKey === winner.stageKey);
+          if (!stage || !planStageKeys.has(winner.stageKey)) {
+            throw new Error(`recovered winner has unknown stage '${winner.stageKey}'`);
+          }
+          const recoveredOutcome: Extract<ExecutorOutcome, { kind: 'billable' }> = {
+            kind: 'billable',
+            status: winner.status,
+            providerRequestId: null,
+            resultHash: null,
+            schemaVersion: winner.schemaVersion,
+            payload: winner.payload,
+            usage: {
+              priceSnapshotId: stage.routing[0]!.priceSnapshotId,
+              inputTokens: 0,
+              outputTokens: 0,
+              providerCostMicroIdr: 0n,
+            },
+          };
+          const parseFailed = winner.payload.parseFailed === true;
+          const validation =
+            winner.payload.validationFailed === true
+              ? ({
+                  kind: 'invalid',
+                  errorCode:
+                    typeof winner.payload.validationErrorCode === 'string'
+                      ? winner.payload.validationErrorCode
+                      : 'stage_validation_failed',
+                } as const)
+              : deps.validateStage
+                ? await deps.validateStage(stage, recoveredOutcome)
+                : ({ kind: 'valid' } as const);
+          const stageFailed =
+            winner.status === 'failed' || parseFailed || validation.kind === 'invalid';
+          outcomes.push({
+            stageKey: winner.stageKey,
+            status: stageFailed ? 'failed' : 'succeeded',
+            parseFailed,
+            judgeVerdictFailed:
+              validation.kind === 'invalid' && validation.errorCode === 'judge_verdict_failed',
+            ...(validation.kind === 'invalid' ? { errorCode: validation.errorCode } : {}),
+          });
+          if (!stageFailed) {
+            const parsedOutput = winner.payload.output ?? winner.payload.value;
+            if (
+              typeof parsedOutput !== 'object' ||
+              parsedOutput === null ||
+              Array.isArray(parsedOutput)
+            ) {
+              throw new Error(`recovered winner output missing for stage '${winner.stageKey}'`);
+            }
+            stageOutputs[winner.stageKey] = parsedOutput as JsonObject;
+          }
+        }
         for (const stage of plan.stages) {
           attemptsByStage[stage.stageKey] = await deps.attemptRecovery.countStageAttempts({
             projectId: identity.projectId,
@@ -166,21 +253,18 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
         const next = decideNextAction(plan, outcomes, attemptsForDecision);
 
         if (next.kind === 'plan_complete') {
-          const published = await deps.jobs.withFencedPublish(identity, input.publish);
+          const published = await deps.jobs.withFencedPublish(
+            identity,
+            (context) => input.publish({ ...context, stageOutputs }),
+            { settleUsableOutput: true },
+          );
           if (published.kind === 'published') {
             return { kind: 'published', stageOutcomes: outcomes };
           }
           return { kind: 'publish_denied', outcome: published.kind };
         }
         if (next.kind === 'terminal_failed') {
-          // We still own the lease here (the stage machine never began a new
-          // attempt after the terminal decision), so failing the job is ours.
-          await deps.jobs.finish({ ...identity, status: 'failed' });
-          return {
-            kind: 'plan_failed',
-            errorCode: next.errorCode,
-            stageKey: next.stageKey,
-          };
+          return failOwnedPlan(next.errorCode, next.stageKey);
         }
 
         const stage = next.stage;
@@ -210,11 +294,7 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
           // tombstone): do NOT finish-fail it — the legitimate owner or the
           // reclaim sweeper decides its fate. M3 refuses new attempts on a
           // cancel-requested job, which surfaces here.
-          return {
-            kind: 'plan_failed',
-            errorCode: `begin_denied:${begun.kind}`,
-            stageKey: stage.stageKey,
-          };
+          return { kind: 'ownership_lost', phase: 'begin' };
         }
         // Every durable begin consumes capacity, including provider uncertainty.
         attemptsByStage[stage.stageKey] = usedAttempts + 1;
@@ -229,6 +309,8 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
             profileIndex,
             structuredOutput: profile.structuredOutput,
             timeoutMs: profile.timeoutMs,
+            maxInputTokens: profile.maxInputTokens,
+            maxOutputTokens: profile.maxOutputTokens,
             dataClass: stage.dataClass,
             ...input.buildStageRequest(stage, profileIndex),
           });
@@ -250,34 +332,12 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
           };
         }
 
-        // Tx B: finalize + usage inside the M3 service transaction.
-        const finalized = await deps.workflow.finalizeAttempt({
-          ...identity,
-          invocationId,
-          attemptId,
-          status: executed.status,
-          providerRequestId: executed.providerRequestId,
-          resultHash: executed.resultHash,
-          schemaVersion: executed.schemaVersion,
-          payload: executed.payload,
-          usage: executed.usage,
-        });
-        if (finalized.kind !== 'finalized' && finalized.kind !== 'replayed') {
-          return {
-            kind: 'plan_failed',
-            errorCode: `finalize_${finalized.kind}`,
-            stageKey: stage.stageKey,
-          };
-        }
-
-        // CPU validation outside any transaction. A structured-output stage
-        // whose body failed strict parsing is flagged either by the injected
-        // gate or by the executor adapter's `parseFailed` payload marker.
-        const parseFailed =
-          executed.status === 'succeeded' &&
-          (input.parseGate
-            ? input.parseGate(stage, executed).parseFailed
-            : executed.payload.parseFailed === true);
+        // CPU validation runs before Tx B so unusable output is durably failed and
+        // can never become the invocation winner. Provider usage and payload still
+        // finalize in Tx B, preserving billing evidence and attempt history.
+        const parseFailed = input.parseGate
+          ? input.parseGate(stage, executed).parseFailed
+          : executed.payload.parseFailed === true;
         const validation: ValidatorOutcome =
           executed.status === 'failed'
             ? {
@@ -287,9 +347,40 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
             : await (deps.validateStage
                 ? deps.validateStage(stage, executed)
                 : Promise.resolve({ kind: 'valid' as const }));
-
         const stageFailed =
           executed.status !== 'succeeded' || validation.kind === 'invalid' || parseFailed;
+
+        // Tx B: finalize + usage inside the M3 service transaction. Unusable
+        // provider responses are billable failed attempts, never durable winners.
+        // Validation marker lets restart recovery reconstruct repair triggers.
+        const durablePayload: JsonObject =
+          validation.kind === 'invalid' && executed.status === 'succeeded'
+            ? {
+                ...executed.payload,
+                validationFailed: true,
+                validationErrorCode: validation.errorCode,
+              }
+            : executed.payload;
+        const finalized = await deps.workflow.finalizeAttempt({
+          ...identity,
+          invocationId,
+          attemptId,
+          status: stageFailed ? 'failed' : 'succeeded',
+          providerRequestId: executed.providerRequestId,
+          resultHash: executed.resultHash,
+          schemaVersion: executed.schemaVersion,
+          payload: durablePayload,
+          usage: executed.usage,
+        });
+        if (finalized.kind === 'not_authorized') {
+          return { kind: 'ownership_lost', phase: 'finalize' };
+        }
+        if (finalized.kind !== 'finalized' && finalized.kind !== 'replayed') {
+          return failOwnedPlan(`finalize_${finalized.kind}`, stage.stageKey);
+        }
+        if (executed.payload.errorCode === 'model_policy_violation') {
+          return failOwnedPlan('model_policy_violation', stage.stageKey);
+        }
         const errorCode = stageFailed
           ? validation.kind === 'invalid'
             ? validation.errorCode
@@ -304,6 +395,17 @@ export function createAttemptOrchestrator(deps: AttemptOrchestratorDeps) {
           ...(errorCode === undefined ? {} : { errorCode }),
         };
         outcomes.push(outcome);
+        if (!stageFailed) {
+          const parsedOutput = executed.payload.output ?? executed.payload.value;
+          if (
+            typeof parsedOutput !== 'object' ||
+            parsedOutput === null ||
+            Array.isArray(parsedOutput)
+          ) {
+            return failOwnedPlan('successful_stage_output_missing', stage.stageKey);
+          }
+          stageOutputs[stage.stageKey] = parsedOutput as JsonObject;
+        }
       }
     },
   };

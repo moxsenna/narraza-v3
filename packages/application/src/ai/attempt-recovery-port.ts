@@ -16,6 +16,13 @@ import type { JsonObject } from '../ports/types.js';
  * lifecycle CHECK holds (finished_at set), and the uncertainty marker lives in
  * the attempt payload JSONB.
  */
+export interface RecoveredStageOutcome {
+  readonly stageKey: string;
+  readonly status: 'succeeded' | 'failed';
+  readonly schemaVersion: number;
+  readonly payload: JsonObject;
+}
+
 export interface AttemptRecoveryPort {
   /** Durably closes every `started` attempt of the job as failed/abandoned. */
   closeOrphanedStartedAttempts(input: {
@@ -23,6 +30,12 @@ export interface AttemptRecoveryPort {
     readonly jobId: string;
     readonly errorCode: string;
   }): Promise<{ readonly closed: number }>;
+
+  /** Hydrates usable winners plus failed parse/validation outcomes needed to resume repairs. */
+  loadStageWinners(input: {
+    readonly projectId: string;
+    readonly jobId: string;
+  }): Promise<readonly RecoveredStageOutcome[]>;
 
   /** Total attempts recorded for the stage (used, includes abandoned ones). */
   countStageAttempts(input: {
