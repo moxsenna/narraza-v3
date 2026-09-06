@@ -28,6 +28,15 @@ import { createUnitOfWork } from '../unit-of-work.js';
 const schema = createSchemaTestSuite();
 const { buildDependencyManifest, dependencyManifestHash } = dependency;
 
+function repairRecovery(projectId: string, dependencyHash: string): ContextPacketLike {
+  const envelope: ContextPacketLike = {
+    kind: 'repair',
+    dataClass: 'writer_safe',
+    metadata: { projectId: ids.projectA, dependencyHash, schemaVersion: 1 },
+  };
+  return { ...envelope, content: { recoveryFor: 'beat_write_judge' } };
+}
+
 const PROFILE = {
   providerId: 'mock',
   requestedModelId: MOCK_WRITER_MODEL_ID,
@@ -86,6 +95,7 @@ async function seedAndPrepare(
           dataClass: 'author_private',
           metadata: { projectId: ids.projectA, dependencyHash, schemaVersion: 1 },
         },
+        repairRecovery(ids.projectA, dependencyHash),
       ] satisfies ContextPacketLike[],
     },
     profile: PROFILE,
@@ -180,6 +190,7 @@ schema.test('credit-quote-plan-binding', async ({ client, databaseUrl }) => {
             dataClass: 'author_private',
             metadata: { projectId: ids.projectA, dependencyHash, schemaVersion: 1 },
           },
+          repairRecovery(ids.projectA, dependencyHash),
         ] satisfies ContextPacketLike[],
       },
       profile: PROFILE,

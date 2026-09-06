@@ -56,6 +56,12 @@ function packetsFor(
       metadata: { projectId, dependencyHash, schemaVersion: 1 },
       restrictedGuardSets: [{ guardId: 'guard-1' }],
     },
+    {
+      kind: 'repair',
+      dataClass: 'writer_safe',
+      metadata: { projectId, dependencyHash, schemaVersion: 1 },
+      content: { recoveryFor: 'beat_write_judge' },
+    },
   ];
 }
 

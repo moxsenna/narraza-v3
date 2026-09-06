@@ -30,7 +30,7 @@ function packet(
 ): ContextPacketLike {
   return {
     kind,
-    dataClass: kind === 'writer' ? 'writer_safe' : 'author_private',
+    dataClass: kind === 'writer' || kind === 'repair' ? 'writer_safe' : 'author_private',
     metadata: { projectId, dependencyHash, schemaVersion: 1 },
     ...payload,
   };
@@ -44,6 +44,11 @@ function beatPackets(projectId: string, dependencyHash: string): ContextPacketLi
     }),
     packet('validator', projectId, dependencyHash, {
       restrictedGuardSets: [{ guardId: 'guard-1' }],
+    }),
+    // Parse-repair recovery packet: every M4 plan carries a parse-repair
+    // stage, so the frozen bundle must contain it (worker pre-validation).
+    packet('repair', projectId, dependencyHash, {
+      content: { recoveryFor: 'beat_write_judge' },
     }),
   ];
 }
@@ -75,6 +80,7 @@ schema.test('bundle-freeze-determinism', async ({ client, databaseUrl }) => {
     expect(first.bundle.bundleHash).toMatch(/^[0-9a-f]{64}$/);
     expect(first.bundle.dependencyHash).toBe(dependencyHash);
     expect(first.bundle.snapshots.map((row) => row.packetKind).sort()).toEqual([
+      'repair',
       'validator',
       'writer',
     ]);
@@ -109,6 +115,9 @@ schema.test('bundle-freeze-determinism', async ({ client, databaseUrl }) => {
       },
       packet('validator', ids.projectA, dependencyHash, {
         restrictedGuardSets: [{ guardId: 'guard-1' }],
+      }),
+      packet('repair', ids.projectA, dependencyHash, {
+        content: { recoveryFor: 'beat_write_judge' },
       }),
     ] as ContextPacketLike[];
     const keyReordered = await service.freezeBundle({
@@ -167,9 +176,10 @@ schema.test('bundle-freeze-determinism', async ({ client, databaseUrl }) => {
         [ids.projectA],
       )
     ).rows;
-    expect(snapshotRows).toHaveLength(4);
-    expect(snapshotRows[0]).toMatchObject({ packet_kind: 'validator', data_class: 'restricted' });
-    expect(snapshotRows[2]).toMatchObject({ packet_kind: 'writer', data_class: 'writer_safe' });
+    expect(snapshotRows).toHaveLength(6);
+    expect(snapshotRows[0]).toMatchObject({ packet_kind: 'repair', data_class: 'writer_safe' });
+    expect(snapshotRows[2]).toMatchObject({ packet_kind: 'validator', data_class: 'restricted' });
+    expect(snapshotRows[4]).toMatchObject({ packet_kind: 'writer', data_class: 'writer_safe' });
     // Retention expiry lives on the bundle: PG-stamped ~24h, not yet consumed.
     const bundleRows = (
       await client.query(

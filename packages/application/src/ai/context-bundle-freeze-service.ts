@@ -41,20 +41,28 @@ export interface ContextPacketLike {
   };
 }
 
-/** Frozen packet-set policy: which packet kinds each workflow kind freezes. */
+/** Frozen packet-set policy: which packet kinds each workflow kind freezes.
+ *
+ * Every M4 plan template carries `*_parse_repair` (and `judge_repair`) stages
+ * with packetKind 'repair', and the M4 processor pre-validates the frozen
+ * binding of EVERY plan stage before its first provider call. The parse-repair
+ * recovery packet therefore belongs to the frozen bundle itself: freezing
+ * without it would only fail later on the worker, which is exactly the kind of
+ * late failure the freeze contract exists to prevent. For safe_repair the
+ * product packet IS the 'repair' packet, so one entry covers both. */
 const WORKFLOW_PACKET_POLICY: Readonly<Record<string, readonly string[]>> = Object.freeze({
   chat_intake: ['extraction'],
-  chat_intake_reply: ['extraction'],
+  chat_intake_reply: ['extraction', 'repair'],
   intake_reply: ['extraction'],
-  concept_generation: ['planner'],
+  concept_generation: ['planner', 'repair'],
   create_concepts: ['planner'],
-  foundation_generation: ['planner'],
-  character_generation: ['planner'],
-  outline_generation: ['planner'],
+  foundation_generation: ['planner', 'repair'],
+  character_generation: ['planner', 'repair'],
+  outline_generation: ['planner', 'repair'],
   scene_generation: ['writer', 'validator'],
-  beat_write_judge: ['writer', 'validator'],
+  beat_write_judge: ['writer', 'validator', 'repair'],
   safe_repair: ['repair'],
-  publish_package: ['extraction'],
+  publish_package: ['extraction', 'repair'],
 } as const);
 
 export type FreezeBundleErrorCode =
