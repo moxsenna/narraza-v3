@@ -17,6 +17,7 @@ import { createJobRepo } from './job-repo.js';
 import { createLedgerPort } from './ledger-port.js';
 import { createModelPricePort } from './model-price-port.js';
 import { createM4ProductOutputPort } from './m4-product-output-port.js';
+import { createM4ProductReadPort } from './m4-product-read-port.js';
 import { createOutlineRepo } from './outline-repo.js';
 import { createOutboxPort } from './outbox-port.js';
 import { createProjectRepo } from './project-repo.js';
@@ -54,6 +55,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     attemptRecovery: createAttemptRecoveryPort(tx),
     systemFundedIntake: createSystemFundedIntakePort(tx),
     m4ProductOutput: createM4ProductOutputPort(tx),
+    m4ProductRead: createM4ProductReadPort(tx),
     ledger: createLedgerPort(tx),
     creditBalance: createCreditBalanceRepo(tx),
     creditBillingAllocation: createCreditBillingAllocationPort(tx),

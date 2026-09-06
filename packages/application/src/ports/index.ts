@@ -169,4 +169,11 @@ export type {
   CreditRetentionSweepResult,
   CreditRetentionPort,
 } from './credit-retention-port.js';
+export type {
+  M4ConceptSetView,
+  M4CandidateGroupView,
+  M4ArtifactProposalView,
+  M4ProseVersionView,
+  M4ProductReadPort,
+} from './m4-product-read-port.js';
 export type { IsolationLevel, UnitOfWorkOptions, TxPorts, UnitOfWork } from './unit-of-work.js';

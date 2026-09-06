@@ -170,6 +170,14 @@ export type {
   PublishM4ProductOutputInput,
 } from './ai/m4-product-output-port.js';
 
+export type {
+  M4ConceptSetView,
+  M4CandidateGroupView,
+  M4ArtifactProposalView,
+  M4ProseVersionView,
+  M4ProductReadPort,
+} from './ports/m4-product-read-port.js';
+
 export {
   createCreditQuoteService,
   type IssueQuoteInput,
