@@ -18,7 +18,7 @@ started early.
 | M1  | Domain core & critical schema              | 🔄 W1.1–W1.5 merged to `master` (PR #1–#5); exit gate M1 still open (S3/S7 unit coverage + migration drift re-check) |
 | M2  | Ports, UnitOfWork, user-origin flow        | ✅ **done** (PR #6 merged; latest-head CI run 30166400617, 8/8 green)                                                |
 | M3  | Jobs, worker, outbox, credit               | ✅ **done** (PR #20 merged as `84f5e82` into `master`, 8/8 CI)                                                        |
-| M4  | AI layer (mock + real adapters)            | 🔄 backend + dev/mock exit-gate UI complete on `feat/m4-ai-foundation` (Draft PR); production AI activation stays deferred (D14 mock-only; owner sign-off pending) |
+| M4  | AI layer (mock + real adapters)            | 🔄 backend + dev/mock exit-gate UI complete on `feat/m4-ai-foundation` (Draft PR); production AI activation stays deferred (D14 mock-only; owner sign-off RECEIVED, APPROVED FOR M4) |
 | M5  | Proposal accept, working draft, validation | ⬜ not started                                                                                                       |
 | M6  | Full UI, design system, a11y, e2e          | ⬜ not started                                                                                                       |
 | M7  | Staging hardening                          | ⬜ not started                                                                                                       |
@@ -173,7 +173,7 @@ started early.
 - [x] **W4.4 Model policy (D14)** _(Fable — security/governance decision)_
   - [x] `packages/ai/model-policy.ts` + `docs/model-policy.md`; restricted packet → allowlist only, else config error; worker startup refuses restricted-unroutable processors (`assertRestrictedRoutingServiceable`)
   - [x] Test: `model-policy-allowlist`
-  - [ ] **Gate:** final no-training/no-retention provider list reviewed & signed by owner — allowlist remains mock-only pending sign-off
+  - [x] **Gate:** final no-training/no-retention provider list reviewed & signed by owner (`OWNER_D14_APPROVED`) — `restricted_allowed` for M4 is the deterministic in-process mock only; OpenRouter and Gemini remain NOT approved for restricted context; any future real-provider entry requires a new written no-training/no-retention review; first real-provider use remains staging M7
 - [x] **W4.5 Real adapters** _(Opus)_ — OpenRouter + Gemini (normalized errors, timeout, usage, frozen input ceiling); env-gated; code present, first real use staging M7
 - [x] **W4.6 Wire product workflows** _(Opus)_ — backend complete (system-funded intake, worker processor, fenced Tx C projection); production AI activation stays fail-closed/PRESENTATION; the M4 exit-gate dev/mock UI is delivered (see exit row)
   - [x] Intake reply (free fair-use D4 60/day, no card, `rate_limit_counters` zero-new-table); sufficiency indicator = UI, delivered in the dev/mock harness
@@ -186,7 +186,7 @@ started early.
 - **Exit gate M4**
   - [x] From UI (dev, mock): chat reply; 3 concepts; concept pick → foundation draft; foundation proposal; outline 10; scene 1–3 candidates; repair; publish package proposal — delivered as the dev/mock exit-gate harness `/app/_preview/m4-vertical/[projectId]` (`m4-dev-mock-vertical` E2E): REAL M4 services, REAL worker processor, deterministic mock, real PostgreSQL; fail-closed outside dev/test (auth + ownership + environment policy), no direct DB writes from web, no browser-supplied provider/model ids, `publish_package` observes an `ArtifactProposal`. Production `/tulis` stays PRESENTATION and the production mock stays forbidden (D14) — production activation is NOT part of this row.
   - [x] `command-no-ai`, `model-policy-allowlist`, `prompt-injection-guard`, parse contracts — green
-  - [ ] Model policy doc approved — PROVISIONAL, owner sign-off pending (see `docs/model-policy.md`)
+  - [x] Model policy doc approved — APPROVED FOR M4, owner sign-off received (`OWNER_D14_APPROVED`; see `docs/model-policy.md`)
 
 ---
 

@@ -1,9 +1,12 @@
-# Model Policy (D14) — Provisional M4
+# Model Policy (D14) — Approved for M4
 
-Status: **PROVISIONAL** — authored in M4 Block C. The final no-training /
-no-retention provider list must be reviewed and signed off by the product owner
-before any real provider receives restricted context (M4/W4.4 gate; first real
-provider use remains staging M7).
+Status: **APPROVED FOR M4** — owner sign-off received (`OWNER_D14_APPROVED`).
+`restricted_allowed` for M4 is the deterministic in-process mock only. OpenRouter
+and Gemini are NOT approved for restricted context (`author_private`,
+`service_restricted`). Any future real-provider `restricted_allowed` entry
+requires a NEW explicit written review of no-training/no-retention guarantees.
+First real-provider use remains staging M7. Restricted input is never silently
+downgraded to a safer data class.
 
 ## Rule
 
