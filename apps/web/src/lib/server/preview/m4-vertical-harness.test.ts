@@ -6,6 +6,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('server-only', () => ({}));
 vi.mock('../../../server/domain/queries', () => ({ getMyProject: mocks.getMyProject }));
+// The harness module imports the M3 generation adapter (which pulls the real
+// application package). The CI Unit job does not build workspace packages, so
+// — like every other web unit test — the server-domain seam is mocked and the
+// pure policy logic under test stays real.
+vi.mock('../../../server/domain/generation', () => ({
+  assertSceneChapterAccess: vi.fn(),
+}));
 
 import { resolveM4VerticalAccess } from './m4-vertical-harness';
 
