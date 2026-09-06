@@ -92,6 +92,7 @@ export interface FencedPublishSentinelInput {
 
 export interface FencedPublishContext {
   readonly appendSentinel: (input: FencedPublishSentinelInput) => Promise<void>;
+  readonly publishM4ProductOutput?: NonNullable<TxPorts['m4ProductOutput']>['publish'];
 }
 
 export interface FencedPublishOptions {
@@ -294,24 +295,45 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
           if (current === null) return { kind: 'not_found' };
 
           if (current.status === 'queued') {
+            let systemFunded = false;
             if (current.reservationId !== null) {
-              const release = await ports.ledger.releaseQueuedCancellation({
+              const reservation = await ports.creditReservation.lockBound({
+                reservationId: current.reservationId,
                 projectId: input.projectId,
                 jobId: input.jobId,
-                reservationId: current.reservationId,
-                ledgerEntryId: ports.allocateId(),
-                dedupeKey: `release:${current.reservationId}:queued-cancel`,
-                entryType: 'release',
-                direction: 'credit',
               });
-              if (release.kind === 'binding_invalid') {
+              if (reservation === null) {
                 throw new CancelRollback({ kind: 'ledger_binding_invalid' });
+              }
+              systemFunded = reservation.fundingModel === 'system_funded';
+              if (!systemFunded) {
+                const release = await ports.ledger.releaseQueuedCancellation({
+                  projectId: input.projectId,
+                  jobId: input.jobId,
+                  reservationId: current.reservationId,
+                  ledgerEntryId: ports.allocateId(),
+                  dedupeKey: `release:${current.reservationId}:queued-cancel`,
+                  entryType: 'release',
+                  direction: 'credit',
+                });
+                if (release.kind === 'binding_invalid') {
+                  throw new CancelRollback({ kind: 'ledger_binding_invalid' });
+                }
               }
             }
 
             const cancelled = await ports.job.cancelQueued(input);
             if (cancelled.kind === 'state_conflict') {
               throw new CancelRollback({ kind: 'state_conflict' });
+            }
+            if (systemFunded) {
+              const project = await ports.project.lockForUpdate(input.projectId);
+              if (project === null) throw new CancelRollback({ kind: 'state_conflict' });
+              await reconcileTerminalReservation(ports, {
+                ownerUserId: project.ownerUserId,
+                job: cancelled.job,
+                terminalReason: 'cancelled',
+              });
             }
             return cancelled;
           }
@@ -528,6 +550,9 @@ export function createJobService(unitOfWork: UnitOfWork): JobService {
                 occurredAt,
               });
             },
+            ...(ports.m4ProductOutput
+              ? { publishM4ProductOutput: ports.m4ProductOutput.publish }
+              : {}),
           };
           await publish(context);
 

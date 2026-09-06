@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createM4MockProvider, createOpenRouterProvider, type ProviderPort } from '@narraza/ai';
 import { composeWorker, workerSettingsFromEnv } from './composition.js';
+import { assertRestrictedRoutingServiceable } from './restricted-routing.js';
 
 const env = {
   JOB_PROCESSOR_ENABLED: false,
@@ -128,5 +130,29 @@ describe('worker composition', () => {
     );
     expect(input.createLoop).not.toHaveBeenCalled();
     expect(input.loop.start).not.toHaveBeenCalled();
+  });
+});
+
+describe('D14 restricted routing startup gate', () => {
+  it('refuses an enabled processor with no restricted_allowed provider configured', () => {
+    const providers = new Map<string, ProviderPort>([
+      ['openrouter', createOpenRouterProvider({ apiKey: 'test-key', fetch: vi.fn() })],
+    ]);
+    expect(() => assertRestrictedRoutingServiceable({ processorEnabled: true, providers })).toThrow(
+      /restricted_allowed.*beat_write_judge|beat_write_judge.*restricted_allowed/s,
+    );
+  });
+
+  it('accepts the deterministic mock as the restricted_allowed provider', () => {
+    const providers = new Map<string, ProviderPort>([['mock', createM4MockProvider()]]);
+    expect(() =>
+      assertRestrictedRoutingServiceable({ processorEnabled: true, providers }),
+    ).not.toThrow();
+  });
+
+  it('does not evaluate routing when the processor is disabled', () => {
+    expect(() =>
+      assertRestrictedRoutingServiceable({ processorEnabled: false, providers: new Map() }),
+    ).not.toThrow();
   });
 });

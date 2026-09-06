@@ -197,5 +197,6 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm db:migrate
       - run: pnpm build:packages
+      - run: pnpm --filter @narraza/worker-gen build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e

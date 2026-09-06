@@ -2,9 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "./src",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "types": ["node"]
   },
-  "references": [{ "path": "../shared" }],
+  "references": [
+    {
+      "path": "../shared"
+    }
+  ],
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.typecheck.ts"]
 }

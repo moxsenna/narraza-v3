@@ -215,3 +215,33 @@ Application-level contract coverage (registry, handler-outside-transaction
 ordering, idempotency key stability, loop cadence and shutdown) lives in
 `packages/application/src/outbox/outbox-delivery-service.test.ts` and
 `packages/application/src/outbox/outbox-consumer-loop.test.ts`, both in `unit`.
+
+## M4 system-funded AI workflows — test target locations
+
+Block D wires the eight authoritative workflow kinds
+(`chat_intake_reply`, `concept_generation`, `foundation_generation`,
+`character_generation`, `outline_generation`, `beat_write_judge`,
+`safe_repair`, `publish_package`) through system-funded intake, the attempt
+orchestrator, and fenced Tx C projection. `integration` targets run against
+real PostgreSQL (Testcontainers, `packages/db/vitest.schema.config.ts`); `unit`
+targets run in the package's default Vitest project.
+
+| Test target | File | Blocks |
+| --- | --- | --- |
+| `system-funded-budget-path` | `packages/application/src/ai/system-funded-intake-service.test.ts`, `packages/db/src/ai/system-funded-intake.integration.test.ts` | reservation = exact frozen `estimatedMaxMicroIdr`, dedupe `system-budget:{jobId}`, stable ids pre-allocated |
+| `fair-use-intake-limit` | `packages/db/src/ai/system-funded-intake.integration.test.ts` | 60/day atomic check+increment on `rate_limit_counters`, Asia/Jakarta day from the PostgreSQL clock, replay consumes no unit, attempt 61 blocked with zero mutations |
+| `intake-replay-conflict` | `packages/db/src/ai/system-funded-intake.integration.test.ts` | exact replay idempotent under post-lock race; conflicting semantics fail closed |
+| `orchestration-lifecycle` | `packages/db/src/ai/attempt-orchestration.integration.test.ts` | one `executeSingleAttempt` = one provider call; unusable output finalizes `failed` before Tx B; judge/repair separation; owned plan failure releases the full system-funded reservation with zero user ledger rows |
+| `worker-vertical-matrix` | `packages/db/src/ai/m4-actual-worker-certification.integration.test.ts` | all 8 kinds through the actual `createM4JobProcessor`: success, malformed→separate repair, repair exhausted (zero usable output), timeout/orphan recovery under `maxInvocations`, nonretryable refusal, judge pass/reject, cancel before provider/in-flight/between stages/before repair, stale fence, terminal job, tampered frozen packet binding |
+| `m4-product-projection` | `packages/db/src/ai/m4-product-projection.integration.test.ts` | per-kind product rows written in the same Tx C as the fenced publish sentinel; replay returns the recorded outcome without duplicating |
+| `request-beat-snapshot` | `packages/db/src/ai/request-beat-snapshot.integration.test.ts` | bundle+plan frozen before quote; source mutation never rewrites frozen artifacts |
+| `credit-quote-plan-binding` | `packages/db/src/ai/credit-quote-plan-binding.integration.test.ts` | job bound to the exact plan/bundle/hash the quote referenced; hash mismatch fails closed; replay exact |
+| `model-policy-allowlist` | `packages/ai/src/http-adapters.test.ts`, `packages/ai/src/provider-mock-faults.test.ts`, `apps/worker-gen/src/main.test.ts` (D14 startup gate) | restricted classes reach only `restricted_allowed` providers; non-allowlisted routing fails closed at boot and at the adapter boundary |
+| `prompt-context-security` | `packages/core/src/context/packet-builders.test.ts`, `writer-packet-leak.test.ts`, `writer-guidance-safe.test.ts`, `packages/core/src/context/packet-type-boundary.typecheck.ts`, `packages/core/src/validation/prompt-injection-guard.test.ts` | packet integrity, no guidance leak, type-boundary, injection guard |
+
+Frozen per-stage invocation caps live in the catalogue
+(`packages/application/src/ai/workflow-plan-freeze-service.ts`): judge and all
+repair stages run at most once; the primary stage uses the profile cap. The
+worst-case budget prices these caps against immutable snapshots
+(`worstCaseBudgetMicroIdr`); the provider boundary enforces the frozen input
+ceiling in UTF-8 bytes, which is conservative in the budget-relevant direction.

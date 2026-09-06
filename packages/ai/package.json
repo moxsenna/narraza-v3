@@ -18,9 +18,11 @@
   },
   "dependencies": {
     "@narraza/core": "workspace:*",
-    "@narraza/shared": "workspace:*"
+    "@narraza/shared": "workspace:*",
+    "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/node": "26.1.1",
     "vitest": "4.1.10"
   },
   "main": "./dist/index.js"

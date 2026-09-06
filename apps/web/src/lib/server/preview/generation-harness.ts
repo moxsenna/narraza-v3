@@ -28,7 +28,7 @@ export function evaluateGenerationHarnessPolicy(input: {
   return { allowed: true };
 }
 
-function runtimeEnvironment(): HarnessEnvironment {
+export function runtimeEnvironment(): HarnessEnvironment {
   if (process.env.NODE_ENV === 'production') return 'production';
   if (process.env.NODE_ENV === 'test') return 'test';
 

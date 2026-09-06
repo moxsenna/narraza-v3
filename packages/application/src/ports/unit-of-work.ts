@@ -20,6 +20,13 @@ import type { QuotePort } from './quote-port.js';
 import type { RevealRepo } from './reveal-repo.js';
 import type { SnapshotPort } from './snapshot-port.js';
 import type { UsableOutputClassifier } from './usable-output-classifier.js';
+import type { ContextBundlePort } from '../ai/context-bundle-port.js';
+import type { ModelPriceSnapshotPort } from '../ai/model-price-port.js';
+import type { WorkflowPlanPort } from '../ai/workflow-plan-port.js';
+import type { AttemptRecoveryPort } from '../ai/attempt-recovery-port.js';
+import type { SystemFundedIntakePort } from '../ai/system-funded-intake-port.js';
+import type { M4ProductOutputPort } from '../ai/m4-product-output-port.js';
+import type { M4ProductReadPort } from './m4-product-read-port.js';
 import type { GenerationAttemptPort, WorkflowInvocationPort } from './workflow-invocation-port.js';
 
 /** D9: default read committed + row lock/CAS; serializable opt-in per use case. */
@@ -59,6 +66,20 @@ export interface TxPorts {
   readonly creditRetention: CreditRetentionPort;
   /** W3.3 opt-in capability; optional for legacy UnitOfWork test doubles. */
   readonly usableOutputClassifier?: UsableOutputClassifier;
+  /** M4 Block A opt-in capability; optional for legacy UnitOfWork test doubles. */
+  readonly contextBundle?: ContextBundlePort;
+  /** M4 Block A opt-in capability; optional for legacy UnitOfWork test doubles. */
+  readonly modelPrice?: ModelPriceSnapshotPort;
+  /** M4 Block B opt-in capability; optional for legacy UnitOfWork test doubles. */
+  readonly workflowPlan?: WorkflowPlanPort;
+  /** M4 Block C opt-in capability; optional for legacy UnitOfWork test doubles. */
+  readonly attemptRecovery?: AttemptRecoveryPort;
+  /** M4 Block D opt-in capability; optional for legacy UnitOfWork test doubles. */
+  readonly systemFundedIntake?: SystemFundedIntakePort;
+  /** M4 product projection inside fenced Tx C; optional for legacy test doubles. */
+  readonly m4ProductOutput?: M4ProductOutputPort;
+  /** M4 read-only product observation (dev/preview adapters); optional for legacy test doubles. */
+  readonly m4ProductRead?: M4ProductReadPort;
   readonly job: JobPort;
   readonly workflowInvocation: WorkflowInvocationPort;
   readonly generationAttempt: GenerationAttemptPort;

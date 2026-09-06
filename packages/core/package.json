@@ -22,6 +22,7 @@
     "@narraza/shared": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "26.1.1",
     "vitest": "4.1.10"
   },
   "main": "./dist/index.js"
