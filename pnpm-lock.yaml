@@ -47,6 +47,9 @@ importers:
       '@narraza/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@narraza/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@narraza/db':
         specifier: workspace:*
         version: link:../../packages/db

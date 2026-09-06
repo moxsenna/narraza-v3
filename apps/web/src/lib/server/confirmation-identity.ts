@@ -35,3 +35,23 @@ export function deriveSceneConfirmationIdentity(quoteId: string): {
     jobId: deterministicNamespacedUuid(SCENE_JOB_ID_NAMESPACE, quoteId),
   };
 }
+
+const M4_RESERVATION_ID_NAMESPACE = '3e8a1c6d-7b4f-4e2a-9d5c-6f0a8b1c2d3e';
+const M4_JOB_ID_NAMESPACE = '5c2d9e7a-1b6f-4c8d-8a3b-9e0f1a2b3c4d';
+
+/**
+ * M4 workflow confirmation identity: same contract as the scene derivation —
+ * the server-issued quote id is the only input, so identical quotes replay to
+ * the identical reservation/job pair and no client value participates.
+ */
+export function deriveM4ConfirmationIdentity(quoteId: string): {
+  readonly confirmationRequestId: string;
+  readonly reservationId: string;
+  readonly jobId: string;
+} {
+  return {
+    confirmationRequestId: quoteId,
+    reservationId: deterministicNamespacedUuid(M4_RESERVATION_ID_NAMESPACE, quoteId),
+    jobId: deterministicNamespacedUuid(M4_JOB_ID_NAMESPACE, quoteId),
+  };
+}
