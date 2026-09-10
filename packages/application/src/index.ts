@@ -163,6 +163,12 @@ export type {
   UnitOfWorkOptions,
   TxPorts,
   UnitOfWork,
+  ProseWorkingDraftRecord,
+  ProseVersionRecord,
+  ProseDraftUpsertInput,
+  ProseVersionInsertInput,
+  ProseDraftRepo,
+  ProseVersionRepo,
 } from './ports/index.js';
 
 export type {
@@ -457,6 +463,17 @@ export {
   type AcceptConceptInput,
   type AcceptConceptOutput,
 } from './use-cases/accept-concept.js';
+export {
+  createSaveWorkingDraft,
+  createSeedDraftFromCandidate,
+  createSnapshotProseVersion,
+  type SaveWorkingDraftInput,
+  type SaveWorkingDraftOutput,
+  type DraftConflict,
+  type SeedDraftFromCandidateInput,
+  type SnapshotProseVersionInput,
+  type SnapshotProseVersionOutput,
+} from './use-cases/prose-draft.js';
 
 // Progress reducer v1 (W2.4).
 export {

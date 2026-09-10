@@ -51,6 +51,14 @@ export type {
 } from './change-set-repo.js';
 export type { ProposalInsertInput, ProposalRepo } from './proposal-repo.js';
 export type {
+  ProseWorkingDraftRecord,
+  ProseVersionRecord,
+  ProseDraftUpsertInput,
+  ProseVersionInsertInput,
+  ProseDraftRepo,
+  ProseVersionRepo,
+} from './prose-repo.js';
+export type {
   IntakeSessionInsertInput,
   IntakeMessageInsertInput,
   IntakeRepo,
