@@ -25,8 +25,10 @@ const routeExpectations = [
     unavailableText: 'Pemeriksaan otomatis untuk bab ini belum tersedia',
   },
   {
+    // W5.4: selesaikan is the functional Tutup Bab view; with no pending
+    // proposals it renders its honest empty state.
     suffix: 'selesaikan',
-    unavailableText: 'Status penyelesaian bab belum dapat ditentukan saat ini',
+    unavailableText: 'Belum ada usulan yang menunggu keputusan',
   },
   {
     suffix: 'naskah',
