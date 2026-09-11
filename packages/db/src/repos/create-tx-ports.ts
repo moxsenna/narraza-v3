@@ -1,6 +1,7 @@
 import type { TxPorts } from '@narraza/application';
 import { dbNow, dbOperationalNow } from '../db-now.js';
 import { createAiUsagePort } from './ai-usage-port.js';
+import { createArtifactProposalRepo } from './artifact-repo.js';
 import { createAuditPort } from './audit-port.js';
 import { createChangeSetRepo } from './change-set-repo.js';
 import { createContextBundlePort } from './context-bundle-port.js';
@@ -21,7 +22,9 @@ import { createM4ProductReadPort } from './m4-product-read-port.js';
 import { createOutlineRepo } from './outline-repo.js';
 import { createOutboxPort } from './outbox-port.js';
 import { createProjectRepo } from './project-repo.js';
-import { createProposalRepo } from './proposal-repo.js';
+import { createProposalGroupRepo, createProposalRepo } from './proposal-repo.js';
+import { createProseDraftRepo, createProseVersionRepo } from './prose-repo.js';
+import { createValidationFindingRepo, createValidationReportRepo } from './validation-repo.js';
 import { createQuoteRepo } from './quote-repo.js';
 import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
@@ -43,6 +46,12 @@ export function createTxPorts(tx: TxClient): TxPorts {
     outline: createOutlineRepo(tx),
     reveal: createRevealRepo(tx),
     proposal: createProposalRepo(tx),
+    proposalGroup: createProposalGroupRepo(tx),
+    artifactProposal: createArtifactProposalRepo(tx),
+    proseDraft: createProseDraftRepo(tx),
+    proseVersion: createProseVersionRepo(tx),
+    validationReport: createValidationReportRepo(tx),
+    validationFinding: createValidationFindingRepo(tx),
     changeSet: createChangeSetRepo(tx),
     intake: createIntakeRepo(tx),
     concept: createConceptRepo(tx),

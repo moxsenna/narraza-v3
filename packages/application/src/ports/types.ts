@@ -202,6 +202,10 @@ export interface ProposalRecord {
   readonly source: string;
   readonly status: string;
   readonly changeSetId: string | null;
+  readonly operationsHash: string;
+  readonly dependencyHash: string;
+  readonly revalidatedFromProposalId: string | null;
+  readonly validationReportId: string | null;
 }
 
 export interface CreditQuoteRecord {

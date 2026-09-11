@@ -15,7 +15,10 @@ import type { LedgerPort } from './ledger-port.js';
 import type { OutlineRepo } from './outline-repo.js';
 import type { OutboxPort } from './outbox-port.js';
 import type { ProjectRepo } from './project-repo.js';
-import type { ProposalRepo } from './proposal-repo.js';
+import type { ProposalGroupRepo, ProposalRepo } from './proposal-repo.js';
+import type { ArtifactProposalRepo } from './artifact-repo.js';
+import type { ProseDraftRepo, ProseVersionRepo } from './prose-repo.js';
+import type { ValidationFindingRepo, ValidationReportRepo } from './validation-repo.js';
 import type { QuotePort } from './quote-port.js';
 import type { RevealRepo } from './reveal-repo.js';
 import type { SnapshotPort } from './snapshot-port.js';
@@ -52,6 +55,16 @@ export interface TxPorts {
   readonly outline: OutlineRepo;
   readonly reveal: RevealRepo;
   readonly proposal: ProposalRepo;
+  /** W5.3 group lifecycle; optional for legacy UnitOfWork test doubles. */
+  readonly proposalGroup?: ProposalGroupRepo;
+  /** W5.3 publish artifacts; optional for legacy UnitOfWork test doubles. */
+  readonly artifactProposal?: ArtifactProposalRepo;
+  /** M5 prose ports; optional for legacy UnitOfWork test doubles. */
+  readonly proseDraft?: ProseDraftRepo;
+  readonly proseVersion?: ProseVersionRepo;
+  /** M5 validation ports; optional for legacy UnitOfWork test doubles. */
+  readonly validationReport?: ValidationReportRepo;
+  readonly validationFinding?: ValidationFindingRepo;
   readonly changeSet: ChangeSetRepo;
   readonly intake: IntakeRepo;
   readonly concept: ConceptRepo;

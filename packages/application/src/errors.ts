@@ -13,7 +13,10 @@ export type AppErrorCode =
   | 'FOUNDATION_LOCKED'
   | 'OUTLINE_DOWNSTREAM_LOCKED'
   | 'CHANGE_SET_INVALID'
-  | 'CAS_FAILED';
+  | 'CAS_FAILED'
+  | 'DRAFT_CONFLICT'
+  | 'VALIDATION_FAILED'
+  | 'POLICY_DENIED';
 
 export interface AppError {
   readonly code: AppErrorCode;

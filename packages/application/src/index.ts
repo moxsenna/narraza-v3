@@ -163,6 +163,25 @@ export type {
   UnitOfWorkOptions,
   TxPorts,
   UnitOfWork,
+  ProseWorkingDraftRecord,
+  ProseVersionRecord,
+  ProseDraftUpsertInput,
+  ProseVersionInsertInput,
+  ProseDraftRepo,
+  ProseVersionRepo,
+  ProposalGroupRecord,
+  ProposalGroupInsertInput,
+  ProposalGroupRepo,
+  ArtifactProposalRecord,
+  PublishArtifactRecord,
+  PublishArtifactInsertInput,
+  ArtifactProposalRepo,
+  ValidationReportRecord,
+  ValidationFindingRecord,
+  ValidationReportInsertInput,
+  ValidationFindingInsertInput,
+  ValidationReportRepo,
+  ValidationFindingRepo,
 } from './ports/index.js';
 
 export type {
@@ -457,10 +476,77 @@ export {
   type AcceptConceptInput,
   type AcceptConceptOutput,
 } from './use-cases/accept-concept.js';
+export {
+  createSaveWorkingDraft,
+  createSeedDraftFromCandidate,
+  createSnapshotProseVersion,
+  type SaveWorkingDraftInput,
+  type SaveWorkingDraftOutput,
+  type DraftConflict,
+  type SeedDraftFromCandidateInput,
+  type SnapshotProseVersionInput,
+  type SnapshotProseVersionOutput,
+} from './use-cases/prose-draft.js';
+export {
+  createValidateProseVersion,
+  createOverrideFinding,
+  isOverrideAllowed,
+  M5_VALIDATION_POLICY_VERSION,
+  toPublicValidationView,
+  type ValidateProseVersionInput,
+  type ValidateProseVersionOutput,
+  type PublicValidationView,
+  type OverrideFindingInput,
+} from './use-cases/prose-validation.js';
+export {
+  createRequestSafeRepair,
+  repairInstructionFor,
+  severityScoreFor,
+  toRepairDirective,
+  type RequestSafeRepairInput,
+  type RequestSafeRepairOutput,
+  type PreviousRepairAttempt,
+} from './use-cases/prose-repair.js';
+export {
+  createPrepareProseProposal,
+  beatDependencyManifest,
+  dependencyManifestHashFor,
+  hashOperations,
+  PROPOSAL_DEPENDENCY_POLICY_VERSION,
+  type PrepareProseProposalInput,
+  type PrepareProseProposalOutput,
+  type PreparedProposal,
+} from './use-cases/proposal-prepare.js';
+export {
+  createAcceptProposal,
+  createMarkStaleProposal,
+  type AcceptProposalInput,
+  type AcceptProposalOutput,
+} from './use-cases/proposal-accept.js';
+export {
+  createPublishArtifact,
+  type PublishArtifactInput,
+  type PublishArtifactOutput,
+} from './use-cases/publish-artifact.js';
+export {
+  toPublicProposalView,
+  createGetPendingProposals,
+  createRejectProposal,
+  type PublicProposalOp,
+  type PublicProposalView,
+  type PublicProposalInputRow,
+  type GetPendingProposalsInput,
+  type PendingProposalView,
+  type RejectProposalInput,
+} from './use-cases/proposal-view.js';
 
-// Progress reducer v1 (W2.4).
+// Progress reducer v2 + intake sufficiency (W2.4 / W5.5).
 export {
   projectProgressView,
+  intakeSufficiencyView,
+  REQUIRED_INTAKE_SIGNALS,
   type ProjectProgressSnapshot,
   type ProjectProgressView,
+  type IntakeSufficiencyInput,
+  type IntakeSufficiencyView,
 } from './progress/project-progress-view.js';

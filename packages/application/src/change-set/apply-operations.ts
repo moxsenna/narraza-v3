@@ -1,8 +1,13 @@
 /**
  * Per-operation apply helpers for the single write door (S2.2). Each helper
  * mutates the canon tables via the transaction-scoped ports. M2 covers the
- * user-origin subset; op types requiring AI artifacts fail closed until M5.
+ * user-origin subset. W5.3 adds the prose pair: `prose.version.create`
+ * inserts an immutable ProseVersion (fenced revision + server contentHash),
+ * and `prose.accept` CAS-sets the beat accepted pointer (same-beat enforced
+ * by the composite FK). state/belief/disclosure extraction stays fail-closed
+ * until the extraction pipeline lands.
  */
+import { dependency } from '@narraza/core';
 import type { AppError } from '../errors.js';
 import { appError } from '../errors.js';
 import type { JsonObject, TxPorts } from '../ports/index.js';
@@ -24,8 +29,6 @@ const M2_UNSUPPORTED: ReadonlySet<string> = new Set([
   'state.append',
   'belief.append',
   'disclosure.append',
-  'prose.version.create',
-  'prose.accept',
 ]);
 
 /** Apply a single canonical operation inside the commit transaction. */
@@ -65,6 +68,10 @@ export async function applyOperation(
         return await applyOutlineCreate(ports, projectId, op);
       case 'outline.update':
         return await applyOutlineUpdate(ports, projectId, op);
+      case 'prose.version.create':
+        return await applyProseVersionCreate(ports, projectId, op);
+      case 'prose.accept':
+        return await applyProseAccept(ports, projectId, op);
       default:
         return {
           ok: false,
@@ -326,6 +333,105 @@ async function applyOutlineUpdate(
     title: node.title,
     payload: op.payload,
     expectedRevision: op.expectedRevision,
+  });
+  return row ? { ok: true } : casFailed();
+}
+
+async function applyProseVersionCreate(
+  ports: TxPorts,
+  projectId: string,
+  op: CanonicalOpPersist,
+): Promise<ApplyResult> {
+  if (!ports.proseVersion) {
+    return {
+      ok: false,
+      error: appError('CHANGE_SET_INVALID', 'msg.prose.unsupported', 500),
+    };
+  }
+  // Canonical payload (resolver): { kind, beatId, content, contentHash }.
+  const payload = op.payload as {
+    beatId?: unknown;
+    content?: unknown;
+    contentHash?: unknown;
+  };
+  const beatId = typeof payload.beatId === 'string' ? payload.beatId : null;
+  const content = typeof payload.content === 'string' ? payload.content : null;
+  if (!beatId || content === null) {
+    return {
+      ok: false,
+      error: appError('CHANGE_SET_INVALID', 'msg.changeset.prose_fields', 422),
+    };
+  }
+  const beat = await ports.outline.findBeat(projectId, beatId);
+  if (!beat) {
+    return {
+      ok: false,
+      error: appError('CHANGE_SET_INVALID', 'msg.outline.beat_not_found', 422),
+    };
+  }
+  // Server-owned hash: never trust a model-supplied contentHash.
+  const contentHash = dependency.sha256Hex(content);
+  // Idempotent replay: prepare already inserted this ProseVersion (validated
+  // snapshot, hash-bound validation reports reference it). Accept re-applies
+  // the op only if the row matches content exactly; any divergence fails.
+  const existing = await ports.proseVersion.findById(projectId, op.targetEntityId);
+  if (existing) {
+    if (existing.beatId === beatId && existing.contentHash === contentHash) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: appError('CHANGE_SET_INVALID', 'msg.changeset.prose_mismatch', 422),
+    };
+  }
+  const maxRevision = await ports.proseVersion.maxRevision(projectId, beatId);
+  await ports.proseVersion.insert({
+    id: op.targetEntityId,
+    projectId,
+    beatId,
+    sourceCandidateId: null,
+    status: 'validated',
+    revision: (maxRevision ?? -1) + 1,
+    content,
+    contentHash,
+  });
+  return { ok: true };
+}
+
+async function applyProseAccept(
+  ports: TxPorts,
+  projectId: string,
+  op: CanonicalOpPersist,
+): Promise<ApplyResult> {
+  if (!ports.proseVersion) {
+    return {
+      ok: false,
+      error: appError('CHANGE_SET_INVALID', 'msg.prose.unsupported', 500),
+    };
+  }
+  // Canonical payload (resolver): { kind, proseVersionId }.
+  const payload = op.payload as { proseVersionId?: unknown };
+  const proseVersionId = typeof payload.proseVersionId === 'string' ? payload.proseVersionId : null;
+  if (!proseVersionId) {
+    return {
+      ok: false,
+      error: appError('CHANGE_SET_INVALID', 'msg.changeset.prose_fields', 422),
+    };
+  }
+  const version = await ports.proseVersion.findById(projectId, proseVersionId);
+  if (!version || version.beatId !== op.targetEntityId) {
+    return {
+      ok: false,
+      error: appError('CHANGE_SET_INVALID', 'msg.changeset.prose_beat_mismatch', 422),
+    };
+  }
+  // Accept pointer: CAS on beats.revision so a concurrent outline edit fails
+  // the whole change set instead of silently accepting under a moved beat.
+  const row = await ports.outline.setBeatAcceptedProse({
+    projectId,
+    beatId: op.targetEntityId,
+    expectedRevision: op.expectedRevision,
+    proseVersionId,
   });
   return row ? { ok: true } : casFailed();
 }

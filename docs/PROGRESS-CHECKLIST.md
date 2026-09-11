@@ -19,7 +19,7 @@ started early.
 | M2  | Ports, UnitOfWork, user-origin flow        | ✅ **done** (PR #6 merged; latest-head CI run 30166400617, 8/8 green)                                                |
 | M3  | Jobs, worker, outbox, credit               | ✅ **done** (PR #20 merged as `84f5e82` into `master`, 8/8 CI)                                                        |
 | M4  | AI layer (mock + real adapters)            | 🔄 backend + dev/mock exit-gate UI complete on `feat/m4-ai-foundation` (Draft PR); production AI activation stays deferred (D14 mock-only; owner sign-off RECEIVED, APPROVED FOR M4) |
-| M5  | Proposal accept, working draft, validation | ⬜ not started                                                                                                       |
+| M5  | Proposal accept, working draft, validation | 🟦 candidate — W5.1–W5.5 code-complete on `feat/m5-proposal-validation`, certification gates running (Draft PR pending) |
 | M6  | Full UI, design system, a11y, e2e          | ⬜ not started                                                                                                       |
 | M7  | Staging hardening                          | ⬜ not started                                                                                                       |
 | M8  | Production deploy & launch                 | ⬜ not started                                                                                                       |
@@ -192,27 +192,27 @@ started early.
 
 ## M5 — Proposal accept, working draft, validation binding
 
-- [ ] **W5.1 Working draft & versions** _(Opus, CAS pattern from M2/M3)_
-  - [ ] `ProseWorkingDraft` per (user, beat) unique; autosave CAS revision; conflict → DTO
-  - [ ] Snapshot → immutable `ProseVersion` (revision + content hash); pick candidate = seed draft
-  - [ ] Test: `working-draft`
-- [ ] **W5.2 Validation & repair binding** _(Fable/Opus)_
-  - [ ] `ValidationReport` bound (proseVersionId, proseContentHash, policyVersion); deterministic validator + AI judge (merge-findings)
-  - [ ] Edit draft → hash change → report stale (`validation-hash`)
-  - [ ] Override only server-allowlisted findings + reason (`override-allowlist`)
-  - [ ] Safe Repair orchestration: stop conditions, before/after, result = new ProseVersion + Proposal, never auto-accept
-- [ ] **W5.3 Full atomic accept (S4.4)** _(Fable, no compromise)_
-  - [ ] Lock proposal+group+project → ownership → status guard → stale decision → supersede pre-check → eligibility → CAS ops → bump revisions → canon +1 once → accept + supersede siblings → audit/outbox
-  - [ ] CAS fail → new tx conditional `WHERE status='pending'` → stale
-  - [ ] User-edited prose → Proposal `source=user` + re-extraction
-  - [ ] Publish artifact accept without canon bump
-  - [ ] Tests: `accept-proposal`, `accept-cas-stale`, `accept-supersede`, `proposal-unrelated-version-bump`, `user-proposal`, `publish-artifact`, `prose-accept-order` (integration), `proposal-dto` (contract)
-- [ ] **W5.4 Close Chapter & PublicProposalView** _(Opus)_
-  - [ ] Read model sanitized diff + server-derived `availableActions`; high-risk → second confirm
-  - [ ] "Terapkan & jadikan resmi" = accept chapter change set
-- [ ] **W5.5 Final progress reducer + intake sufficiency** _(Opus)_
-  - [ ] Reducer covers all stages to publish; nextAction per page; sidebar badges
-  - [ ] Deterministic intake sufficiency → CTA "Susun 3 Konsep"
+- [x] **W5.1 Working draft & versions** _(Opus, CAS pattern from M2/M3)_ — `45fbf43`
+  - [x] `ProseWorkingDraft` per (user, beat) unique; autosave CAS revision; conflict → DTO
+  - [x] Snapshot → immutable `ProseVersion` (revision + content hash); pick candidate = seed draft
+  - [x] Test: `working-draft`
+- [x] **W5.2 Validation & repair binding** _(Fable/Opus)_ — `3c2820b`
+  - [x] `ValidationReport` bound (proseVersionId, proseContentHash, policyVersion); deterministic validator (merge-findings; judge path policy-gated, M5 deterministic-only)
+  - [x] Edit draft → hash change → report stale (`validation-hash`)
+  - [x] Override only server-allowlisted findings + reason (`override-allowlist`; initial allowlist EMPTY, default deny)
+  - [x] Safe Repair orchestration: stop conditions, before/after, result = new ProseVersion + Proposal, never auto-accept
+- [x] **W5.3 Full atomic accept (S4.4)** _(Fable, no compromise)_ — `7c05442`
+  - [x] Lock project owner-first → proposal+group guards → dependency staleness (needs_revalidation) → CAS base → persisted-ops hash re-verification → sole last `prose.accept` → apply via write door → canon +1 once → accept + supersede siblings same tx → audit/outbox
+  - [x] CAS fail → new tx conditional `WHERE status='pending'` → stale (`createMarkStaleProposal`)
+  - [x] User-edited prose → Proposal `source=user` with server-owned hashes
+  - [x] Publish artifact accept without canon bump (`createPublishArtifact`; prose must be beat-accepted)
+  - [x] Tests: `accept-proposal`, `accept-cas-stale`, `accept-supersede`, `proposal-unrelated-version-bump`, `user-proposal`, `proposal-operation-hash`, `publish-artifact`, `proposal-view` (integration), `prose-accept-order` (core unit), `proposal-dto` (web contract)
+- [x] **W5.4 Close Chapter & PublicProposalView** _(Opus)_ — `421d74a`
+  - [x] Read model sanitized projection (`toPublicProposalView`: static labels, no raw ops/payloads/hashes) + server-derived `availableActions`; high-risk → server-enforced confirm phrase
+  - [x] "Terapkan & jadikan resmi" = accept change set (Tutup Bab page + proposal actions)
+- [x] **W5.5 Final progress reducer + intake sufficiency** _(Opus)_ — `f0ad645`
+  - [x] Reducer covers all stages to publish (intake→foundation→planning→writing→review→publish); nextAction per page; sidebar badges
+  - [x] Deterministic intake sufficiency from persisted signal_count → CTA "Susun 3 Konsep"
 - **Exit gate M5**
   - [ ] Full mock flow: intake → concept → foundation lock → outline → write → check → repair → accept → manuscript → publish — from UI, no manual DB
   - [ ] All S2/S4/S7/S9 invariants (proposal/canon/draft/validation) green
