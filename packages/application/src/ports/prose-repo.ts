@@ -40,7 +40,11 @@ export interface ProseVersionInsertInput {
 }
 
 export interface ProseDraftRepo {
-  findActive(projectId: string, userId: string, beatId: string): Promise<ProseWorkingDraftRecord | null>;
+  findActive(
+    projectId: string,
+    userId: string,
+    beatId: string,
+  ): Promise<ProseWorkingDraftRecord | null>;
   insert(input: ProseDraftUpsertInput): Promise<ProseWorkingDraftRecord>;
   updateContent(
     projectId: string,

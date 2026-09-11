@@ -191,7 +191,11 @@ export function createSnapshotProseVersion(
         );
         if (!draft) throw asDomain(appError('NOT_FOUND', 'msg.prose.draft_not_found', 404));
         if (input.sourceCandidateId) {
-          const lineage = await findCandidateContent(ports, input.projectId, input.sourceCandidateId);
+          const lineage = await findCandidateContent(
+            ports,
+            input.projectId,
+            input.sourceCandidateId,
+          );
           if (lineage === null) {
             throw asDomain(appError('NOT_FOUND', 'msg.proposal.candidate_not_found', 404));
           }
@@ -238,7 +242,13 @@ async function findCandidateContent(
   projectId: string,
   candidateId: string,
 ): Promise<string | null> {
-  const kinds = ['beat_write_judge', 'foundation_generation', 'character_generation', 'outline_generation', 'safe_repair'];
+  const kinds = [
+    'beat_write_judge',
+    'foundation_generation',
+    'character_generation',
+    'outline_generation',
+    'safe_repair',
+  ];
   for (const kind of kinds) {
     const group = await ports.m4ProductRead!.findLatestCandidateGroup(projectId, kind);
     if (!group) continue;
@@ -291,7 +301,14 @@ function asResult<T>(e: unknown): Result<T, AppError> {
       currentRevision: e.currentRevision,
       contentHash: e.contentHash,
     };
-    return err(appError('DRAFT_CONFLICT', 'msg.prose.draft_conflict', 409, detail as unknown as Record<string, unknown>));
+    return err(
+      appError(
+        'DRAFT_CONFLICT',
+        'msg.prose.draft_conflict',
+        409,
+        detail as unknown as Record<string, unknown>,
+      ),
+    );
   }
   if (e instanceof DomainError) return err(e.error);
   if (typeof e === 'object' && e !== null && '__domain' in e) {

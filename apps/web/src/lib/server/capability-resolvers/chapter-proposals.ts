@@ -39,7 +39,9 @@ export async function resolveChapterProposals(
   const project = await getMyProject(projectId);
   if (!project) return { kind: 'not_found' };
   const outline = await getProjectOutline(projectId);
-  const chapterNode = outline.find((node) => node.id === chapterId && node.entityType === 'chapter');
+  const chapterNode = outline.find(
+    (node) => node.id === chapterId && node.entityType === 'chapter',
+  );
   if (!chapterNode) return { kind: 'not_found' };
 
   const chapterBeatIds = new Set(

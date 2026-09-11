@@ -53,10 +53,7 @@ export function createAcceptProposal(
         if (!ports.proposalGroup) {
           throw asDomain(appError('NOT_FOUND', 'msg.prose.unsupported', 500));
         }
-        const group = await ports.proposalGroup.findById(
-          input.projectId,
-          proposal.groupId,
-        );
+        const group = await ports.proposalGroup.findById(input.projectId, proposal.groupId);
         if (!group) throw asDomain(appError('NOT_FOUND', 'msg.proposal.group_not_found', 404));
 
         // 3) Status guards.
@@ -79,10 +76,7 @@ export function createAcceptProposal(
         if (!changeSet || changeSet.status !== 'pending') {
           throw asDomain(appError('CHANGE_SET_INVALID', 'msg.changeset.not_pending', 409));
         }
-        const persistedOps = await ports.changeSet.listOperations(
-          input.projectId,
-          changeSet.id,
-        );
+        const persistedOps = await ports.changeSet.listOperations(input.projectId, changeSet.id);
         if (persistedOps.length === 0) {
           throw asDomain(appError('CHANGE_SET_INVALID', 'msg.changeset.empty', 422));
         }
@@ -107,9 +101,7 @@ export function createAcceptProposal(
         const accepts = operations.filter((op) => op.operationType === 'prose.accept');
         const lastOp = operations[operations.length - 1]!;
         if (accepts.length !== 1 || lastOp.operationType !== 'prose.accept') {
-          throw asDomain(
-            appError('CHANGE_SET_INVALID', 'msg.proposal.accept_not_last', 422),
-          );
+          throw asDomain(appError('CHANGE_SET_INVALID', 'msg.proposal.accept_not_last', 422));
         }
         const beatId = lastOp.targetEntityId;
 
@@ -117,11 +109,7 @@ export function createAcceptProposal(
         //    the live beat revision. Hash mismatch → needs_revalidation.
         const beat = await ports.outline.findBeat(input.projectId, beatId);
         if (!beat) throw asDomain(appError('NOT_FOUND', 'msg.outline.beat_not_found', 404));
-        const currentGroupHash = dependencyManifestHashFor(
-          input.projectId,
-          beat.id,
-          beat.revision,
-        );
+        const currentGroupHash = dependencyManifestHashFor(input.projectId, beat.id, beat.revision);
         if (group.dependencyHash !== currentGroupHash) {
           await ports.proposal.setStatus(
             input.projectId,
@@ -264,10 +252,7 @@ export function createMarkStaleProposal(
   return async (input) => {
     try {
       const outcome = await uow.execute(async (ports) => {
-        const project = await ports.project.findByIdForOwner(
-          input.projectId,
-          input.ownerUserId,
-        );
+        const project = await ports.project.findByIdForOwner(input.projectId, input.ownerUserId);
         if (!project) throw asDomain(appError('NOT_FOUND', 'msg.project.not_found', 404));
         const proposal = await ports.proposal.findById(input.projectId, input.proposalId);
         if (!proposal) throw asDomain(appError('NOT_FOUND', 'msg.proposal.not_found', 404));
@@ -300,4 +285,3 @@ class DomainError extends Error {
 function asDomain(error: AppError): DomainError {
   return new DomainError(error);
 }
-

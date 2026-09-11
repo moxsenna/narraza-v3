@@ -64,7 +64,9 @@ export async function acceptProposalAction(
   const proposalId = String(formData.get('proposalId') ?? '');
   const baseRaw = String(formData.get('baseCanonicalVersion') ?? '');
   const highRisk = String(formData.get('highRisk') ?? '') === '1';
-  const confirmPhrase = String(formData.get('confirmPhrase') ?? '').trim().toLowerCase();
+  const confirmPhrase = String(formData.get('confirmPhrase') ?? '')
+    .trim()
+    .toLowerCase();
   const baseCanonicalVersion = Number.parseInt(baseRaw, 10);
   if (!projectId || !proposalId || !Number.isSafeInteger(baseCanonicalVersion)) {
     return { ok: false, message: 'msg.error.bad_request' };

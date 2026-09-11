@@ -90,148 +90,166 @@ async function seedOwnerProjectBeat(prisma: PrismaClient): Promise<{
   return { userId, projectId, beatId };
 }
 
-proseTest('working-draft: autosave creates then CAS-updates exactly once per revision', async ({
-  prisma,
-}) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const uow = createUnitOfWork(prisma);
-  const save = createSaveWorkingDraft(uow);
+proseTest(
+  'working-draft: autosave creates then CAS-updates exactly once per revision',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const uow = createUnitOfWork(prisma);
+    const save = createSaveWorkingDraft(uow);
 
-  const first = await save({
-    ownerUserId: userId,
-    projectId,
-    beatId,
-    content: 'first words',
-    expectedRevision: null,
-  });
-  expect(first.ok).toBe(true);
-  if (!first.ok) return;
-  expect(first.value.draft.revision).toBe(0);
+    const first = await save({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      content: 'first words',
+      expectedRevision: null,
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.value.draft.revision).toBe(0);
 
-  const second = await save({
-    ownerUserId: userId,
-    projectId,
-    beatId,
-    content: 'second words',
-    expectedRevision: 0,
-  });
-  expect(second.ok).toBe(true);
-  if (!second.ok) return;
-  expect(second.value.draft.revision).toBe(1);
-  expect(second.value.draft.content).toBe('second words');
-});
+    const second = await save({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      content: 'second words',
+      expectedRevision: 0,
+    });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.value.draft.revision).toBe(1);
+    expect(second.value.draft.content).toBe('second words');
+  },
+);
 
-proseTest('working-draft: revision mismatch is a typed conflict with zero writes', async ({
-  prisma,
-}) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const uow = createUnitOfWork(prisma);
-  const save = createSaveWorkingDraft(uow);
+proseTest(
+  'working-draft: revision mismatch is a typed conflict with zero writes',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const uow = createUnitOfWork(prisma);
+    const save = createSaveWorkingDraft(uow);
 
-  const first = await save({
-    ownerUserId: userId,
-    projectId,
-    beatId,
-    content: 'original',
-    expectedRevision: null,
-  });
-  expect(first.ok).toBe(true);
+    const first = await save({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      content: 'original',
+      expectedRevision: null,
+    });
+    expect(first.ok).toBe(true);
 
-  const stale = await save({
-    ownerUserId: userId,
-    projectId,
-    beatId,
-    content: 'stale overwrite attempt',
-    expectedRevision: 7,
-  });
-  expect(stale.ok).toBe(false);
-  if (stale.ok) return;
-  expect(stale.error.code).toBe('DRAFT_CONFLICT');
+    const stale = await save({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      content: 'stale overwrite attempt',
+      expectedRevision: 7,
+    });
+    expect(stale.ok).toBe(false);
+    if (stale.ok) return;
+    expect(stale.error.code).toBe('DRAFT_CONFLICT');
 
-  const current = await uow.execute(async (ports) =>
-    ports.proseDraft!.findActive(projectId, userId, beatId),
-  );
-  expect(current?.content).toBe('original');
-  expect(current?.revision).toBe(0);
-});
+    const current = await uow.execute(async (ports) =>
+      ports.proseDraft!.findActive(projectId, userId, beatId),
+    );
+    expect(current?.content).toBe('original');
+    expect(current?.revision).toBe(0);
+  },
+);
 
-proseTest('working-draft: concurrent writers serialize, one winner per revision', async ({
-  prisma,
-}) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const uow = createUnitOfWork(prisma);
-  const save = createSaveWorkingDraft(uow);
+proseTest(
+  'working-draft: concurrent writers serialize, one winner per revision',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const uow = createUnitOfWork(prisma);
+    const save = createSaveWorkingDraft(uow);
 
-  const first = await save({
-    ownerUserId: userId,
-    projectId,
-    beatId,
-    content: 'base',
-    expectedRevision: null,
-  });
-  expect(first.ok).toBe(true);
+    const first = await save({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      content: 'base',
+      expectedRevision: null,
+    });
+    expect(first.ok).toBe(true);
 
-  const attempts = await Promise.all(
-    Array.from({ length: 5 }, (_, i) =>
-      save({
-        ownerUserId: userId,
-        projectId,
-        beatId,
-        content: `racer ${i}`,
-        expectedRevision: 0,
-      }),
-    ),
-  );
-  const winners = attempts.filter((r) => r.ok);
-  const conflicts = attempts.filter((r) => !r.ok);
-  expect(winners.length).toBe(1);
-  expect(conflicts.length).toBe(4);
-  for (const c of conflicts) {
-    if (c.ok) continue;
-    expect(c.error.code).toBe('DRAFT_CONFLICT');
-  }
-  const current = await uow.execute(async (ports) =>
-    ports.proseDraft!.findActive(projectId, userId, beatId),
-  );
-  expect(current?.revision).toBe(1);
-});
+    const attempts = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        save({
+          ownerUserId: userId,
+          projectId,
+          beatId,
+          content: `racer ${i}`,
+          expectedRevision: 0,
+        }),
+      ),
+    );
+    const winners = attempts.filter((r) => r.ok);
+    const conflicts = attempts.filter((r) => !r.ok);
+    expect(winners.length).toBe(1);
+    expect(conflicts.length).toBe(4);
+    for (const c of conflicts) {
+      if (c.ok) continue;
+      expect(c.error.code).toBe('DRAFT_CONFLICT');
+    }
+    const current = await uow.execute(async (ports) =>
+      ports.proseDraft!.findActive(projectId, userId, beatId),
+    );
+    expect(current?.revision).toBe(1);
+  },
+);
 
-proseTest('working-draft: snapshot creates immutable version with fenced revision', async ({
-  prisma,
-}) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const uow = createUnitOfWork(prisma);
-  const save = createSaveWorkingDraft(uow);
-  const snapshot = createSnapshotProseVersion(uow);
+proseTest(
+  'working-draft: snapshot creates immutable version with fenced revision',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const uow = createUnitOfWork(prisma);
+    const save = createSaveWorkingDraft(uow);
+    const snapshot = createSnapshotProseVersion(uow);
 
-  await save({ ownerUserId: userId, projectId, beatId, content: 'v1 prose', expectedRevision: null });
-  const s1 = await snapshot({
-    ownerUserId: userId,
-    projectId,
-    beatId,
-    sourceCandidateId: null,
-  });
-  expect(s1.ok).toBe(true);
-  if (!s1.ok) return;
-  expect(s1.value.version.revision).toBe(0);
-  expect(s1.value.version.status).toBe('draft');
-  expect(s1.value.version.contentHash).toMatch(/^[0-9a-f]{64}$/);
+    await save({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      content: 'v1 prose',
+      expectedRevision: null,
+    });
+    const s1 = await snapshot({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      sourceCandidateId: null,
+    });
+    expect(s1.ok).toBe(true);
+    if (!s1.ok) return;
+    expect(s1.value.version.revision).toBe(0);
+    expect(s1.value.version.status).toBe('draft');
+    expect(s1.value.version.contentHash).toMatch(/^[0-9a-f]{64}$/);
 
-  await save({ ownerUserId: userId, projectId, beatId, content: 'v2 prose', expectedRevision: 0 });
-  const s2 = await snapshot({
-    ownerUserId: userId,
-    projectId,
-    beatId,
-    sourceCandidateId: null,
-  });
-  expect(s2.ok).toBe(true);
-  if (!s2.ok) return;
-  expect(s2.value.version.revision).toBe(1);
-  expect(s2.value.version.content).toBe('v2 prose');
+    await save({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      content: 'v2 prose',
+      expectedRevision: 0,
+    });
+    const s2 = await snapshot({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      sourceCandidateId: null,
+    });
+    expect(s2.ok).toBe(true);
+    if (!s2.ok) return;
+    expect(s2.value.version.revision).toBe(1);
+    expect(s2.value.version.content).toBe('v2 prose');
 
-  const v1 = await uow.execute(async (ports) => ports.proseVersion!.findById(projectId, s1.value.version.id));
-  expect(v1?.content).toBe('v1 prose');
-});
+    const v1 = await uow.execute(async (ports) =>
+      ports.proseVersion!.findById(projectId, s1.value.version.id),
+    );
+    expect(v1?.content).toBe('v1 prose');
+  },
+);
 
 proseTest('working-draft: foreign user cannot read or write another draft', async ({ prisma }) => {
   const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
@@ -258,92 +276,93 @@ proseTest('working-draft: foreign user cannot read or write another draft', asyn
   expect(foreign.error.code).toBe('NOT_FOUND');
 });
 
-proseTest('working-draft: candidate seed initializes draft then preserves edits', async ({
-  prisma,
-}) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const uow = createUnitOfWork(prisma);
-  const seed = createSeedDraftFromCandidate(uow);
-  const save = createSaveWorkingDraft(uow);
+proseTest(
+  'working-draft: candidate seed initializes draft then preserves edits',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const uow = createUnitOfWork(prisma);
+    const seed = createSeedDraftFromCandidate(uow);
+    const save = createSaveWorkingDraft(uow);
 
-  const jobId = crypto.randomUUID();
-  const candidateId = `m4:${jobId}:candidate-1`;
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO generation_jobs
+    const jobId = crypto.randomUUID();
+    const candidateId = `m4:${jobId}:candidate-1`;
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO generation_jobs
        (id, project_id, kind, status, priority, available_at,
         fence_version, schema_version, payload, created_at, updated_at)
      VALUES ($1, $2, 'beat_write_judge', 'succeeded', 0, now(), 1, 1, '{}', now(), now())`,
-    jobId,
-    projectId,
-  );
-  const groupId = `m4:${jobId}:proposal-group`;
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO proposal_groups
+      jobId,
+      projectId,
+    );
+    const groupId = `m4:${jobId}:proposal-group`;
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO proposal_groups
        (id, project_id, kind, status, dependency_hash, source_job_id, created_at, updated_at)
      VALUES ($1, $2, 'beat_write_judge', 'pending', $3, $4, now(), now())`,
-    groupId,
-    projectId,
-    'a'.repeat(64),
-    jobId,
-  );
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO generated_candidates
+      groupId,
+      projectId,
+      'a'.repeat(64),
+      jobId,
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO generated_candidates
        (id, project_id, group_id, job_id, ordinal, schema_version, payload, created_at)
      VALUES ($1, $2, $3, $4, 1, 1, $5::jsonb, now())`,
-    candidateId,
-    projectId,
-    groupId,
-    jobId,
-    JSON.stringify({
-      output: { text: 'candidate prose words', payload: {} },
-      stageOutputs: {},
-    }),
-  );
+      candidateId,
+      projectId,
+      groupId,
+      jobId,
+      JSON.stringify({
+        output: { text: 'candidate prose words', payload: {} },
+        stageOutputs: {},
+      }),
+    );
 
-  // Seed path requires a real candidate row; unknown id must 404, not invent.
-  const missing = await seed({ ownerUserId: userId, projectId, candidateId: 'nope', beatId });
-  expect(missing.ok).toBe(false);
-  if (missing.ok) return;
-  expect(missing.error.code).toBe('NOT_FOUND');
+    // Seed path requires a real candidate row; unknown id must 404, not invent.
+    const missing = await seed({ ownerUserId: userId, projectId, candidateId: 'nope', beatId });
+    expect(missing.ok).toBe(false);
+    if (missing.ok) return;
+    expect(missing.error.code).toBe('NOT_FOUND');
 
-  // Real candidate seeds a fresh draft with candidate text.
-  const seeded = await seed({ ownerUserId: userId, projectId, candidateId, beatId });
-  expect(seeded.ok).toBe(true);
-  if (!seeded.ok) return;
-  expect(seeded.value.draft.content).toBe('candidate prose words');
-  expect(seeded.value.draft.revision).toBe(0);
+    // Real candidate seeds a fresh draft with candidate text.
+    const seeded = await seed({ ownerUserId: userId, projectId, candidateId, beatId });
+    expect(seeded.ok).toBe(true);
+    if (!seeded.ok) return;
+    expect(seeded.value.draft.content).toBe('candidate prose words');
+    expect(seeded.value.draft.revision).toBe(0);
 
-  // Same candidate replay converges without duplicate drafts.
-  const replay = await seed({ ownerUserId: userId, projectId, candidateId, beatId });
-  expect(replay.ok).toBe(true);
-  if (!replay.ok) return;
-  expect(replay.value.draft.id).toBe(seeded.value.draft.id);
-  expect(replay.value.draft.revision).toBe(0);
+    // Same candidate replay converges without duplicate drafts.
+    const replay = await seed({ ownerUserId: userId, projectId, candidateId, beatId });
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    expect(replay.value.draft.id).toBe(seeded.value.draft.id);
+    expect(replay.value.draft.revision).toBe(0);
 
-  // Materially edited draft is preserved: reseed is a typed conflict.
-  const edited = await save({
-    ownerUserId: userId,
-    projectId,
-    beatId,
-    content: 'my edited words',
-    expectedRevision: 0,
-  });
-  expect(edited.ok).toBe(true);
-  const guarded = await seed({ ownerUserId: userId, projectId, candidateId, beatId });
-  expect(guarded.ok).toBe(false);
-  if (guarded.ok) return;
-  expect(guarded.error.code).toBe('DRAFT_CONFLICT');
+    // Materially edited draft is preserved: reseed is a typed conflict.
+    const edited = await save({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      content: 'my edited words',
+      expectedRevision: 0,
+    });
+    expect(edited.ok).toBe(true);
+    const guarded = await seed({ ownerUserId: userId, projectId, candidateId, beatId });
+    expect(guarded.ok).toBe(false);
+    if (guarded.ok) return;
+    expect(guarded.error.code).toBe('DRAFT_CONFLICT');
 
-  // Explicit overwrite with matching revision reseeds.
-  const overwrite = await seed({
-    ownerUserId: userId,
-    projectId,
-    candidateId,
-    beatId,
-    allowOverwrite: true,
-    expectedRevision: 1,
-  });
-  expect(overwrite.ok).toBe(true);
-  if (!overwrite.ok) return;
-  expect(overwrite.value.draft.content).toBe('candidate prose words');
-});
+    // Explicit overwrite with matching revision reseeds.
+    const overwrite = await seed({
+      ownerUserId: userId,
+      projectId,
+      candidateId,
+      beatId,
+      allowOverwrite: true,
+      expectedRevision: 1,
+    });
+    expect(overwrite.ok).toBe(true);
+    if (!overwrite.ok) return;
+    expect(overwrite.value.draft.content).toBe('candidate prose words');
+  },
+);

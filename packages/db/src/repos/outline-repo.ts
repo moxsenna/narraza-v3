@@ -332,9 +332,7 @@ export function createOutlineRepo(tx: TxClient): OutlineRepo {
       // CAS on beats.revision; the composite FK
       // beats_accepted_prose_belongs_to_beat_fkey rejects cross-beat pointers.
       const expectedClause =
-        input.expectedRevision === null
-          ? ''
-          : `AND revision = ${String(input.expectedRevision)}`;
+        input.expectedRevision === null ? '' : `AND revision = ${String(input.expectedRevision)}`;
       const rows = (await tx.$queryRawUnsafe(
         `UPDATE beats
             SET accepted_prose_version_id = $3,

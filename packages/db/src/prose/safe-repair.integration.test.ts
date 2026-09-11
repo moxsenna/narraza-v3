@@ -99,82 +99,94 @@ async function seedOwnerProjectBeat(prisma: PrismaClient): Promise<{
   return { userId, projectId, beatId };
 }
 
-repairTest('safe-repair: blocking report yields sanitized writer_safe packet', async ({
-  prisma,
-}) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const uow = createUnitOfWork(prisma);
-  const save = createSaveWorkingDraft(uow);
-  const snapshot = createSnapshotProseVersion(uow);
-  const repair = createRequestSafeRepair(uow);
+repairTest(
+  'safe-repair: blocking report yields sanitized writer_safe packet',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const uow = createUnitOfWork(prisma);
+    const save = createSaveWorkingDraft(uow);
+    const snapshot = createSnapshotProseVersion(uow);
+    const repair = createRequestSafeRepair(uow);
 
-  // Non-empty prose: the repair packet schema requires non-empty repairable
-  // content, and the minimal W5.2 validator contract only yields blockers on
-  // empty prose — so the bound blocking report is seeded directly through the
-  // ports with the exact (versionId, contentHash, policyVersion) binding.
-  const content = 'Mira menatap laut dan menghela napas panjang.';
-  const saved = await save({ ownerUserId: userId, projectId, beatId, content, expectedRevision: null });
-  expect(saved.ok).toBe(true);
-  if (!saved.ok) return;
-  const snapped = await snapshot({ ownerUserId: userId, projectId, beatId, sourceCandidateId: null });
-  expect(snapped.ok).toBe(true);
-  if (!snapped.ok) return;
-  const version = snapped.value.version;
-  const reportId = await uow.execute(async (ports) => {
-    const report = await ports.validationReport!.insert({
-      id: ports.allocateId(),
+    // Non-empty prose: the repair packet schema requires non-empty repairable
+    // content, and the minimal W5.2 validator contract only yields blockers on
+    // empty prose — so the bound blocking report is seeded directly through the
+    // ports with the exact (versionId, contentHash, policyVersion) binding.
+    const content = 'Mira menatap laut dan menghela napas panjang.';
+    const saved = await save({
+      ownerUserId: userId,
       projectId,
-      proseVersionId: version.id,
-      proseContentHash: version.contentHash,
-      policyVersion: M5_VALIDATION_POLICY_VERSION,
-      status: 'completed',
-      passed: false,
+      beatId,
+      content,
+      expectedRevision: null,
     });
-    await ports.validationFinding!.insertMany([
-      {
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    const snapped = await snapshot({
+      ownerUserId: userId,
+      projectId,
+      beatId,
+      sourceCandidateId: null,
+    });
+    expect(snapped.ok).toBe(true);
+    if (!snapped.ok) return;
+    const version = snapped.value.version;
+    const reportId = await uow.execute(async (ports) => {
+      const report = await ports.validationReport!.insert({
         id: ports.allocateId(),
         projectId,
-        reportId: report.id,
         proseVersionId: version.id,
-        source: 'validator',
-        severity: 'blocking',
-        ruleKey: 'beat.length.out_of_range',
-        message: 'validation.length.out_of_range',
-      },
-    ]);
-    return report.id;
-  });
+        proseContentHash: version.contentHash,
+        policyVersion: M5_VALIDATION_POLICY_VERSION,
+        status: 'completed',
+        passed: false,
+      });
+      await ports.validationFinding!.insertMany([
+        {
+          id: ports.allocateId(),
+          projectId,
+          reportId: report.id,
+          proseVersionId: version.id,
+          source: 'validator',
+          severity: 'blocking',
+          ruleKey: 'beat.length.out_of_range',
+          message: 'validation.length.out_of_range',
+        },
+      ]);
+      return report.id;
+    });
 
-  const result = await repair({ ownerUserId: userId, projectId, proseVersionId: version.id });
-  expect(result.ok).toBe(true);
-  if (!result.ok) return;
-  expect(result.value.reportId).toBe(reportId);
-  expect(result.value.directives.length).toBeGreaterThan(0);
-  // Sanitized shape: exact keys only, static instructions.
-  for (const d of result.value.directives) {
-    expect(Object.keys(d).sort()).toEqual(['findingKey', 'instruction', 'publicMessageCode']);
-    expect(d.instruction).toBe(repairInstructionFor(d.publicMessageCode));
-    expect(d.instruction.length).toBeGreaterThan(0);
-  }
-  expect(result.value.packet.kind).toBe('repair');
-  expect(result.value.packet.dataClass).toBe('writer_safe');
-  expect(result.value.packet.repairableProse.proseVersionId).toBe(version.id);
-  // First attempt with remaining blockers → continue.
-  expect(result.value.stop.shouldStop).toBe(false);
-  expect(result.value.stop.reason).toBe('continue');
+    const result = await repair({ ownerUserId: userId, projectId, proseVersionId: version.id });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.reportId).toBe(reportId);
+    expect(result.value.directives.length).toBeGreaterThan(0);
+    // Sanitized shape: exact keys only, static instructions.
+    for (const d of result.value.directives) {
+      expect(Object.keys(d).sort()).toEqual(['findingKey', 'instruction', 'publicMessageCode']);
+      expect(d.instruction).toBe(repairInstructionFor(d.publicMessageCode));
+      expect(d.instruction.length).toBeGreaterThan(0);
+    }
+    expect(result.value.packet.kind).toBe('repair');
+    expect(result.value.packet.dataClass).toBe('writer_safe');
+    expect(result.value.packet.repairableProse.proseVersionId).toBe(version.id);
+    // First attempt with remaining blockers → continue.
+    expect(result.value.stop.shouldStop).toBe(false);
+    expect(result.value.stop.reason).toBe('continue');
 
-  // Never auto-accepts: no proposals created, beat pointer untouched.
-  const proposals = await prisma.$queryRawUnsafe<{ n: string }[]>(
-    `SELECT count(*)::text AS n FROM proposals WHERE project_id = $1`,
-    projectId,
-  );
-  expect(proposals[0]!.n).toBe('0');
-  const beats = await prisma.$queryRawUnsafe<{ accepted: string | null }[]>(
-    `SELECT accepted_prose_version_id AS accepted FROM beats WHERE id = $1`,
-    beatId,
-  );
-  expect(beats[0]!.accepted).toBeNull();
-});
+    // Never auto-accepts: no proposals created, beat pointer untouched.
+    const proposals = await prisma.$queryRawUnsafe<{ n: string }[]>(
+      `SELECT count(*)::text AS n FROM proposals WHERE project_id = $1`,
+      projectId,
+    );
+    expect(proposals[0]!.n).toBe('0');
+    const beats = await prisma.$queryRawUnsafe<{ accepted: string | null }[]>(
+      `SELECT accepted_prose_version_id AS accepted FROM beats WHERE id = $1`,
+      beatId,
+    );
+    expect(beats[0]!.accepted).toBeNull();
+  },
+);
 
 repairTest('safe-repair: edited draft without current report is stale', async ({ prisma }) => {
   const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
@@ -184,25 +196,55 @@ repairTest('safe-repair: edited draft without current report is stale', async ({
   const validate = createValidateProseVersion(uow);
   const repair = createRequestSafeRepair(uow);
 
-  const first = await save({ ownerUserId: userId, projectId, beatId, content: '', expectedRevision: null });
+  const first = await save({
+    ownerUserId: userId,
+    projectId,
+    beatId,
+    content: '',
+    expectedRevision: null,
+  });
   expect(first.ok).toBe(true);
   if (!first.ok) return;
-  const snapped = await snapshot({ ownerUserId: userId, projectId, beatId, sourceCandidateId: null });
+  const snapped = await snapshot({
+    ownerUserId: userId,
+    projectId,
+    beatId,
+    sourceCandidateId: null,
+  });
   expect(snapped.ok).toBe(true);
   if (!snapped.ok) return;
-  const validated = await validate({ ownerUserId: userId, projectId, proseVersionId: snapped.value.version.id });
+  const validated = await validate({
+    ownerUserId: userId,
+    projectId,
+    proseVersionId: snapped.value.version.id,
+  });
   expect(validated.ok).toBe(true);
   if (!validated.ok) return;
 
   // Edit draft + snapshot a new version: the new version has no report.
-  const second = await save({ ownerUserId: userId, projectId, beatId, content: '', expectedRevision: 0 });
+  const second = await save({
+    ownerUserId: userId,
+    projectId,
+    beatId,
+    content: '',
+    expectedRevision: 0,
+  });
   expect(second.ok).toBe(true);
   if (!second.ok) return;
-  const snapped2 = await snapshot({ ownerUserId: userId, projectId, beatId, sourceCandidateId: null });
+  const snapped2 = await snapshot({
+    ownerUserId: userId,
+    projectId,
+    beatId,
+    sourceCandidateId: null,
+  });
   expect(snapped2.ok).toBe(true);
   if (!snapped2.ok) return;
 
-  const stale = await repair({ ownerUserId: userId, projectId, proseVersionId: snapped2.value.version.id });
+  const stale = await repair({
+    ownerUserId: userId,
+    projectId,
+    proseVersionId: snapped2.value.version.id,
+  });
   expect(stale.ok).toBe(false);
   if (stale.ok) return;
   expect(stale.error.code).toBe('CONFLICT');
@@ -224,7 +266,12 @@ repairTest('safe-repair: repeated fingerprint stops', async ({ prisma }) => {
   });
   expect(saved.ok).toBe(true);
   if (!saved.ok) return;
-  const snapped = await snapshot({ ownerUserId: userId, projectId, beatId, sourceCandidateId: null });
+  const snapped = await snapshot({
+    ownerUserId: userId,
+    projectId,
+    beatId,
+    sourceCandidateId: null,
+  });
   expect(snapped.ok).toBe(true);
   if (!snapped.ok) return;
   const version = snapped.value.version;
@@ -255,7 +302,9 @@ repairTest('safe-repair: repeated fingerprint stops', async ({ prisma }) => {
   const first = await repair({ ownerUserId: userId, projectId, proseVersionId: version.id });
   expect(first.ok).toBe(true);
   if (!first.ok) return;
-  const blockers = [{ ruleKey: 'beat.length.out_of_range', severityScore: severityScoreFor('blocking') }];
+  const blockers = [
+    { ruleKey: 'beat.length.out_of_range', severityScore: severityScoreFor('blocking') },
+  ];
   const repeated = await repair({
     ownerUserId: userId,
     projectId,
@@ -285,15 +334,28 @@ repairTest('safe-repair: passing version has nothing to repair', async ({ prisma
   });
   expect(saved.ok).toBe(true);
   if (!saved.ok) return;
-  const snapped = await snapshot({ ownerUserId: userId, projectId, beatId, sourceCandidateId: null });
+  const snapped = await snapshot({
+    ownerUserId: userId,
+    projectId,
+    beatId,
+    sourceCandidateId: null,
+  });
   expect(snapped.ok).toBe(true);
   if (!snapped.ok) return;
-  const validated = await validate({ ownerUserId: userId, projectId, proseVersionId: snapped.value.version.id });
+  const validated = await validate({
+    ownerUserId: userId,
+    projectId,
+    proseVersionId: snapped.value.version.id,
+  });
   expect(validated.ok).toBe(true);
   if (!validated.ok) return;
   expect(validated.value.report.passed).toBe(true);
 
-  const result = await repair({ ownerUserId: userId, projectId, proseVersionId: snapped.value.version.id });
+  const result = await repair({
+    ownerUserId: userId,
+    projectId,
+    proseVersionId: snapped.value.version.id,
+  });
   expect(result.ok).toBe(false);
   if (result.ok) return;
   expect(result.error.code).toBe('VALIDATION');

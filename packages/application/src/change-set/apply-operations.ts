@@ -411,8 +411,7 @@ async function applyProseAccept(
   }
   // Canonical payload (resolver): { kind, proseVersionId }.
   const payload = op.payload as { proseVersionId?: unknown };
-  const proseVersionId =
-    typeof payload.proseVersionId === 'string' ? payload.proseVersionId : null;
+  const proseVersionId = typeof payload.proseVersionId === 'string' ? payload.proseVersionId : null;
   if (!proseVersionId) {
     return {
       ok: false,

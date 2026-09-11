@@ -113,11 +113,7 @@ export function createProposalRepo(tx: TxClient): ProposalRepo {
       return row ? toRecord(row) : null;
     },
 
-    async listPendingInGroup(
-      projectId,
-      groupId,
-      excludeId,
-    ): Promise<readonly ProposalRecord[]> {
+    async listPendingInGroup(projectId, groupId, excludeId): Promise<readonly ProposalRecord[]> {
       const rows = await tx.proposal.findMany({
         where: { projectId, groupId, status: 'pending', id: { not: excludeId } },
         select: SELECT,

@@ -65,13 +65,11 @@ describe('toPublicProposalView', () => {
 
   it('drops actions for decided proposals', () => {
     expect(toPublicProposalView({ ...baseRow, status: 'accepted' }).availableActions).toEqual([]);
-    expect(
-      toPublicProposalView({ ...baseRow, status: 'superseded' }).availableActions,
-    ).toEqual([]);
+    expect(toPublicProposalView({ ...baseRow, status: 'superseded' }).availableActions).toEqual([]);
     // Group decided → no actions even when proposal row pending.
-    expect(
-      toPublicProposalView({ ...baseRow, groupStatus: 'accepted' }).availableActions,
-    ).toEqual([]);
+    expect(toPublicProposalView({ ...baseRow, groupStatus: 'accepted' }).availableActions).toEqual(
+      [],
+    );
   });
 
   it('normalizes unknown op types to a neutral safe projection', () => {

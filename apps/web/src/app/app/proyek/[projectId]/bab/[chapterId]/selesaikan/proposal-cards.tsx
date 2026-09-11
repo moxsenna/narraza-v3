@@ -134,7 +134,13 @@ function ProposalCard({ row, projectId }: { row: ProposalCardRow; projectId: str
   );
 }
 
-export function ProposalCards({ rows, projectId }: { rows: readonly ProposalCardRow[]; projectId: string }) {
+export function ProposalCards({
+  rows,
+  projectId,
+}: {
+  rows: readonly ProposalCardRow[];
+  projectId: string;
+}) {
   if (rows.length === 0) {
     return (
       <p className="text-sm text-text-secondary" data-testid="proposals-empty">

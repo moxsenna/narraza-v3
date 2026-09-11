@@ -11,10 +11,7 @@
  * dependency_hash. The prepare step never mutates canon: it only writes
  * proposal_groups + prose_versions (snapshot status) + proposals rows.
  */
-import {
-  dependency,
-  operations as coreOperations,
-} from '@narraza/core';
+import { dependency, operations as coreOperations } from '@narraza/core';
 import type { operations as operationsNs } from '@narraza/core';
 type ModelSuggestionDraft = operationsNs.ModelSuggestionDraft;
 type CanonicalEntitySnapshot = operationsNs.CanonicalEntitySnapshot;
@@ -157,9 +154,7 @@ export function createPrepareProseProposal(
   return async (input) => {
     try {
       if (input.source === 'ai' && !input.candidateId) {
-        return err(
-          appError('VALIDATION', 'msg.proposal.candidate_required', 422),
-        );
+        return err(appError('VALIDATION', 'msg.proposal.candidate_required', 422));
       }
       const outcome = await uow.execute(async (ports) => {
         if (!ports.proseVersion || !ports.proposalGroup) {
@@ -184,10 +179,7 @@ export function createPrepareProseProposal(
           const kinds = ['beat_write_judge', 'safe_repair'];
           let foundContent: string | null = null;
           for (const kind of kinds) {
-            const found = await ports.m4ProductRead.findLatestCandidateGroup(
-              input.projectId,
-              kind,
-            );
+            const found = await ports.m4ProductRead.findLatestCandidateGroup(input.projectId, kind);
             if (!found) continue;
             const match = found.candidates.find((c) => c.id === input.candidateId);
             if (!match) continue;
@@ -236,10 +228,7 @@ export function createPrepareProseProposal(
         // ---- Immutable prose version (validated snapshot) -----------------
         const proseVersionId = ports.allocateId();
         const contentHash = sha256Hex(content);
-        const maxRevision = await ports.proseVersion.maxRevision(
-          input.projectId,
-          input.beatId,
-        );
+        const maxRevision = await ports.proseVersion.maxRevision(input.projectId, input.beatId);
         try {
           await ports.proseVersion.insert({
             id: proseVersionId,
@@ -253,10 +242,7 @@ export function createPrepareProseProposal(
           });
         } catch (e) {
           if (isUniqueViolation(e)) {
-            const retryMax = await ports.proseVersion.maxRevision(
-              input.projectId,
-              input.beatId,
-            );
+            const retryMax = await ports.proseVersion.maxRevision(input.projectId, input.beatId);
             await ports.proseVersion.insert({
               id: ports.allocateId(),
               projectId: input.projectId,
@@ -391,9 +377,7 @@ export function dependencyManifestHashFor(
   beatId: string,
   beatRevision: number,
 ): string {
-  return dependency.dependencyManifestHash(
-    beatDependencyManifest(projectId, beatId, beatRevision),
-  );
+  return dependency.dependencyManifestHash(beatDependencyManifest(projectId, beatId, beatRevision));
 }
 
 /** App-layer operations hash identical to core hashCanonicalOperations. */

@@ -34,10 +34,8 @@ import { M5_VALIDATION_POLICY_VERSION } from './prose-validation.js';
  */
 const REPAIR_INSTRUCTIONS: Readonly<Record<string, string>> = {
   'validation.prose.empty': 'Tulis isi adegan sesuai tujuan beat; jangan kosong.',
-  'validation.character.required_missing':
-    'Hadirkah karakter wajib secara natural dalam adegan.',
-  'validation.character.semantic_review':
-    'Perkuat kehadiran karakter wajib agar terbaca jelas.',
+  'validation.character.required_missing': 'Hadirkah karakter wajib secara natural dalam adegan.',
+  'validation.character.semantic_review': 'Perkuat kehadiran karakter wajib agar terbaca jelas.',
   'validation.fact.required_missing': 'Jalin fakta wajib ke dalam adegan secara natural.',
   'validation.fact.semantic_review': 'Perjelas fakta wajib agar terbaca dalam adegan.',
   'validation.directive.required_missing': 'Penuhi arahan pengarahan yang belum terpenuhi.',
@@ -49,8 +47,7 @@ const REPAIR_INSTRUCTIONS: Readonly<Record<string, string>> = {
   'validation.length.out_of_range': 'Sesuaikan panjang naskah ke rentang yang diminta.',
   'validation.restricted.matched': 'Tulis ulang bagian terlarang tanpa menyebut materi terlarang.',
   'validation.restricted.suspected': 'Tulis ulang bagian mencurigakan tanpa materi terlarang.',
-  'validation.restricted.semantic_review':
-    'Tulis ulang agar tidak menyentuh materi terlarang.',
+  'validation.restricted.semantic_review': 'Tulis ulang agar tidak menyentuh materi terlarang.',
 };
 const FALLBACK_INSTRUCTION = 'Perbaiki adegan sesuai temuan validasi.';
 

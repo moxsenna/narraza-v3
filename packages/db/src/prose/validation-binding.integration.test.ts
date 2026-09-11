@@ -109,137 +109,185 @@ async function saveAndSnapshot(
   const saved = await save({ ownerUserId: userId, projectId, beatId, content, expectedRevision });
   expect(saved.ok).toBe(true);
   if (!saved.ok) throw new Error('seed save failed');
-  const snapped = await snapshot({ ownerUserId: userId, projectId, beatId, sourceCandidateId: null });
+  const snapped = await snapshot({
+    ownerUserId: userId,
+    projectId,
+    beatId,
+    sourceCandidateId: null,
+  });
   expect(snapped.ok).toBe(true);
   if (!snapped.ok) throw new Error('seed snapshot failed');
   return snapped.value.version;
 }
 
-validationTest('validation-hash: report binds exact tuple and replay converges', async ({
-  prisma,
-}) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const version = await saveAndSnapshot(prisma, userId, projectId, beatId, 'some real prose here', null);
-  const uow = createUnitOfWork(prisma);
-  const validate = createValidateProseVersion(uow);
+validationTest(
+  'validation-hash: report binds exact tuple and replay converges',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const version = await saveAndSnapshot(
+      prisma,
+      userId,
+      projectId,
+      beatId,
+      'some real prose here',
+      null,
+    );
+    const uow = createUnitOfWork(prisma);
+    const validate = createValidateProseVersion(uow);
 
-  const first = await validate({ ownerUserId: userId, projectId, proseVersionId: version.id });
-  expect(first.ok).toBe(true);
-  if (!first.ok) return;
-  expect(first.value.report.proseVersionId).toBe(version.id);
-  expect(first.value.report.proseContentHash).toBe(version.contentHash);
-  expect(first.value.report.policyVersion).toBe(M5_VALIDATION_POLICY_VERSION);
-  expect(first.value.report.status).toBe('completed');
+    const first = await validate({ ownerUserId: userId, projectId, proseVersionId: version.id });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.value.report.proseVersionId).toBe(version.id);
+    expect(first.value.report.proseContentHash).toBe(version.contentHash);
+    expect(first.value.report.policyVersion).toBe(M5_VALIDATION_POLICY_VERSION);
+    expect(first.value.report.status).toBe('completed');
 
-  const replay = await validate({ ownerUserId: userId, projectId, proseVersionId: version.id });
-  expect(replay.ok).toBe(true);
-  if (!replay.ok) return;
-  expect(replay.value.report.id).toBe(first.value.report.id);
-});
+    const replay = await validate({ ownerUserId: userId, projectId, proseVersionId: version.id });
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    expect(replay.value.report.id).toBe(first.value.report.id);
+  },
+);
 
-validationTest('validation-hash: version A report cannot validate version B', async ({ prisma }) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const versionA = await saveAndSnapshot(prisma, userId, projectId, beatId, 'version A prose text', null);
-  const versionB = await saveAndSnapshot(
-    prisma,
-    userId,
-    projectId,
-    beatId,
-    'version B prose text different',
-    0,
-  );
-  expect(versionA.contentHash).not.toBe(versionB.contentHash);
-  const uow = createUnitOfWork(prisma);
-  const validate = createValidateProseVersion(uow);
+validationTest(
+  'validation-hash: version A report cannot validate version B',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const versionA = await saveAndSnapshot(
+      prisma,
+      userId,
+      projectId,
+      beatId,
+      'version A prose text',
+      null,
+    );
+    const versionB = await saveAndSnapshot(
+      prisma,
+      userId,
+      projectId,
+      beatId,
+      'version B prose text different',
+      0,
+    );
+    expect(versionA.contentHash).not.toBe(versionB.contentHash);
+    const uow = createUnitOfWork(prisma);
+    const validate = createValidateProseVersion(uow);
 
-  const reportA = await validate({ ownerUserId: userId, projectId, proseVersionId: versionA.id });
-  expect(reportA.ok).toBe(true);
-  if (!reportA.ok) return;
+    const reportA = await validate({ ownerUserId: userId, projectId, proseVersionId: versionA.id });
+    expect(reportA.ok).toBe(true);
+    if (!reportA.ok) return;
 
-  const reportB = await validate({ ownerUserId: userId, projectId, proseVersionId: versionB.id });
-  expect(reportB.ok).toBe(true);
-  if (!reportB.ok) return;
-  expect(reportB.value.report.id).not.toBe(reportA.value.report.id);
-  expect(reportB.value.report.proseContentHash).toBe(versionB.contentHash);
+    const reportB = await validate({ ownerUserId: userId, projectId, proseVersionId: versionB.id });
+    expect(reportB.ok).toBe(true);
+    if (!reportB.ok) return;
+    expect(reportB.value.report.id).not.toBe(reportA.value.report.id);
+    expect(reportB.value.report.proseContentHash).toBe(versionB.contentHash);
 
-  // Current-binding check: A-report tuple does not match B version.
-  const current = await uow.execute(async (ports) =>
-    ports.validationReport!.findCurrent(projectId, versionB.id, versionB.contentHash, M5_VALIDATION_POLICY_VERSION),
-  );
-  expect(current?.id).toBe(reportB.value.report.id);
-  const staleLookup = await uow.execute(async (ports) =>
-    ports.validationReport!.findCurrent(projectId, versionB.id, versionA.contentHash, M5_VALIDATION_POLICY_VERSION),
-  );
-  expect(staleLookup).toBeNull();
-});
+    // Current-binding check: A-report tuple does not match B version.
+    const current = await uow.execute(async (ports) =>
+      ports.validationReport!.findCurrent(
+        projectId,
+        versionB.id,
+        versionB.contentHash,
+        M5_VALIDATION_POLICY_VERSION,
+      ),
+    );
+    expect(current?.id).toBe(reportB.value.report.id);
+    const staleLookup = await uow.execute(async (ports) =>
+      ports.validationReport!.findCurrent(
+        projectId,
+        versionB.id,
+        versionA.contentHash,
+        M5_VALIDATION_POLICY_VERSION,
+      ),
+    );
+    expect(staleLookup).toBeNull();
+  },
+);
 
-validationTest('override-allowlist: empty allowlist denies override and hides action', async ({
-  prisma,
-}) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  // Empty prose triggers the blocking empty-prose rule deterministically.
-  const version = await saveAndSnapshot(prisma, userId, projectId, beatId, '', null);
-  const uow = createUnitOfWork(prisma);
-  const validate = createValidateProseVersion(uow);
-  const override = createOverrideFinding(uow);
+validationTest(
+  'override-allowlist: empty allowlist denies override and hides action',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    // Empty prose triggers the blocking empty-prose rule deterministically.
+    const version = await saveAndSnapshot(prisma, userId, projectId, beatId, '', null);
+    const uow = createUnitOfWork(prisma);
+    const validate = createValidateProseVersion(uow);
+    const override = createOverrideFinding(uow);
 
-  const validated = await validate({ ownerUserId: userId, projectId, proseVersionId: version.id });
-  expect(validated.ok).toBe(true);
-  if (!validated.ok) return;
-  expect(validated.value.report.passed).toBe(false);
-  expect(validated.value.findings.length).toBeGreaterThan(0);
+    const validated = await validate({
+      ownerUserId: userId,
+      projectId,
+      proseVersionId: version.id,
+    });
+    expect(validated.ok).toBe(true);
+    if (!validated.ok) return;
+    expect(validated.value.report.passed).toBe(false);
+    expect(validated.value.findings.length).toBeGreaterThan(0);
 
-  const view = toPublicValidationView(validated.value.report, validated.value.findings, {
-    current: true,
-  });
-  expect(view.availableActions).not.toContain('override');
-  // No public finding leaks source or internal detail.
-  for (const f of view.findings) {
-    expect('source' in f).toBe(false);
-  }
+    const view = toPublicValidationView(validated.value.report, validated.value.findings, {
+      current: true,
+    });
+    expect(view.availableActions).not.toContain('override');
+    // No public finding leaks source or internal detail.
+    for (const f of view.findings) {
+      expect('source' in f).toBe(false);
+    }
 
-  const target = validated.value.findings[0]!;
-  expect(isOverrideAllowed(M5_VALIDATION_POLICY_VERSION, target.ruleKey)).toBe(false);
-  const denied = await override({
-    ownerUserId: userId,
-    projectId,
-    reportId: validated.value.report.id,
-    findingId: target.id,
-    reason: 'I disagree',
-  });
-  expect(denied.ok).toBe(false);
-  if (denied.ok) return;
-  expect(denied.error.code).toBe('POLICY_DENIED');
+    const target = validated.value.findings[0]!;
+    expect(isOverrideAllowed(M5_VALIDATION_POLICY_VERSION, target.ruleKey)).toBe(false);
+    const denied = await override({
+      ownerUserId: userId,
+      projectId,
+      reportId: validated.value.report.id,
+      findingId: target.id,
+      reason: 'I disagree',
+    });
+    expect(denied.ok).toBe(false);
+    if (denied.ok) return;
+    expect(denied.error.code).toBe('POLICY_DENIED');
 
-  const emptyReason = await override({
-    ownerUserId: userId,
-    projectId,
-    reportId: validated.value.report.id,
-    findingId: target.id,
-    reason: '   ',
-  });
-  expect(emptyReason.ok).toBe(false);
-  if (emptyReason.ok) return;
-  expect(emptyReason.error.code).toBe('VALIDATION');
-});
+    const emptyReason = await override({
+      ownerUserId: userId,
+      projectId,
+      reportId: validated.value.report.id,
+      findingId: target.id,
+      reason: '   ',
+    });
+    expect(emptyReason.ok).toBe(false);
+    if (emptyReason.ok) return;
+    expect(emptyReason.error.code).toBe('VALIDATION');
+  },
+);
 
-validationTest('override-allowlist: foreign user cannot validate or override', async ({ prisma }) => {
-  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
-  const version = await saveAndSnapshot(prisma, userId, projectId, beatId, 'owner prose here', null);
-  const foreignRows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `INSERT INTO users (id, email, password_hash, status, created_at, updated_at)
+validationTest(
+  'override-allowlist: foreign user cannot validate or override',
+  async ({ prisma }) => {
+    const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+    const version = await saveAndSnapshot(
+      prisma,
+      userId,
+      projectId,
+      beatId,
+      'owner prose here',
+      null,
+    );
+    const foreignRows = await prisma.$queryRawUnsafe<{ id: string }[]>(
+      `INSERT INTO users (id, email, password_hash, status, created_at, updated_at)
      VALUES (gen_random_uuid()::text, $1, 'hashed:x', 'active'::user_status, now(), now())
      RETURNING id`,
-    `intruder-${crypto.randomUUID()}@narraza.test`,
-  );
-  const uow = createUnitOfWork(prisma);
-  const validate = createValidateProseVersion(uow);
-  const foreign = await validate({
-    ownerUserId: foreignRows[0]!.id,
-    projectId,
-    proseVersionId: version.id,
-  });
-  expect(foreign.ok).toBe(false);
-  if (foreign.ok) return;
-  expect(foreign.error.code).toBe('NOT_FOUND');
-});
+      `intruder-${crypto.randomUUID()}@narraza.test`,
+    );
+    const uow = createUnitOfWork(prisma);
+    const validate = createValidateProseVersion(uow);
+    const foreign = await validate({
+      ownerUserId: foreignRows[0]!.id,
+      projectId,
+      proseVersionId: version.id,
+    });
+    expect(foreign.ok).toBe(false);
+    if (foreign.ok) return;
+    expect(foreign.error.code).toBe('NOT_FOUND');
+  },
+);

@@ -26,7 +26,7 @@ describe('W5.4 proposal DTO contracts', () => {
     const ownerDerives = actions.match(/getCurrentUser\(\)/g)?.length ?? 0;
     expect(ownerDerives).toBeGreaterThanOrEqual(4);
     // High-risk second confirm is enforced server-side.
-    expect(actions).toContain("confirmPhrase !== HIGH_RISK_CONFIRM_PHRASE");
+    expect(actions).toContain('confirmPhrase !== HIGH_RISK_CONFIRM_PHRASE');
     // CAS failure routes through the conditional stale gate (R-M5.3).
     expect(actions).toContain("result.error.code === 'CAS_FAILED'");
     expect(actions).toContain('createMarkStaleProposal');
@@ -44,9 +44,7 @@ describe('W5.4 proposal DTO contracts', () => {
   });
 
   test('proposal page renders server projections without raw op payloads', () => {
-    const page = source(
-      'app/app/proyek/[projectId]/bab/[chapterId]/selesaikan/page.tsx',
-    );
+    const page = source('app/app/proyek/[projectId]/bab/[chapterId]/selesaikan/page.tsx');
     expect(page).toContain('resolveChapterProposals');
     expect(page).not.toContain('JSON.parse');
     expect(page).not.toContain('payload');

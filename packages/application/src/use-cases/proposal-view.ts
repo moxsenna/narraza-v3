@@ -23,7 +23,8 @@ export interface PublicProposalOp {
 
 export interface PublicProposalView {
   readonly proposalId: string;
-  readonly status: 'pending' | 'needs_revalidation' | 'stale' | 'superseded' | 'accepted' | 'rejected';
+  readonly status:
+    'pending' | 'needs_revalidation' | 'stale' | 'superseded' | 'accepted' | 'rejected';
   readonly source: 'ai' | 'user' | 'system';
   /** 'Diedit kamu' surface lives in the web layer; source is the raw axis. */
   readonly groupKind: string;
@@ -77,8 +78,9 @@ export function toPublicProposalView(row: PublicProposalInputRow): PublicProposa
   const operations = row.operations.map((op) => publicOp(op.operationType, op.risk));
   const highRisk = operations.some((op) => op.risk === 'high');
   const status: PublicProposalView['status'] =
-    row.status === 'pending' && !row.dependencyCurrent ? 'needs_revalidation' : (
-      row.status === 'accepted'
+    row.status === 'pending' && !row.dependencyCurrent
+      ? 'needs_revalidation'
+      : row.status === 'accepted'
         ? 'accepted'
         : row.status === 'rejected'
           ? 'rejected'
@@ -86,8 +88,7 @@ export function toPublicProposalView(row: PublicProposalInputRow): PublicProposa
             ? 'stale'
             : row.status === 'superseded'
               ? 'superseded'
-              : 'pending'
-    );
+              : 'pending';
   const actions: ('accept' | 'reject')[] = [];
   if (row.groupStatus === 'pending' && row.status === 'pending' && row.dependencyCurrent) {
     actions.push('accept', 'reject');
@@ -99,8 +100,7 @@ export function toPublicProposalView(row: PublicProposalInputRow): PublicProposa
     groupKind: row.groupKind,
     risk: highRisk ? 'high' : operations.some((op) => op.risk === 'medium') ? 'medium' : 'low',
     highRisk,
-    proseExcerpt:
-      row.proseContent === null ? null : row.proseContent.slice(0, 240).trim() || null,
+    proseExcerpt: row.proseContent === null ? null : row.proseContent.slice(0, 240).trim() || null,
     operations,
     availableActions: actions,
   });

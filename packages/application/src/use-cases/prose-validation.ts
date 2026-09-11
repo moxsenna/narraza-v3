@@ -10,26 +10,16 @@
  *   M5 allowlist is EMPTY: no ruleKey is overrideable until an authoritative
  *   source marks one. UI must not offer override.
  */
-import {
-  validation as coreValidation,
-  type validation as validationNs,
-} from '@narraza/core';
+import { validation as coreValidation, type validation as validationNs } from '@narraza/core';
 type InternalValidationFinding = validationNs.InternalValidationFinding;
 type PublicValidationFinding = validationNs.PublicValidationFinding;
-const {
-  mergeFindings,
-  validateBeatStructure,
-  VALIDATOR_POLICY_VERSION,
-} = coreValidation;
+const { mergeFindings, validateBeatStructure, VALIDATOR_POLICY_VERSION } = coreValidation;
 import type { AppError } from '../errors.js';
 import { appError } from '../errors.js';
 import type { Result } from '../result.js';
 import { err, ok } from '../result.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
-import type {
-  ValidationFindingRecord,
-  ValidationReportRecord,
-} from '../ports/validation-repo.js';
+import type { ValidationFindingRecord, ValidationReportRecord } from '../ports/validation-repo.js';
 
 export const M5_VALIDATION_POLICY_VERSION: string = VALIDATOR_POLICY_VERSION;
 
@@ -206,7 +196,9 @@ export interface OverrideFindingInput {
 
 export function createOverrideFinding(
   uow: UnitOfWork,
-): (input: OverrideFindingInput) => Promise<Result<{ finding: ValidationFindingRecord }, AppError>> {
+): (
+  input: OverrideFindingInput,
+) => Promise<Result<{ finding: ValidationFindingRecord }, AppError>> {
   return async (input) => {
     try {
       const reason = input.reason.trim();

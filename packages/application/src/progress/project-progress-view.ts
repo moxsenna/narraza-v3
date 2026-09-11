@@ -113,7 +113,10 @@ export interface IntakeSufficiencyView {
   readonly collected: number;
   readonly required: number;
   readonly sufficient: boolean;
-  readonly nextAction: { readonly code: 'compose_concepts' | 'continue_intake'; readonly hrefHint: 'konsep' | 'chat' };
+  readonly nextAction: {
+    readonly code: 'compose_concepts' | 'continue_intake';
+    readonly hrefHint: 'konsep' | 'chat';
+  };
 }
 
 export function intakeSufficiencyView(input: IntakeSufficiencyInput): IntakeSufficiencyView {
