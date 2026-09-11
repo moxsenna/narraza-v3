@@ -540,9 +540,13 @@ export {
   type RejectProposalInput,
 } from './use-cases/proposal-view.js';
 
-// Progress reducer v1 (W2.4).
+// Progress reducer v2 + intake sufficiency (W2.4 / W5.5).
 export {
   projectProgressView,
+  intakeSufficiencyView,
+  REQUIRED_INTAKE_SIGNALS,
   type ProjectProgressSnapshot,
   type ProjectProgressView,
+  type IntakeSufficiencyInput,
+  type IntakeSufficiencyView,
 } from './progress/project-progress-view.js';

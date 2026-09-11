@@ -108,5 +108,9 @@ export function createArtifactProposalRepo(tx: TxClient): ArtifactProposalRepo {
       });
       return publishArtifactToRecord(row);
     },
+
+    async countAcceptedByProject(projectId): Promise<number> {
+      return tx.artifactProposal.count({ where: { projectId, status: 'accepted' } });
+    },
   };
 }

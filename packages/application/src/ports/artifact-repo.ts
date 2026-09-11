@@ -44,4 +44,6 @@ export interface ArtifactProposalRepo {
     artifactProposalId: string,
   ): Promise<readonly PublishArtifactRecord[]>;
   insertArtifact(input: PublishArtifactInsertInput): Promise<PublishArtifactRecord>;
+  /** Number of accepted (published) artifact proposals for the project. */
+  countAcceptedByProject(projectId: string): Promise<number>;
 }
