@@ -13,9 +13,11 @@ import { expect } from 'vitest';
 import {
   createAcceptProposal,
   createCommitCanonicalChangeSet,
+  createGetPendingProposals,
   createMarkStaleProposal,
   createPrepareProseProposal,
   createPublishArtifact,
+  createRejectProposal,
   type CanonicalOpPersist,
 } from '@narraza/application';
 import { createPrismaClient, type PrismaClient } from '../client.js';
@@ -609,4 +611,92 @@ proposalTest('publish-artifact: publish accept does not bump canon version', asy
   expect(rejected.ok).toBe(false);
   if (rejected.ok) return;
   expect(rejected.error.publicMessageCode).toBe('msg.artifact.prose_not_accepted');
+});
+
+proposalTest('proposal-view: pending list, reject, and needs_revalidation projection', async ({
+  prisma,
+}) => {
+  const { userId, projectId, beatId } = await seedOwnerProjectBeat(prisma);
+  const first = await prepareUserProposal(
+    prisma,
+    userId,
+    projectId,
+    beatId,
+    'First prose candidate for review.',
+  );
+  const second = await prepareUserProposal(
+    prisma,
+    userId,
+    projectId,
+    beatId,
+    'Second prose candidate for review.',
+  );
+  await prisma.$executeRawUnsafe(
+    `UPDATE proposals SET group_id = $1 WHERE id = $2`,
+    first.proposalGroupId,
+    second.proposalId,
+  );
+
+  const uow = createUnitOfWork(prisma);
+  const listPending = createGetPendingProposals(uow);
+  const reject = createRejectProposal(uow);
+
+  // Both pending proposals visible with server-derived actions.
+  const listed = await listPending({ ownerUserId: userId, projectId });
+  expect(listed.ok).toBe(true);
+  if (!listed.ok) return;
+  const byId = new Map(listed.value.map((row) => [row.view.proposalId, row]));
+  expect(byId.size).toBe(2);
+  const firstView = byId.get(first.proposalId)!.view;
+  expect(firstView.availableActions).toEqual(['accept', 'reject']);
+  expect(firstView.source).toBe('user');
+  expect(firstView.highRisk).toBe(true);
+  expect(firstView.proseExcerpt).toContain('First prose candidate');
+  expect(firstView.operations.map((op) => op.kind)).toEqual([
+    'prose.version.create',
+    'prose.accept',
+  ]);
+
+  // Sanitization: serialized view carries no payload/hash keys.
+  for (const row of listed.value) {
+    const keys = Object.keys(JSON.parse(JSON.stringify(row.view)) as Record<string, unknown>);
+    expect(keys).not.toContain('operationsHash');
+    expect(keys).not.toContain('dependencyHash');
+    expect(keys).not.toContain('payload');
+  }
+
+  // Reject one; the sibling remains actionable.
+  const rejected = await reject({ ownerUserId: userId, projectId, proposalId: second.proposalId });
+  expect(rejected.ok).toBe(true);
+  const afterReject = await listPending({ ownerUserId: userId, projectId });
+  expect(afterReject.ok).toBe(true);
+  if (!afterReject.ok) return;
+  expect(afterReject.value.map((row) => row.view.proposalId)).toEqual([first.proposalId]);
+  // Group stays pending while a sibling is pending.
+  const groupRow = await prisma.$queryRawUnsafe<{ status: string }[]>(
+    `SELECT status FROM proposal_groups WHERE id = $1`,
+    first.proposalGroupId,
+  );
+  expect(groupRow[0]!.status).toBe('pending');
+
+  // Beat revision bump (unrelated outline edit) → needs_revalidation view.
+  await prisma.$executeRawUnsafe(
+    `UPDATE beats SET revision = revision + 1, payload = '{"title":"moved"}'::jsonb WHERE id = $1`,
+    beatId,
+  );
+  const staleListed = await listPending({ ownerUserId: userId, projectId });
+  expect(staleListed.ok).toBe(true);
+  if (!staleListed.ok) return;
+  expect(staleListed.value[0]!.view.status).toBe('needs_revalidation');
+  expect(staleListed.value[0]!.view.availableActions).toEqual([]);
+
+  // Reject on a decided proposal conflicts.
+  const secondReject = await reject({
+    ownerUserId: userId,
+    projectId,
+    proposalId: second.proposalId,
+  });
+  expect(secondReject.ok).toBe(false);
+  if (secondReject.ok) return;
+  expect(secondReject.error.code).toBe('CONFLICT');
 });

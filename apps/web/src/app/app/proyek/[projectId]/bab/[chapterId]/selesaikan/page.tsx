@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 
-import { resolveChapterContext } from '../../../../../../../lib/server/capability-resolvers/chapter-context';
+import { resolveChapterProposals } from '../../../../../../../lib/server/capability-resolvers/chapter-proposals';
+import { ProposalCards } from './proposal-cards';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,10 +12,10 @@ export default async function ChapterSelesaikanPage({
 }) {
   const { projectId, chapterId } = await params;
 
-  const context = await resolveChapterContext(projectId, chapterId);
+  const context = await resolveChapterProposals(projectId, chapterId);
   if (context.kind !== 'resolved') notFound();
 
-  const { projectTitle, chapterTitle, chapterOrdinal } = context;
+  const { projectTitle, chapterTitle, chapterOrdinal, proposals } = context;
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
@@ -31,24 +32,14 @@ export default async function ChapterSelesaikanPage({
       </header>
 
       <section className="rounded-2xl border border-border-default bg-surface p-6 sm:p-8">
-        <h2 className="mb-4 text-xl font-semibold text-text-primary">Penyelesaian Bab</h2>
-        <p className="mb-4 text-base leading-7 text-text-secondary">
-          Proses penyelesaian bab akan menampilkan status kelayakan dan opsi konfirmasi ketika
-          kemampuan aktif tersedia.
+        <h2 className="mb-2 text-xl font-semibold text-text-primary">Tutup Bab</h2>
+        <p className="mb-6 text-base leading-7 text-text-secondary">
+          Tinjau semua usulan perubahan untuk bab ini, lalu terapkan sebagai cerita resmi. Usulan
+          berisiko tinggi meminta konfirmasi kedua.
         </p>
 
-        <div className="rounded-xl border border-border-default bg-status-info-soft p-4">
-          <p className="text-sm font-semibold text-text-primary">Kelayakan tidak tersedia</p>
-          <p className="mt-1 text-sm leading-6 text-text-secondary">
-            Status kelayakan bab belum tersedia.
-          </p>
-        </div>
-
-        <section className="mt-6" data-testid="capability-notice">
-          <p className="text-sm font-semibold text-text-primary">Penyelesaian bab belum tersedia</p>
-          <p className="mt-1 text-sm leading-6 text-text-secondary">
-            Status penyelesaian bab belum dapat ditentukan saat ini.
-          </p>
+        <section data-testid="proposal-list">
+          <ProposalCards rows={proposals} projectId={projectId} />
         </section>
       </section>
     </main>

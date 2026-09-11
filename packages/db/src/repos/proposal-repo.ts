@@ -169,5 +169,14 @@ export function createProposalGroupRepo(tx: TxClient): ProposalGroupRepo {
       const row = rows[0];
       return row ? groupToRecord(row) : null;
     },
+
+    async listPendingByProject(projectId): Promise<readonly ProposalGroupRecord[]> {
+      const rows = await tx.proposalGroup.findMany({
+        where: { projectId, status: 'pending' },
+        select: GROUP_SELECT,
+        orderBy: { createdAt: 'asc' },
+      });
+      return rows.map(groupToRecord);
+    },
   };
 }

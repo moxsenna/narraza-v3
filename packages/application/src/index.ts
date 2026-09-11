@@ -528,6 +528,17 @@ export {
   type PublishArtifactInput,
   type PublishArtifactOutput,
 } from './use-cases/publish-artifact.js';
+export {
+  toPublicProposalView,
+  createGetPendingProposals,
+  createRejectProposal,
+  type PublicProposalOp,
+  type PublicProposalView,
+  type PublicProposalInputRow,
+  type GetPendingProposalsInput,
+  type PendingProposalView,
+  type RejectProposalInput,
+} from './use-cases/proposal-view.js';
 
 // Progress reducer v1 (W2.4).
 export {

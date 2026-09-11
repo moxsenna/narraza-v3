@@ -64,4 +64,6 @@ export interface ProposalGroupRepo {
     expected: string,
     next: string,
   ): Promise<ProposalGroupRecord | null>;
+  /** Pending groups for a project, oldest first (read model). */
+  listPendingByProject(projectId: string): Promise<readonly ProposalGroupRecord[]>;
 }
