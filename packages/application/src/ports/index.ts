@@ -59,6 +59,14 @@ export type {
   ProseVersionRepo,
 } from './prose-repo.js';
 export type {
+  ValidationReportRecord,
+  ValidationFindingRecord,
+  ValidationReportInsertInput,
+  ValidationFindingInsertInput,
+  ValidationReportRepo,
+  ValidationFindingRepo,
+} from './validation-repo.js';
+export type {
   IntakeSessionInsertInput,
   IntakeMessageInsertInput,
   IntakeRepo,

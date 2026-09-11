@@ -23,6 +23,7 @@ import { createOutboxPort } from './outbox-port.js';
 import { createProjectRepo } from './project-repo.js';
 import { createProposalRepo } from './proposal-repo.js';
 import { createProseDraftRepo, createProseVersionRepo } from './prose-repo.js';
+import { createValidationFindingRepo, createValidationReportRepo } from './validation-repo.js';
 import { createQuoteRepo } from './quote-repo.js';
 import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
@@ -46,6 +47,8 @@ export function createTxPorts(tx: TxClient): TxPorts {
     proposal: createProposalRepo(tx),
     proseDraft: createProseDraftRepo(tx),
     proseVersion: createProseVersionRepo(tx),
+    validationReport: createValidationReportRepo(tx),
+    validationFinding: createValidationFindingRepo(tx),
     changeSet: createChangeSetRepo(tx),
     intake: createIntakeRepo(tx),
     concept: createConceptRepo(tx),

@@ -169,6 +169,12 @@ export type {
   ProseVersionInsertInput,
   ProseDraftRepo,
   ProseVersionRepo,
+  ValidationReportRecord,
+  ValidationFindingRecord,
+  ValidationReportInsertInput,
+  ValidationFindingInsertInput,
+  ValidationReportRepo,
+  ValidationFindingRepo,
 } from './ports/index.js';
 
 export type {
@@ -474,6 +480,26 @@ export {
   type SnapshotProseVersionInput,
   type SnapshotProseVersionOutput,
 } from './use-cases/prose-draft.js';
+export {
+  createValidateProseVersion,
+  createOverrideFinding,
+  isOverrideAllowed,
+  M5_VALIDATION_POLICY_VERSION,
+  toPublicValidationView,
+  type ValidateProseVersionInput,
+  type ValidateProseVersionOutput,
+  type PublicValidationView,
+  type OverrideFindingInput,
+} from './use-cases/prose-validation.js';
+export {
+  createRequestSafeRepair,
+  repairInstructionFor,
+  severityScoreFor,
+  toRepairDirective,
+  type RequestSafeRepairInput,
+  type RequestSafeRepairOutput,
+  type PreviousRepairAttempt,
+} from './use-cases/prose-repair.js';
 
 // Progress reducer v1 (W2.4).
 export {
