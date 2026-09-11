@@ -127,6 +127,15 @@ export function createChangeSetRepo(tx: TxClient): ChangeSetRepo {
       });
       return row ? setToRecord(row) : null;
     },
+
+    async listOperations(projectId, changeSetId) {
+      const rows = await tx.canonicalChangeOperation.findMany({
+        where: { projectId, changeSetId },
+        select: OP_SELECT,
+        orderBy: { ordinal: 'asc' },
+      });
+      return rows.map(opToRecord);
+    },
   };
 }
 

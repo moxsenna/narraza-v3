@@ -327,6 +327,29 @@ export function createOutlineRepo(tx: TxClient): OutlineRepo {
       });
       return row && row.deletedAt === null ? beatToRecord(row) : null;
     },
+
+    async setBeatAcceptedProse(input) {
+      // CAS on beats.revision; the composite FK
+      // beats_accepted_prose_belongs_to_beat_fkey rejects cross-beat pointers.
+      const expectedClause =
+        input.expectedRevision === null
+          ? ''
+          : `AND revision = ${String(input.expectedRevision)}`;
+      const rows = (await tx.$queryRawUnsafe(
+        `UPDATE beats
+            SET accepted_prose_version_id = $3,
+                revision = revision + 1,
+                updated_at = now()
+          WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL
+          ${expectedClause}
+         RETURNING id, project_id, chapter_id, ordinal, narrative_sequence,
+                  accepted_prose_version_id, revision, schema_version, payload, deleted_at`,
+        input.beatId,
+        input.projectId,
+        input.proseVersionId,
+      )) as Array<RawBeatRow>;
+      return rows[0] ? beatToRecord(rawBeat(rows[0])) : null;
+    },
   };
 }
 

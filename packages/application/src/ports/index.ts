@@ -36,6 +36,7 @@ export type {
   OutlineEntityType,
   OutlineNodeInsertInput,
   OutlineNodeUpdateInput,
+  BeatAcceptPointerInput,
   OutlineRepo,
 } from './outline-repo.js';
 export type {
@@ -49,7 +50,19 @@ export type {
   ChangeOperationInsertInput,
   ChangeSetRepo,
 } from './change-set-repo.js';
-export type { ProposalInsertInput, ProposalRepo } from './proposal-repo.js';
+export type {
+  ProposalInsertInput,
+  ProposalGroupRecord,
+  ProposalGroupInsertInput,
+  ProposalRepo,
+  ProposalGroupRepo,
+} from './proposal-repo.js';
+export type {
+  ArtifactProposalRecord,
+  PublishArtifactRecord,
+  PublishArtifactInsertInput,
+  ArtifactProposalRepo,
+} from './artifact-repo.js';
 export type {
   ProseWorkingDraftRecord,
   ProseVersionRecord,

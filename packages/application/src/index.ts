@@ -169,6 +169,13 @@ export type {
   ProseVersionInsertInput,
   ProseDraftRepo,
   ProseVersionRepo,
+  ProposalGroupRecord,
+  ProposalGroupInsertInput,
+  ProposalGroupRepo,
+  ArtifactProposalRecord,
+  PublishArtifactRecord,
+  PublishArtifactInsertInput,
+  ArtifactProposalRepo,
   ValidationReportRecord,
   ValidationFindingRecord,
   ValidationReportInsertInput,
@@ -500,6 +507,27 @@ export {
   type RequestSafeRepairOutput,
   type PreviousRepairAttempt,
 } from './use-cases/prose-repair.js';
+export {
+  createPrepareProseProposal,
+  beatDependencyManifest,
+  dependencyManifestHashFor,
+  hashOperations,
+  PROPOSAL_DEPENDENCY_POLICY_VERSION,
+  type PrepareProseProposalInput,
+  type PrepareProseProposalOutput,
+  type PreparedProposal,
+} from './use-cases/proposal-prepare.js';
+export {
+  createAcceptProposal,
+  createMarkStaleProposal,
+  type AcceptProposalInput,
+  type AcceptProposalOutput,
+} from './use-cases/proposal-accept.js';
+export {
+  createPublishArtifact,
+  type PublishArtifactInput,
+  type PublishArtifactOutput,
+} from './use-cases/publish-artifact.js';
 
 // Progress reducer v1 (W2.4).
 export {
