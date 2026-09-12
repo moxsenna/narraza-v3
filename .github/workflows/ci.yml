@@ -35,6 +35,8 @@ jobs:
   unit:
     name: Unit Tests
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://narraza:narraza@localhost:5432/narraza_unit
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
