@@ -42,6 +42,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build:packages
       - run: pnpm -r --filter "./packages/**" test:unit
       - run: pnpm --filter @narraza/worker-gen test
       - run: pnpm --filter @narraza/web test
