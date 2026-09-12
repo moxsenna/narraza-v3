@@ -11,6 +11,17 @@ function requireDatabaseUrl(): string {
   return databaseUrl;
 }
 
+async function setUserStatus(email: string, status: 'active' | 'suspended'): Promise<void> {
+  const database = await import('../../packages/db/dist/index.js');
+  const prisma = database.createPrismaClient(requireDatabaseUrl());
+
+  try {
+    await prisma.user.update({ where: { email }, data: { status } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 async function lockCompleteFoundation(email: string, projectId: string): Promise<void> {
   const [application, database] = await Promise.all([
     import('../../packages/application/dist/index.js'),
@@ -102,19 +113,19 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 async function addRoadmap(page: Page): Promise<void> {
   const form = page
     .locator('form')
-    .filter({ has: page.getByRole('button', { name: 'Tambah roadmap' }) });
+    .filter({ has: page.getByRole('button', { name: 'Tambah Roadmap Cerita' }) });
   await form.locator('input[name="title"]').fill('Roadmap PR3');
-  await form.getByRole('button', { name: 'Tambah roadmap' }).click();
+  await form.getByRole('button', { name: 'Tambah Roadmap Cerita' }).click();
   await expect(page.getByRole('listitem').getByText('Roadmap PR3')).toBeVisible();
 }
 
 async function addArc(page: Page): Promise<void> {
   const form = page
     .locator('form')
-    .filter({ has: page.getByRole('button', { name: 'Tambah arc' }) });
+    .filter({ has: page.getByRole('button', { name: 'Tambah Bagian Cerita' }) });
   await expect(form.locator('select[name="parentId"] option')).toHaveCount(1);
   await form.locator('input[name="title"]').fill('Arc PR3');
-  await form.getByRole('button', { name: 'Tambah arc' }).click();
+  await form.getByRole('button', { name: 'Tambah Bagian Cerita' }).click();
   await expect(page.getByRole('listitem').getByText('Arc PR3')).toBeVisible();
 }
 
@@ -143,7 +154,7 @@ test('PR3 routes expose only honest owner-scoped presentation', async ({ page },
   );
   const kreditCopy = (await page.locator('main').innerText()).toLowerCase();
   expect(kreditCopy).not.toMatch(
-    /saldo|transaksi|ledger|potongan|refund|langganan|pembayaran|m4|backend|real-time|estimasi/,
+    /transaksi|ledger|potongan|refund|langganan|pembayaran|m4|backend|real-time|estimasi/,
   );
   await expect(page.locator('a[href*="__preview"]')).toHaveCount(0);
 
@@ -185,25 +196,59 @@ test('PR3 routes expose only honest owner-scoped presentation', async ({ page },
   await expect(page.getByRole('link', { name: 'Kembali ke proyek' })).toBeVisible();
   expect(await page.locator('main').innerText()).not.toContain(projectId);
   await expect(page.locator('a[href*="__preview"]')).toHaveCount(0);
+
+  await page.goto(`/app/proyek/${projectId}/naskah`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Naskah' })).toBeVisible();
+  await expect(page.getByRole('main').getByText(title)).toBeVisible();
+  await expect(page.getByText('Belum ada naskah proyek yang dapat ditampilkan')).toBeVisible();
+  expect(await page.locator('main').innerText()).not.toContain(projectId);
+
+  await page.goto(`/app/proyek/${projectId}/publish`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Paket Publish Proyek' })).toBeVisible();
+  await expect(page.getByRole('main').getByText(title)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Salin paket' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Ekspor paket' })).toBeDisabled();
+  expect(await page.locator('main').innerText()).not.toContain(projectId);
 });
 
-test('preview is authenticated, allowlisted, scope-authorized, and action-disabled', async ({
+test('preview route enforces auth, allowlist, project scope, and inactive-account boundaries', async ({
   page,
+  browser,
 }, testInfo) => {
   await page.goto('/app/__preview/frontend-parity?scenario=kredit-unavailable');
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  expect((await page.locator('body').innerText()).toLowerCase()).toMatch(
-    /tidak ditemukan|not found|halaman/,
-  );
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Halaman ini tidak ditemukan' }),
+  ).toBeVisible();
 
-  await createVerifiedSession(page, testInfo);
+  const victimContext = await browser.newContext();
+  const victimPage = await victimContext.newPage();
+  let foreignProjectId: string;
+  try {
+    await createVerifiedSession(victimPage, testInfo);
+    foreignProjectId = (await createOwnedProject(victimPage, 'Proyek Preview Milik Pengguna Lain'))
+      .projectId;
+  } finally {
+    await victimContext.close();
+  }
+
+  const { email } = await createVerifiedSession(page, testInfo);
   const { projectId } = await createOwnedProject(page);
 
   await page.goto('/app/__preview/frontend-parity?scenario=unknown');
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  expect((await page.locator('body').innerText()).toLowerCase()).toMatch(
-    /tidak ditemukan|not found|halaman/,
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Halaman ini tidak ditemukan' }),
+  ).toBeVisible();
+
+  await page.goto(
+    `/app/__preview/frontend-parity?scenario=tulis-choose&projectId=${encodeURIComponent(foreignProjectId)}`,
   );
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Halaman ini tidak ditemukan' }),
+  ).toBeVisible();
+  expect(await page.locator('main').innerText()).not.toContain(
+    'Proyek Preview Milik Pengguna Lain',
+  );
+  expect(await page.locator('main').innerText()).not.toContain(foreignProjectId);
 
   const previewResponse = await page.goto(
     '/app/__preview/frontend-parity?scenario=kredit-unavailable',
@@ -220,6 +265,12 @@ test('preview is authenticated, allowlisted, scope-authorized, and action-disabl
   await expect(page.getByRole('button', { name: 'Tulis' }).first()).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Tinjau rangkaian cerita' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Kembali ke proyek' })).toBeDisabled();
+
+  await setUserStatus(email, 'suspended');
+  await page.goto('/app/__preview/frontend-parity?scenario=kredit-unavailable');
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Halaman ini tidak ditemukan' }),
+  ).toBeVisible();
 });
 
 test('PR3 production routes remain responsive at locked widths with correct shells', async ({

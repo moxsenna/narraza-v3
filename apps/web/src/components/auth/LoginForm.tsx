@@ -31,7 +31,7 @@ export function LoginForm() {
       <FormError message={state.status === 'error' ? state.message : undefined} />
       {unverified ? <ResendVerificationForm /> : null}
       <SubmitButton>Masuk</SubmitButton>
-      <p className="text-center text-sm text-neutral-600">
+      <p className="text-center text-sm text-muted">
         Belum punya akun?{' '}
         <Link href="/daftar" className="font-semibold text-brand-700 hover:underline">
           Daftar

@@ -50,6 +50,15 @@ export async function getProjectIntakeMessages(
   });
 }
 
+export async function getProjectIntakeSignalCount(projectId: string): Promise<number> {
+  const project = await getMyProject(projectId);
+  if (!project) return 0;
+  return getUnitOfWork().execute(async (ports) => {
+    const session = await ports.intake.findSessionByProject(projectId);
+    return session?.signalCount ?? 0;
+  });
+}
+
 export async function getProjectOutline(projectId: string): Promise<readonly OutlineNodeRecord[]> {
   const project = await getMyProject(projectId);
   if (!project) return [];

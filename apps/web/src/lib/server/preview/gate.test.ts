@@ -99,6 +99,41 @@ describe('preview gate policy', () => {
     vi.unstubAllEnvs();
   });
 
+  test.each(['staging', 'unknown'] as const)(
+    '%s runtime denies an otherwise valid account scenario',
+    async (environment) => {
+      vi.stubEnv('NODE_ENV', 'development');
+      vi.stubEnv('NARRAZA_ENV', environment);
+      mocks.getCurrentUser.mockResolvedValue({
+        userId: 'user-1',
+        status: 'active',
+        email: 'author@example.com',
+      });
+
+      await expect(resolvePreviewAccess({ scenarioKey: 'kredit-unavailable' })).resolves.toBeNull();
+
+      vi.unstubAllEnvs();
+    },
+  );
+
+  test('project scenario denies when owner-scoped lookup rejects project', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('NARRAZA_ENV', 'development');
+    mocks.getCurrentUser.mockResolvedValue({
+      userId: 'user-1',
+      status: 'active',
+      email: 'author@example.com',
+    });
+    mocks.getMyProject.mockResolvedValue(null);
+
+    await expect(
+      resolvePreviewAccess({ scenarioKey: 'tulis-choose', projectId: 'foreign-project' }),
+    ).resolves.toBeNull();
+    expect(mocks.getMyProject).toHaveBeenCalledWith('foreign-project');
+
+    vi.unstubAllEnvs();
+  });
+
   test('test denies without CI even when a custom environment marker says development', async () => {
     vi.stubEnv('NODE_ENV', 'test');
     vi.stubEnv('NARRAZA_ENV', 'development');

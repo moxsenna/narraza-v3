@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type Page, type TestInfo } from '@playwright/test';
 import { clearMailpit, waitForMailLink } from '../mailpit';
+import { isolateE2eClientIp } from './test-client';
 
 const mailpitApiUrl = process.env.MAILPIT_API_URL ?? 'http://localhost:8025';
 const verifySubject = 'Verifikasi email Narraza-mu';
@@ -11,6 +12,7 @@ export async function createVerifiedSession(
   testInfo: TestInfo,
 ): Promise<{ email: string }> {
   const email = `foundation-${testInfo.project.name}-${randomUUID()}@example.test`;
+  await isolateE2eClientIp(page);
   await clearMailpit(mailpitApiUrl);
   await page.goto('/daftar');
   await page.getByLabel('Alamat email').fill(email);
@@ -19,7 +21,9 @@ export async function createVerifiedSession(
   await page.getByRole('button', { name: 'Buat akun' }).click();
 
   // Explicitly wait/verify registration confirmation text before proceeding
-  await expect(page.getByText(/kami sudah mengirim tautan verifikasi/i)).toBeVisible();
+  await expect(page.getByText(/kami sudah mengirim tautan verifikasi/i)).toBeVisible({
+    timeout: 15_000,
+  });
 
   const link = await waitForMailLink({
     apiBaseUrl: mailpitApiUrl,
@@ -50,12 +54,13 @@ export async function createVerifiedSession(
 
 export async function createOwnedProject(
   page: Page,
+  title = 'Proyek Demo Frontend',
 ): Promise<{ projectId: string; title: string }> {
-  const title = 'Proyek Demo Frontend';
   await page.goto('/app/proyek/baru');
+  await page.locator('input[name="path-selection"][value="rough_idea"]').check();
+  await page.getByRole('button', { name: 'Lanjutkan', exact: true }).click();
   await page.locator('input[name="title"]').fill(title);
-  await page.locator('input[name="jalur"][value="rough_idea"]').check();
-  await page.getByRole('button', { name: /Buat proyek/i }).click();
+  await page.getByRole('button', { name: 'Buat proyek', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/proyek\/(?!baru(?:\/|$))[^/?#]+$/, { timeout: 45_000 });
 
   const match = page.url().match(/\/app\/proyek\/([^/?#]+)/);

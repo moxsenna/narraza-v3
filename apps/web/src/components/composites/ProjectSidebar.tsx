@@ -59,8 +59,8 @@ export function buildProjectNavigation(projectId: string): readonly ProjectNavig
     {
       label: 'PENULISAN',
       items: [
-        { label: 'Naskah', capabilityKey: 'project.manuscript.view' },
-        { label: 'Tulis', capabilityKey: 'project.write.resume' },
+        { label: 'Naskah', capabilityKey: 'project.manuscript.view', href: `${base}/naskah` },
+        { label: 'Tulis', capabilityKey: 'project.write.resume', href: `${base}/tulis` },
       ],
     },
     {
@@ -69,7 +69,13 @@ export function buildProjectNavigation(projectId: string): readonly ProjectNavig
     },
     {
       label: 'PUBLIKASI',
-      items: [{ label: 'Paket Publish', capabilityKey: 'project.publish.view' }],
+      items: [
+        {
+          label: 'Paket Publish',
+          capabilityKey: 'project.publish.view',
+          href: `${base}/publish`,
+        },
+      ],
     },
     {
       label: 'LAINNYA',

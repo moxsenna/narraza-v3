@@ -1,17 +1,22 @@
 import { expect, test, type Page } from '@playwright/test';
 import { clearMailpit, waitForMailLink } from './mailpit';
+import { createOwnedProject } from './support/auth-session';
+import { isolateE2eClientIp } from './support/test-client';
 
 const mailpitApiUrl = process.env.MAILPIT_API_URL ?? 'http://localhost:8025';
 const verifySubject = 'Verifikasi email Narraza-mu';
 const password = 'Narraza!Task7Fix123';
 
 async function registerAndEnterApp(page: Page, email: string): Promise<void> {
+  await isolateE2eClientIp(page);
   await page.goto('/daftar');
   await page.getByLabel('Alamat email').fill(email);
   await page.getByLabel('Kata sandi', { exact: true }).fill(password);
   await page.getByLabel('Ulangi kata sandi').fill(password);
   await page.getByRole('button', { name: 'Buat akun' }).click();
-  await expect(page.getByText(/kami sudah mengirim tautan verifikasi/i)).toBeVisible();
+  await expect(page.getByText(/kami sudah mengirim tautan verifikasi/i)).toBeVisible({
+    timeout: 15_000,
+  });
 
   const verificationLink = await waitForMailLink({
     apiBaseUrl: mailpitApiUrl,
@@ -21,18 +26,6 @@ async function registerAndEnterApp(page: Page, email: string): Promise<void> {
   await page.goto(verificationLink);
   await page.getByRole('button', { name: 'Verifikasi & masuk' }).click();
   await expect(page).toHaveURL(/\/app$/);
-}
-
-async function createProject(page: Page, title: string): Promise<string> {
-  await page.goto('/app/proyek/baru');
-  await page.locator('input[name="title"]').fill(title);
-  await page.locator('input[name="jalur"][value="rough_idea"]').check();
-  await page.getByRole('button', { name: /Buat proyek/i }).click();
-  await expect(page).toHaveURL(/\/app\/proyek\/(?!baru(?:\/|$))[^/?#]+$/, { timeout: 45_000 });
-
-  const projectId = page.url().match(/\/app\/proyek\/([^/?#]+)/)?.[1];
-  if (!projectId) throw new Error(`project id missing from URL: ${page.url()}`);
-  return projectId;
 }
 
 async function openProjectDrawer(page: Page) {
@@ -59,7 +52,7 @@ test('enabled drawer and sheet navigation closes dialogs for pointer and keyboar
   const stamp = `${testInfo.project.name}-${Date.now()}`;
   await clearMailpit(mailpitApiUrl);
   await registerAndEnterApp(page, `task-7-navigation-${stamp}@example.test`);
-  const projectId = await createProject(page, `Task 7 navigation ${stamp}`);
+  const { projectId } = await createOwnedProject(page, `Task 7 navigation ${stamp}`);
   const projectBase = `/app/proyek/${projectId}`;
 
   await page.setViewportSize({ width: 900, height: 800 });
@@ -77,12 +70,19 @@ test('enabled drawer and sheet navigation closes dialogs for pointer and keyboar
   await expect(pointerDrawer.dialog).not.toBeVisible();
   await expect(pointerDrawer.trigger).toBeFocused();
 
-  const disabledDrawer = await openProjectDrawer(page);
+  const presentationDrawer = await openProjectDrawer(page);
+  await expect(presentationDrawer.dialog.getByRole('link', { name: 'Naskah' })).toHaveAttribute(
+    'href',
+    `${projectBase}/naskah`,
+  );
+  await expect(presentationDrawer.dialog.getByRole('link', { name: 'Tulis' })).toHaveAttribute(
+    'href',
+    `${projectBase}/tulis`,
+  );
   await expect(
-    disabledDrawer.dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Naskah' }),
+    presentationDrawer.dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Cek Cerita' }),
   ).toHaveCount(1);
-  await expect(disabledDrawer.dialog.getByRole('link', { name: 'Naskah' })).toHaveCount(0);
-  await expect(disabledDrawer.dialog).toBeVisible();
+  await expect(presentationDrawer.dialog).toBeVisible();
   await page.getByRole('button', { name: 'Tutup navigasi proyek' }).click();
 
   const modifiedDrawer = await openProjectDrawer(page);
@@ -112,13 +112,26 @@ test('enabled drawer and sheet navigation closes dialogs for pointer and keyboar
   await expect(pointerSheet.dialog).not.toBeVisible();
   await expect(pointerSheet.trigger).toBeFocused();
 
-  const disabledSheet = await openMoreSheet(page);
+  const presentationSheet = await openMoreSheet(page);
+  await expect(presentationSheet.dialog.getByRole('link', { name: 'Naskah' })).toHaveAttribute(
+    'href',
+    `${projectBase}/naskah`,
+  );
   await expect(
-    disabledSheet.dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Naskah' }),
-  ).toHaveCount(1);
-  await expect(disabledSheet.dialog.getByRole('link', { name: 'Naskah' })).toHaveCount(0);
-  await expect(disabledSheet.dialog).toBeVisible();
+    presentationSheet.dialog.getByRole('link', { name: 'Paket Publish' }),
+  ).toHaveAttribute('href', `${projectBase}/publish`);
+  await expect(presentationSheet.dialog).toBeVisible();
   await page.keyboard.press('Escape');
+
+  await expect(page.getByRole('link', { name: 'Tulis', exact: true })).toHaveAttribute(
+    'href',
+    `${projectBase}/tulis`,
+  );
+  await expect(
+    page
+      .locator('nav[aria-label="Navigasi aplikasi mobile"] [aria-disabled="true"]')
+      .filter({ hasText: 'Cek' }),
+  ).toHaveCount(1);
 
   const modifiedSheet = await openMoreSheet(page);
   const sheetPagePromise = page.context().waitForEvent('page');

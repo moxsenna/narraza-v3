@@ -3,8 +3,8 @@
  *
  * Uses application-layer fixture helper matching foundation-preservation pattern
  */
-import { expect, test } from '@playwright/test';
-import { seedPr4ChapterForCurrentUser } from './support/pr4-fixture';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { readPr4SideEffectSnapshot, seedPr4ChapterForCurrentUser } from './support/pr4-fixture';
 
 test.describe.configure({ timeout: 180_000 });
 
@@ -38,6 +38,41 @@ const routeExpectations = [
   },
 ] as const;
 
+const disabledControls = {
+  tulis: ['Lihat bahan', 'Minta perkiraan biaya', 'Bandingkan hasil'],
+  cek: ['Cek cerita sekarang', 'Minta perkiraan biaya'],
+  selesaikan: ['Terapkan & jadikan resmi', 'Buka langkah berikutnya'],
+  naskah: [],
+  publish: ['Salin', 'Salin semua', 'Ekspor paket', 'Buat Paket Publish'],
+} as const;
+
+async function activateNativeDisabledControl(locator: Locator): Promise<void> {
+  await expect(locator).toBeDisabled();
+  await locator.evaluate((element) => {
+    if (!(element instanceof HTMLElement)) throw new Error('control must be an HTMLElement');
+    element.click();
+  });
+  await expect(locator).toBeDisabled();
+}
+
+async function collectMutationRequests(page: Page, action: () => Promise<void>): Promise<string[]> {
+  const requests: string[] = [];
+  const listener = (request: { method(): string; url(): string }) => {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
+      requests.push(`${request.method()} ${request.url()}`);
+    }
+  };
+
+  page.on('request', listener);
+  try {
+    await action();
+    await page.waitForTimeout(100);
+  } finally {
+    page.off('request', listener);
+  }
+  return requests;
+}
+
 test('five chapter routes resolve with valid owner context', async ({ page }, testInfo) => {
   const { projectId, chapterId, projectTitle, chapterTitle } = await seedPr4ChapterForCurrentUser({
     page,
@@ -69,6 +104,49 @@ test('five chapter routes resolve with valid owner context', async ({ page }, te
       expect(body.toLowerCase()).not.toContain(term);
     }
   }
+});
+
+test('disabled presentation controls cause no network or database side effects', async ({
+  page,
+}, testInfo) => {
+  const fixture = await seedPr4ChapterForCurrentUser({
+    page,
+    testInfo,
+    label: 'disabled-side-effects',
+  });
+  const before = await readPr4SideEffectSnapshot(fixture);
+
+  const mutationRequests = await collectMutationRequests(page, async () => {
+    for (const routeExpectation of routeExpectations) {
+      await page.goto(
+        `/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/${routeExpectation.suffix}`,
+      );
+
+      if (routeExpectation.suffix === 'tulis') {
+        await activateNativeDisabledControl(page.locator('textarea[name="prose"]'));
+      }
+
+      for (const name of disabledControls[routeExpectation.suffix]) {
+        const matches = page.getByRole('button', { name, exact: true });
+        const count = await matches.count();
+        expect(count).toBeGreaterThan(0);
+        for (let index = 0; index < count; index += 1) {
+          await activateNativeDisabledControl(matches.nth(index));
+        }
+      }
+
+      if (routeExpectation.suffix === 'naskah') {
+        for (const name of ['Bab sebelumnya', 'Bab berikutnya']) {
+          const unavailableNavigation = page.getByText(name, { exact: true });
+          await expect(unavailableNavigation).toHaveAttribute('aria-disabled', 'true');
+          await expect(unavailableNavigation).not.toHaveAttribute('href');
+        }
+      }
+    }
+  });
+
+  expect(mutationRequests).toEqual([]);
+  await expect.poll(() => readPr4SideEffectSnapshot(fixture)).toEqual(before);
 });
 
 test('no raw IDs or technical jargon visible in chapter routes', async ({ page }, testInfo) => {

@@ -82,6 +82,23 @@ test('global and project shells plus distinct mobile sheet and tablet drawer', a
     await expect(page.getByTestId('project-shell')).toHaveCount(0);
     await expect(page.getByTestId('project-sidebar')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Menu proyek' })).toHaveCount(0);
+
+    if (width === 375) {
+      const trigger = page.getByRole('button', { name: 'Lainnya' });
+      await trigger.click();
+      const dialog = page.getByRole('dialog', { name: 'Lainnya' });
+      await expect(dialog).toBeVisible();
+      await expect(
+        dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Kredit & Penggunaan' }),
+      ).toHaveCount(1);
+      await expect(
+        dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Pengaturan' }),
+      ).toHaveCount(1);
+      await expect(dialog.getByText('Kemampuan ini belum tersedia.')).toHaveCount(2);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    }
+
     await noOverflow(page);
     await shot(page, 'global-shell', width);
   }

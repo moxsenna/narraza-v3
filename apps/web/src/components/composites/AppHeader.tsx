@@ -10,10 +10,10 @@ export function AppHeader({
   logoutAction: () => Promise<void>;
 }) {
   return (
-    <header className="sticky top-0 z-[var(--z-header)] border-b border-default bg-surface">
-      <div className="flex min-h-[68px] items-center gap-3 px-3 sm:px-6">
+    <header className="sticky top-0 z-[var(--z-header)] border-b border-default bg-surface/95 backdrop-blur">
+      <div className="mx-auto flex min-h-[68px] max-w-[1600px] items-center gap-3 px-3 sm:px-6">
         <BrandMark href="/app" />
-        <span className="ml-auto hidden min-h-11 items-center rounded-pill border border-default bg-canvas px-4 text-sm text-secondary sm:inline-flex">
+        <span className="ml-auto hidden min-h-11 items-center rounded-pill border border-default bg-canvas px-4 text-sm font-semibold text-secondary sm:inline-flex">
           Kredit — segera hadir
         </span>
         <span

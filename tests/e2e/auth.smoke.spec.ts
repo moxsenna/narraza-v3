@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { clearMailpit, waitForMailLink } from './mailpit';
+import { isolateE2eClientIp } from './support/test-client';
 
 const mailpitApiUrl = process.env.MAILPIT_API_URL ?? 'http://localhost:8026';
 const verifySubject = 'Verifikasi email Narraza-mu';
@@ -9,6 +10,7 @@ const newPassword = 'Narraza!Changed456';
 
 test('register, verify, login, and reset password with real auth', async ({ page }, testInfo) => {
   const email = `auth-smoke-${testInfo.project.name}-${Date.now()}@example.test`;
+  await isolateE2eClientIp(page);
   await clearMailpit(mailpitApiUrl);
 
   await page.goto('/daftar');

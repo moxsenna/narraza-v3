@@ -44,3 +44,12 @@ Thumbs.db
 
 .worktrees/
 output/
+
+# unlazy completion ledgers (local-only)
+.unlazy/
+
+# local tool artifacts / accident junk (never commit)
+.playwright-cli/
+.playwright-mcp/
+.zcode/
+nul

@@ -212,6 +212,50 @@ describe('M0 W0.5 public shell', () => {
     expect(combined).toContain('Cerita pertamamu belum dimulai');
   });
 
+  test('checkpoint A global pages use semantic colors and expose supported project paths honestly', () => {
+    const dashboard = source('app/app/page.tsx');
+    const createProject = source('app/app/proyek/baru/page.tsx');
+    const mobileMore = source('components/composites/MobileMoreSheet.tsx');
+    const checkpointSources = `${dashboard}\n${createProject}`;
+
+    expect(checkpointSources).not.toMatch(/#[0-9a-f]{3,8}|\b(?:pink|gray|neutral|red)-\d+/i);
+    for (const [value, label] of [
+      ['no_idea', 'Aku belum punya ide'],
+      ['rough_idea', 'Aku punya ide kasar'],
+      ['has_outline', 'Aku sudah punya outline'],
+      ['fix_story', 'Aku ingin memperbaiki cerita'],
+    ] as const) {
+      expect(createProject).toContain(`value: '${value}'`);
+      expect(createProject).toContain(`title: '${label}'`);
+    }
+    expect(createProject).toContain("value: 'has_draft'");
+    expect(createProject).toContain("title: 'Aku sudah punya draft'");
+    expect(createProject).toContain('disabled: true');
+    expect(createProject).toContain('Segera hadir');
+    expect(createProject).toContain('expectedResult:');
+    expect(createProject).toContain("useState<ProjectPath['value'] | null>(null)");
+    expect(createProject).toContain("useState<'path' | 'details'>('path')");
+    expect(createProject).not.toContain('defaultChecked');
+    expect(createProject).toContain('type="button"');
+    expect(createProject).toContain("setStep('details')");
+    expect(createProject).toContain('name="title"');
+    expect(createProject).toContain('name="jalur"');
+    expect(createProject).toMatch(/pending \? 'Membuat…' : 'Buat proyek'/);
+
+    for (const label of ['Aku belum punya ide', 'Aku punya ide kasar', 'Aku sudah punya draft']) {
+      expect(dashboard).toContain(label);
+    }
+    expect(dashboard.match(/href="\/app\/proyek\/baru"/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(dashboard).toContain('Impor draft belum tersedia pada rilis ini.');
+    expect(dashboard).toContain('aria-disabled="true"');
+
+    expect(mobileMore).toContain("context.kind === 'global'");
+    expect(mobileMore).toContain("label: 'Kredit & Penggunaan'");
+    expect(mobileMore).toContain("label: 'Pengaturan'");
+    expect(mobileMore).toContain("capabilityKey: 'app.credit.view'");
+    expect(mobileMore).toContain("capabilityKey: 'app.settings.view'");
+  });
+
   test('legal, not-found, and error pages are branded and safe', () => {
     const privacy = source('app/privasi/page.tsx');
     const terms = source('app/ketentuan/page.tsx');
@@ -222,7 +266,9 @@ describe('M0 W0.5 public shell', () => {
 
     expect(privacy).toContain('APP_MESSAGES_ID.legal.status');
     expect(terms).toContain('APP_MESSAGES_ID.legal.status');
-    expect(catalog).toContain('Draf sementara');
+    expect(catalog).toContain('Versi Rilis 1');
+    expect(catalog).toContain('Siapa yang bisa membaca ceritamu');
+    expect(catalog).toContain('Ceritamu tidak dipakai melatih AI');
     expect(notFound).toContain('<BrandMark');
     expect(combined).toContain('Narraza');
     expect(error).toContain("'use client'");

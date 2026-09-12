@@ -6,6 +6,10 @@ coverage
 pnpm-lock.yaml
 playwright-report
 test-results
+.worktrees
+.playwright-mcp
+.playwright-cli
+.zcode
 **/*.tsbuildinfo
 prisma/migrations
 **/next-env.d.ts
@@ -18,3 +22,6 @@ support.js
 
 # Source-of-truth reference docs — authored by hand, left verbatim
 docs/
+
+# POSIX deploy scripts for the VPS (no prettier parser)
+deploy/*.sh
