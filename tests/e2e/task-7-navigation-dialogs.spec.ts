@@ -113,13 +113,18 @@ test('enabled drawer and sheet navigation closes dialogs for pointer and keyboar
   await expect(pointerSheet.trigger).toBeFocused();
 
   const presentationSheet = await openMoreSheet(page);
-  await expect(presentationSheet.dialog.getByRole('link', { name: 'Naskah' })).toHaveAttribute(
-    'href',
-    `${projectBase}/naskah`,
-  );
+  // Naskah/Paket Publish are presentation-only (no href); credit is live.
   await expect(
-    presentationSheet.dialog.getByRole('link', { name: 'Paket Publish' }),
-  ).toHaveAttribute('href', `${projectBase}/publish`);
+    presentationSheet.dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Naskah' }),
+  ).toHaveCount(1);
+  await expect(
+    presentationSheet.dialog
+      .locator('[aria-disabled="true"]')
+      .filter({ hasText: 'Paket Publish' }),
+  ).toHaveCount(1);
+  await expect(
+    presentationSheet.dialog.getByRole('link', { name: 'Kredit & Penggunaan' }),
+  ).toHaveAttribute('href', '/app/kredit');
   await expect(presentationSheet.dialog).toBeVisible();
   await page.keyboard.press('Escape');
 
