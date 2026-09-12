@@ -88,13 +88,15 @@ test('global and project shells plus distinct mobile sheet and tablet drawer', a
       await trigger.click();
       const dialog = page.getByRole('dialog', { name: 'Lainnya' });
       await expect(dialog).toBeVisible();
-      await expect(
-        dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Kredit & Penggunaan' }),
-      ).toHaveCount(1);
+      // Credit is live (link); settings stays presentation-only (disabled).
+      await expect(dialog.getByRole('link', { name: 'Kredit & Penggunaan' })).toHaveAttribute(
+        'href',
+        '/app/kredit',
+      );
       await expect(
         dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Pengaturan' }),
       ).toHaveCount(1);
-      await expect(dialog.getByText('Kemampuan ini belum tersedia.')).toHaveCount(2);
+      await expect(dialog.getByText('Kemampuan ini belum tersedia.')).toHaveCount(1);
       await page.keyboard.press('Escape');
       await expect(dialog).toBeHidden();
     }
