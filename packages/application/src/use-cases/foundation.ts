@@ -17,6 +17,8 @@ export interface UpdateFoundationDraftInput {
   readonly projectId: string;
   readonly payload: JsonObject;
   readonly expectedRevision: number | null;
+  /** Merge submitted top-level fields into owner-scoped existing projection. */
+  readonly mergeExisting?: boolean;
 }
 
 export interface ConfirmFoundationInput {
@@ -34,6 +36,9 @@ export interface LockFoundationInput {
 export interface FoundationOutput {
   readonly foundation: FoundationRecord;
 }
+
+export type FoundationReadinessKey = coreFoundation.ReadinessKey;
+export type FoundationReadinessResult = coreFoundation.ReadinessResult;
 
 export function createUpdateFoundationDraft(
   uow: UnitOfWork,
@@ -72,12 +77,12 @@ export function createUpdateFoundationDraft(
         }
 
         const expected = input.expectedRevision ?? existing.revision;
+        const payload =
+          input.mergeExisting === true
+            ? mergeFoundationProjection(existing.payload, input.payload)
+            : input.payload;
         // Keep status as-is (draft or confirmed); only payload/revision change.
-        const updated = await ports.foundation.updateDraft(
-          input.projectId,
-          input.payload,
-          expected,
-        );
+        const updated = await ports.foundation.updateDraft(input.projectId, payload, expected);
         if (!updated) {
           throw asDomain(appError('CAS_FAILED', 'msg.foundation.cas_failed', 409));
         }
@@ -200,6 +205,34 @@ export function createLockFoundation(
   };
 }
 
+function mergeFoundationProjection(existing: JsonObject, patch: JsonObject): JsonObject {
+  return mergeJsonObject(existing, patch);
+}
+
+function mergeJsonObject(existing: JsonObject, patch: JsonObject): JsonObject {
+  const merged: Record<string, unknown> = { ...existing };
+  for (const [key, patchValue] of Object.entries(patch)) {
+    merged[key] = mergeJsonValue(existing[key], patchValue);
+  }
+  return merged;
+}
+
+function mergeJsonValue(existing: unknown, patch: unknown): unknown {
+  if (Array.isArray(existing) && Array.isArray(patch)) {
+    return existing
+      .map((value, index) => (index < patch.length ? mergeJsonValue(value, patch[index]) : value))
+      .concat(patch.slice(existing.length));
+  }
+  if (isJsonObject(existing) && isJsonObject(patch)) {
+    return mergeJsonObject(existing, patch);
+  }
+  return patch;
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * Foundation draft payload stores the readiness input fields at the top level
  * (same shape as core FoundationReadinessInput). Core validates exact keys.
@@ -214,6 +247,10 @@ export function toReadinessInput(payload: JsonObject): unknown {
     readerPromise: payload.readerPromise ?? null,
     secrets: Array.isArray(payload.secrets) ? payload.secrets : [],
   };
+}
+
+export function calculateFoundationReadiness(input: unknown): coreFoundation.ReadinessResult {
+  return coreFoundation.calculateFoundationReadiness(input);
 }
 
 class DomainError extends Error {

@@ -33,7 +33,7 @@ export function RegisterForm() {
       />
       <FormError message={state.status === 'error' ? state.message : undefined} />
       <SubmitButton>Buat akun</SubmitButton>
-      <p className="text-center text-sm text-neutral-600">
+      <p className="text-center text-sm text-muted">
         Sudah punya akun?{' '}
         <Link href="/masuk" className="font-semibold text-brand-700 hover:underline">
           Masuk

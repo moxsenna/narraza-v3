@@ -237,16 +237,76 @@ export const APP_MESSAGES_ID = {
     ],
   },
   legal: {
-    status: 'Draf sementara',
+    status: 'Versi Rilis 1 — tinjauan akhir pemilik',
     privacy: {
       title: 'Kebijakan Privasi',
       description:
-        'Halaman ini sedang disiapkan untuk menjelaskan cara Narraza menyimpan, memakai, dan melindungi data pengguna serta cerita.',
+        'Narraza menyimpan akun, proyek, dan ceritamu untuk menjalankan layanan. Halaman ini menjelaskan siapa yang bisa membaca apa, apa yang dikirim ke penyedia AI, dan bagaimana kamu mengekspor atau menghapus datamu.',
+      sections: [
+        {
+          heading: 'Siapa yang bisa membaca ceritamu',
+          body: 'Hanya kamu yang bisa membuka proyek dan ceritamu. Tidak ada galeri publik di Rilis 1. Tim operasional hanya melihat metadata teknis (misalnya status pekerjaan) dan hanya membuka isi cerita bila kamu meminta bantuan dan memberi izin.',
+        },
+        {
+          heading: 'Ceritamu tidak dipakai melatih AI',
+          body: 'Cerita dan datamu tidak dipakai untuk melatih model AI. Proses yang memakai kebenaran cerita hanya dikirim ke model yang menjamin tertulis tanpa pelatihan dan tanpa penyimpanan (kebijakan model D14).',
+        },
+        {
+          heading: 'Apa yang dikirim ke penyedia AI',
+          body: 'Hanya konteks yang diperlukan untuk proses yang kamu jalankan: balasan obrolan memakai sinyal ceritamu; penulisan adegan memakai fondasi, outline, dan arahan yang relevan. Navigasi, autosave, dan pemeriksaan deterministik tidak mengirim apa pun ke penyedia AI.',
+        },
+        {
+          heading: 'Kredit',
+          body: 'Ngobrol dengan Narra dan pemeriksaan deterministik gratis dalam batas wajar (60 balasan per hari). Aksi berbayar selalu menampilkan perkiraan biaya dan meminta konfirmasimu. Bila sebuah proses gagal tanpa hasil yang bisa dipakai, kreditmu tidak dipotong. 1 kredit setara Rp10.',
+        },
+        {
+          heading: 'Ekspor naskah',
+          body: 'Paket Publish dapat kamu salin dan ekspor kapan pun. Naskah yang sudah resmi tetap milikmu sepenuhnya.',
+        },
+        {
+          heading: 'Hapus permanen',
+          body: 'Hapus akun menandai seluruh konten untuk dihapus permanen (tombstone lalu purge). Bukti transaksi (catatan kredit, audit, dan pengiriman) dipertahankan dalam bentuk minimal untuk keamanan dan rekonsiliasi.',
+        },
+        {
+          heading: 'Keamanan akun',
+          body: 'Kata sandi disimpan sebagai hash argon2id dan tidak bisa dibaca siapa pun. Masuk yang berulang kali gagal dikunci sementara. Ganti kata sandi otomatis keluar dari semua perangkat.',
+        },
+      ],
     },
     terms: {
       title: 'Ketentuan Layanan',
       description:
-        'Halaman ini sedang disiapkan untuk menjelaskan aturan penggunaan Narraza, tanggung jawab pengguna, dan batas layanan.',
+        'Aturan penggunaan Narraza: apa yang disediakan layanan, tanggung jawabmu sebagai pengguna, dan batas-batas yang berlaku di Rilis 1.',
+      sections: [
+        {
+          heading: 'Layanan',
+          body: 'Narraza adalah asisten penulisan novel: membantu menyusun ide, fondasi, outline, adegan, pemeriksaan, dan paket publish. Keputusan kreatif selalu milikmu; tidak ada fakta cerita yang menjadi resmi tanpa persetujuanmu.',
+        },
+        {
+          heading: 'Tidak ada jaminan kebenaran',
+          body: 'Narraza membantu menjaga konsistensi, tetapi hasilnya bisa salah. Kamu wajib meninjau usulan, temuan pemeriksaan, dan naskah sebelum menggunakannya.',
+        },
+        {
+          heading: 'Akun',
+          body: 'Kamu bertanggung jawab menjaga kredensialmu. Satu akun untuk satu pengguna. Pelanggaran keamanan yang kamu sadari wajib segera dilaporkan dengan mengganti kata sandi dan keluar dari semua perangkat.',
+        },
+        {
+          heading: 'Kredit',
+          body: 'Perkiraan biaya mengikat selama 10 menit sejak ditampilkan. Konfirmasi eksplisit diperlukan sebelum pekerjaan berbayar dibuat. Pekerjaan yang gagal tanpa hasil yang bisa dipakai tidak memotong kreditmu.',
+        },
+        {
+          heading: 'Konten yang dilarang',
+          body: 'Dilarang memakai Narraza untuk konten yang melanggar hukum, ujaran kebencian, atau upaya mengekstrak data pengguna lain. Pelanggaran dapat berujung pada penangguhan akun setelah peninjauan.',
+        },
+        {
+          heading: 'Batas Rilis 1',
+          body: 'Rilis 1 belum mendukung impor draft dari luar (jalur tersebut berlabel segera hadir), dan balasan AI otomatis mengikuti ketersediaan pekerjaan. Batas wajar 60 balasan obrolan per hari berlaku agar layanan stabil untuk semua.',
+        },
+        {
+          heading: 'Perubahan ketentuan',
+          body: 'Perubahan material akan diumumkan di aplikasi sebelum berlaku. Pemakaian berkelanjutan setelah tanggal berlaku berarti kamu menyetujui versi terbaru.',
+        },
+      ],
     },
   },
   notFound: {

@@ -123,9 +123,9 @@ export async function updateFoundationDraftAction(
   const mainMotivation = formNullable(formData, 'mainCharacterMotivation');
   const mainAddress = formNullable(formData, 'mainCharacterAddress');
   const mainSpeech = formNullable(formData, 'mainCharacterSpeechStyle');
-  const hasMainFields = [mainIdentity, mainGoal, mainMotivation, mainAddress, mainSpeech].some(
-    (v) => v !== null,
-  );
+  const hasMainProjection =
+    mainId.length > 0 ||
+    [mainIdentity, mainGoal, mainMotivation, mainAddress, mainSpeech].some((v) => v !== null);
 
   const otherId = formStr(formData, 'relationshipOtherId');
   const relationshipMainIsFromRaw = formStr(formData, 'relationshipMainIsFrom');
@@ -145,7 +145,7 @@ export async function updateFoundationDraftAction(
   const bc2ChapterId = formNullable(formData, 'secretBreadcrumb2ChapterId');
   const bc2Sequence = formSequence(formData, 'secretBreadcrumb2Sequence');
 
-  const mainCharacter = hasMainFields
+  const mainCharacter = hasMainProjection
     ? {
         id: mainCharacterId,
         active: true,
@@ -158,7 +158,7 @@ export async function updateFoundationDraftAction(
     : null;
 
   const relationships =
-    relDescription !== null && mainId && otherId && relationshipMainIsFrom !== null
+    mainId && otherId && relationshipMainIsFrom !== null
       ? [
           {
             fromCharacterId: relationshipMainIsFrom ? mainId : otherId,
@@ -199,6 +199,7 @@ export async function updateFoundationDraftAction(
     ownerUserId: auth.value.id,
     projectId,
     expectedRevision: Number.isFinite(expectedRevision) ? expectedRevision : null,
+    mergeExisting: true,
     payload: {
       coreConcept,
       conflict,

@@ -46,11 +46,11 @@ export function OutlineForm(props: {
       >
         <input type="hidden" name="projectId" value={props.projectId} />
         <label className="min-w-[12rem] flex-1">
-          <span className="text-sm font-bold">Judul roadmap</span>
+          <span className="text-sm font-bold">Judul Roadmap Cerita</span>
           <input
             name="title"
             type="text"
-            defaultValue="Roadmap utama"
+            defaultValue="Roadmap Cerita Utama"
             className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           />
         </label>
@@ -59,7 +59,7 @@ export function OutlineForm(props: {
           disabled={roadmapPending}
           className="min-h-11 rounded-xl bg-brand-700 px-5 font-bold text-white disabled:opacity-60"
         >
-          {roadmapPending ? '…' : 'Tambah roadmap'}
+          {roadmapPending ? '…' : 'Tambah Roadmap Cerita'}
         </button>
       </form>
 
@@ -69,7 +69,7 @@ export function OutlineForm(props: {
       >
         <input type="hidden" name="projectId" value={props.projectId} />
         <label className="min-w-[10rem]">
-          <span className="text-sm font-bold">Roadmap</span>
+          <span className="text-sm font-bold">Roadmap Cerita</span>
           <select
             name="parentId"
             defaultValue={defaultRoadmap}
@@ -77,27 +77,27 @@ export function OutlineForm(props: {
             className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           >
             {props.roadmaps.length === 0 ? (
-              <option value="">Buat roadmap dulu</option>
+              <option value="">Buat Roadmap Cerita dulu</option>
             ) : (
-              props.roadmaps.map((r) => (
+              props.roadmaps.map((r, index) => (
                 <option key={r.id} value={r.id}>
-                  {r.title || r.id}
+                  {r.title || `Roadmap Cerita ${index + 1}`}
                 </option>
               ))
             )}
           </select>
         </label>
         <label className="min-w-[12rem] flex-1">
-          <span className="text-sm font-bold">Judul arc</span>
+          <span className="text-sm font-bold">Judul Bagian Cerita</span>
           <input
             name="title"
             type="text"
-            defaultValue="Arc 1"
+            defaultValue="Bagian Cerita 1"
             className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           />
         </label>
         <label className="w-24">
-          <span className="text-sm font-bold">Ordinal</span>
+          <span className="text-sm font-bold">Urutan</span>
           <input
             name="ordinal"
             type="number"
@@ -110,7 +110,7 @@ export function OutlineForm(props: {
           disabled={arcPending || props.roadmaps.length === 0}
           className="min-h-11 rounded-xl bg-brand-700 px-5 font-bold text-white disabled:opacity-60"
         >
-          {arcPending ? '…' : 'Tambah arc'}
+          {arcPending ? '…' : 'Tambah Bagian Cerita'}
         </button>
       </form>
 
@@ -120,7 +120,7 @@ export function OutlineForm(props: {
       >
         <input type="hidden" name="projectId" value={props.projectId} />
         <label className="min-w-[10rem]">
-          <span className="text-sm font-bold">Arc</span>
+          <span className="text-sm font-bold">Bagian Cerita</span>
           <select
             name="parentId"
             defaultValue={defaultArc}
@@ -128,11 +128,11 @@ export function OutlineForm(props: {
             className="mt-2 w-full rounded-xl border border-border-default px-3 py-2"
           >
             {props.arcs.length === 0 ? (
-              <option value="">Buat arc dulu</option>
+              <option value="">Buat Bagian Cerita dulu</option>
             ) : (
-              props.arcs.map((a) => (
+              props.arcs.map((a, index) => (
                 <option key={a.id} value={a.id}>
-                  {a.title || a.id}
+                  {a.title || `Bagian Cerita ${index + 1}`}
                 </option>
               ))
             )}
@@ -149,7 +149,7 @@ export function OutlineForm(props: {
           />
         </label>
         <label className="w-24">
-          <span className="text-sm font-bold">No. bab</span>
+          <span className="text-sm font-bold">Urutan bab</span>
           <input
             name="ordinal"
             type="number"

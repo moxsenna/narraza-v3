@@ -67,6 +67,14 @@
   --color-text-muted: var(--color-ink-500);
   --color-border-default: var(--color-line-200);
   --color-border-active: var(--color-brand-300);
+  /* Short aliases per design.md §25 mapping (text-primary, border-default).
+     Tailwind v4 derives the utility name from the full suffix, so without
+     these the short forms compile to nothing. */
+  --color-primary: var(--color-ink-950);
+  --color-secondary: var(--color-ink-700);
+  --color-muted: var(--color-ink-500);
+  --color-default: var(--color-line-200);
+  --color-active: var(--color-brand-300);
   --color-action-primary: var(--color-brand-600);
   --color-action-primary-hover: var(--color-brand-700);
   --color-action-primary-active: var(--color-brand-800);
@@ -107,6 +115,8 @@ body {
   overflow-x: hidden;
   background: var(--color-canvas);
   color: var(--color-text-primary);
+  font-size: 16px;
+  line-height: 1.6;
 }
 :focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);

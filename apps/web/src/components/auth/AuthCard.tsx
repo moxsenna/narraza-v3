@@ -12,19 +12,25 @@ export function AuthCard({
   children: ReactNode;
 }) {
   return (
-    <main className="flex min-h-screen items-center bg-canvas py-12">
-      <Container size="form">
+    <main className="relative flex min-h-screen items-center overflow-hidden bg-canvas py-8 sm:py-12">
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-56 bg-brand-soft/70" />
+      <Container size="form" className="relative">
         <Stack gap={6}>
-          <BrandMark href="/" />
-          <Card className="mx-auto w-full max-w-md">
-            <h1 className="font-serif text-3xl font-bold text-primary">{title}</h1>
+          <div className="mx-auto">
+            <BrandMark href="/" />
+          </div>
+          <Card className="mx-auto w-full max-w-md p-5 shadow-md sm:p-7">
+            <h1 className="text-2xl font-bold text-primary">{title}</h1>
             {subtitle ? (
-              <p className="mt-2 mb-6 text-secondary">{subtitle}</p>
+              <p className="mt-2 mb-6 leading-7 text-secondary">{subtitle}</p>
             ) : (
               <div className="mb-6" />
             )}
             {children}
           </Card>
+          <p className="mx-auto max-w-md text-center text-xs leading-5 text-muted">
+            Ceritamu tetap milikmu. Narraza membantu, kamu yang memutuskan.
+          </p>
         </Stack>
       </Container>
     </main>

@@ -41,7 +41,7 @@ function ProposalCard({ row, projectId }: { row: ProposalCardRow; projectId: str
       data-status={view.status}
     >
       <header className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-bold text-text-secondary">
+        <span className="rounded-full bg-surface-soft px-2.5 py-0.5 text-xs font-bold text-text-secondary">
           {row.sourceLabel}
         </span>
         {view.highRisk && (
@@ -96,7 +96,7 @@ function ProposalCard({ row, projectId }: { row: ProposalCardRow; projectId: str
             <button
               type="submit"
               disabled={acceptPending}
-              className="w-full rounded-xl bg-interactive-primary px-4 py-2.5 text-sm font-bold text-interactive-primary-foreground disabled:opacity-50 sm:w-auto"
+              className="w-full rounded-xl bg-action-primary px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50 sm:w-auto"
               data-testid="accept-proposal"
             >
               Terapkan &amp; jadikan resmi

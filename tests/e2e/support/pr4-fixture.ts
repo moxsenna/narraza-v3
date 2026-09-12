@@ -15,9 +15,24 @@ export type Pr4Fixture = Readonly<{
   chapterTitle: string;
 }>;
 
+export type Pr4SideEffectSnapshot = Readonly<{
+  projectRevision: number;
+  canonicalVersion: number;
+  workingDrafts: number;
+  jobs: number;
+  creditQuotes: number;
+  creditReservations: number;
+  creditLedgerEntries: number;
+  validationReports: number;
+  proposalGroups: number;
+  canonicalChangeSets: number;
+  artifactProposals: number;
+  publishArtifacts: number;
+}>;
+
 const DATABASE_URL = process.env.DATABASE_URL_WEB ?? process.env.DATABASE_URL;
 
-async function completeFoundationSeed(
+export async function completeFoundationSeed(
   prisma: unknown,
   uow: unknown,
   ownerId: string,
@@ -215,4 +230,64 @@ export async function seedPr4ChapterForCurrentUser({
     projectTitle,
     chapterTitle: chapterNode.title,
   };
+}
+
+export async function readPr4SideEffectSnapshot({
+  userId,
+  projectId,
+}: Pick<Pr4Fixture, 'userId' | 'projectId'>): Promise<Pr4SideEffectSnapshot> {
+  if (!DATABASE_URL) {
+    throw new Error('DATABASE_URL or DATABASE_URL_WEB required for PR4 fixture');
+  }
+
+  const db = await import('../../../packages/db/dist/index.js');
+  const prisma = db.createPrismaClient(DATABASE_URL);
+
+  try {
+    const [
+      project,
+      workingDrafts,
+      jobs,
+      creditQuotes,
+      creditReservations,
+      creditLedgerEntries,
+      validationReports,
+      proposalGroups,
+      canonicalChangeSets,
+      artifactProposals,
+      publishArtifacts,
+    ] = await Promise.all([
+      prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+        select: { revision: true, currentCanonicalVersion: true },
+      }),
+      prisma.proseWorkingDraft.count({ where: { projectId, userId } }),
+      prisma.generationJob.count({ where: { projectId } }),
+      prisma.creditQuote.count({ where: { projectId, userId } }),
+      prisma.creditReservation.count({ where: { projectId, userId } }),
+      prisma.creditLedgerEntry.count({ where: { projectId, userId } }),
+      prisma.validationReport.count({ where: { projectId } }),
+      prisma.proposalGroup.count({ where: { projectId } }),
+      prisma.canonicalChangeSet.count({ where: { projectId } }),
+      prisma.artifactProposal.count({ where: { projectId } }),
+      prisma.publishArtifact.count({ where: { projectId } }),
+    ]);
+
+    return {
+      projectRevision: project.revision,
+      canonicalVersion: project.currentCanonicalVersion,
+      workingDrafts,
+      jobs,
+      creditQuotes,
+      creditReservations,
+      creditLedgerEntries,
+      validationReports,
+      proposalGroups,
+      canonicalChangeSets,
+      artifactProposals,
+      publishArtifacts,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
 }

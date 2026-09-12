@@ -54,7 +54,7 @@ export default async function ChapterTulisPage({
               rows={20}
               placeholder="Belum ada naskah yang tersedia."
               disabled
-              className="mt-2 w-full rounded-xl border border-border-default bg-surface-soft p-4 text-base leading-7 text-text-primary placeholder:text-text-muted focus:border-brand-focus focus:outline-none focus:ring-2 focus:ring-brand-focus/20 disabled:cursor-not-allowed disabled:bg-surface-soft disabled:text-text-muted"
+              className="mt-2 w-full rounded-xl border border-border-default bg-surface-soft p-4 text-base leading-7 text-text-primary placeholder:text-text-muted focus:border-active focus:outline-none focus:ring-2 focus:ring-active disabled:cursor-not-allowed disabled:bg-surface-soft disabled:text-text-muted"
             />
           </div>
 

@@ -18,7 +18,7 @@ export function ForgotPasswordForm() {
     <form action={action} className="flex flex-col gap-4">
       <TextField label="Alamat email" name="email" type="email" autoComplete="email" required />
       <SubmitButton>Kirim tautan reset</SubmitButton>
-      <p className="text-center text-sm text-neutral-600">
+      <p className="text-center text-sm text-muted">
         <Link href="/masuk" className="font-semibold text-brand-700 hover:underline">
           Kembali ke masuk
         </Link>

@@ -120,7 +120,7 @@ export default async function M4VerticalHarnessPage({
       </header>
 
       <p
-        className="mb-6 rounded border border-border-default bg-surface-muted p-3 text-sm text-text-secondary"
+        className="mb-6 rounded border border-border-default bg-surface-soft p-3 text-sm text-text-secondary"
         data-testid="m4-error"
       >
         {errorKey ? (ERROR_MESSAGES[errorKey] ?? 'Terjadi kesalahan.') : 'Semua langkah siap.'}

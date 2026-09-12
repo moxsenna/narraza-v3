@@ -21,6 +21,13 @@ describe('PR1 primitive contracts', () => {
       'Container.tsx',
       'VisuallyHidden.tsx',
       'Divider.tsx',
+      'Textarea.tsx',
+      'Skeleton.tsx',
+      'Banner.tsx',
+      'Toast.tsx',
+      'ProgressChecklist.tsx',
+      'Stepper.tsx',
+      'EmptyState.tsx',
     ]) {
       const text = read(file);
       expect(text).not.toContain("'use client'");

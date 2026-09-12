@@ -1,263 +1,249 @@
 /**
- * PR4 IDOR (Insecure Direct Object Reference) Matrix
+ * PR4 IDOR matrix for all chapter workspace routes.
  *
- * Tests all combinations of unauthorized chapter access across five routes
- * Uses browser context isolation for victim/attacker separation
+ * Denied combinations must render the same branded not-found surface without
+ * exposing project, chapter, tenant, or requested identifier details.
  */
 import { randomUUID } from 'node:crypto';
-import { expect, test, type Browser, type TestInfo, type Page } from '@playwright/test';
-import { seedPr4ChapterForCurrentUser } from './support/pr4-fixture';
+import { expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
+import { seedPr4ChapterForCurrentUser, type Pr4Fixture } from './support/pr4-fixture';
 
 test.describe.configure({ timeout: 180_000 });
 
-async function createRandomUuid(): Promise<string> {
-  return randomUUID();
+const chapterRouteSuffixes = ['tulis', 'cek', 'selesaikan', 'naskah', 'publish'] as const;
+const brandedNotFoundCopy = {
+  eyebrow: '404',
+  title: 'Halaman ini tidak ditemukan',
+  description: 'Alamatnya mungkin berubah atau halaman belum tersedia.',
+} as const;
+
+async function expectBrandedNotFound(page: Page, secrets: readonly string[] = []): Promise<string> {
+  await expect(page.getByText(brandedNotFoundCopy.eyebrow, { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(
+    page.getByRole('heading', { level: 1, name: brandedNotFoundCopy.title, exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(brandedNotFoundCopy.description, { exact: true })).toBeVisible();
+
+  const mainText = (await page.locator('main').innerText()).trim();
+  const normalizedText = mainText.toLowerCase();
+  for (const secret of secrets) {
+    expect(normalizedText).not.toContain(secret.toLowerCase());
+  }
+
+  return mainText;
 }
 
-async function expectBrandedNotFound(page: Page): Promise<void> {
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 });
-  const body = (await page.locator('body').innerText()).toLowerCase();
-  expect(body).toMatch(/tidak ditemukan|not found|halaman/i);
-}
-
-// Create victim context that owns Project A + Chapter A
-async function createVictimContext(
+async function createVictimFixture(
   browser: Browser,
   testInfo: TestInfo,
   label: string,
-): Promise<{ projectId: string; chapterId: string; projectTitle: string; chapterTitle: string }> {
-  const victimContext = await browser.newContext();
-  const victimPage = await victimContext.newPage();
+): Promise<Pr4Fixture> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
   try {
-    const result = await seedPr4ChapterForCurrentUser({
-      page: victimPage,
-      testInfo,
-      label,
-    });
-
-    // Close context after successful creation to clean up
-    await victimContext.close();
-
-    return {
-      projectId: result.projectId,
-      chapterId: result.chapterId,
-      projectTitle: result.projectTitle,
-      chapterTitle: result.chapterTitle,
-    };
-  } catch (error) {
-    await victimContext.close();
-    throw error;
+    return await seedPr4ChapterForCurrentUser({ page, testInfo, label });
+  } finally {
+    await context.close();
   }
 }
 
-test.describe('Unauthorized Access Scenarios', () => {
-  test('owner B cannot access owner A project + chapter combination', async ({
+async function assertDeniedAcrossChapterRoutes({
+  page,
+  projectId,
+  chapterId,
+  secrets,
+  expectedNotFound,
+}: {
+  page: Page;
+  projectId: string;
+  chapterId: string;
+  secrets: readonly string[];
+  expectedNotFound?: string;
+}): Promise<string> {
+  let canonicalNotFound = expectedNotFound;
+
+  for (const suffix of chapterRouteSuffixes) {
+    await test.step(`${suffix} denies without leaking context`, async () => {
+      await page.goto(`/app/proyek/${projectId}/bab/${chapterId}/${suffix}`);
+      const notFoundText = await expectBrandedNotFound(page, [...secrets, projectId, chapterId]);
+      canonicalNotFound ??= notFoundText;
+      expect(notFoundText).toBe(canonicalNotFound);
+    });
+  }
+
+  if (!canonicalNotFound) throw new Error('chapter route matrix did not run');
+  return canonicalNotFound;
+}
+
+test.describe('chapter workspace IDOR', () => {
+  test('foreign project and foreign chapter are denied identically across five routes', async ({
     page,
     browser,
   }, testInfo) => {
-    // Create victim (Project A + Chapter A) in isolated context
-    const [projectA] = await Promise.all([createVictimContext(browser, testInfo, 'idor-victim-a')]);
-
-    // Main page is attacker (Project B + Chapter B)
-    const projectB = await seedPr4ChapterForCurrentUser({
+    const victim = await createVictimFixture(browser, testInfo, 'idor-foreign-project-chapter');
+    const attacker = await seedPr4ChapterForCurrentUser({
       page,
       testInfo,
-      label: 'idor-attacker-b',
+      label: 'idor-foreign-project-attacker',
     });
 
-    // Positive control: owner B can access own chapter
-    await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectB.chapterId}/tulis`);
-    const bodyOwn = await page.locator('body').innerText();
-    expect(bodyOwn.toLowerCase()).not.toContain('tidak ditemukan');
-    expect(bodyOwn).toContain(projectB.projectTitle);
-    expect(bodyOwn).toContain(projectB.chapterTitle);
-
-    // CASE 1: Foreign project + foreign chapter → NOT_FOUND
-    await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/tulis`);
-    await expectBrandedNotFound(page);
-    let deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-    expect(deniedBody).not.toContain(projectA.projectId);
-    expect(deniedBody).not.toContain(projectA.chapterId);
-
-    await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/cek`);
-    await expectBrandedNotFound(page);
-    deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-
-    await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/selesaikan`);
-    await expectBrandedNotFound(page);
-    deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-
-    await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/naskah`);
-    await expectBrandedNotFound(page);
-    deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-
-    await page.goto(`/app/proyek/${projectA.projectId}/bab/${projectA.chapterId}/publish`);
-    await expectBrandedNotFound(page);
-    deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.projectTitle.toLowerCase());
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
+    await assertDeniedAcrossChapterRoutes({
+      page,
+      projectId: victim.projectId,
+      chapterId: victim.chapterId,
+      secrets: [
+        victim.projectTitle,
+        victim.chapterTitle,
+        attacker.projectTitle,
+        attacker.chapterTitle,
+      ],
+    });
   });
 
-  test('authenticated owner B cannot access random project + random chapter', async ({
+  test('missing project and random chapter are denied identically across five routes', async ({
     page,
   }, testInfo) => {
-    // CASE 2: Authenticated B attempts completely random project + random chapter → NOT_FOUND
-
-    // First, authenticate as real owner B
-    const projectB = await seedPr4ChapterForCurrentUser({
+    const attacker = await seedPr4ChapterForCurrentUser({
       page,
       testInfo,
-      label: 'idor-random-random-attacker',
+      label: 'idor-missing-project-random-chapter',
     });
 
-    // Generate synthetic random IDs
-    const randomProjectId = await createRandomUuid();
-    const randomChapterId = await createRandomUuid();
-
-    // Test all five routes with random IDs while authenticated as B
-    const routeSuffixes = ['tulis', 'cek', 'selesaikan', 'naskah', 'publish'] as const;
-
-    for (const suffix of routeSuffixes) {
-      const url = `/app/proyek/${randomProjectId}/bab/${randomChapterId}/${suffix}`;
-      await page.goto(url);
-      await expectBrandedNotFound(page);
-
-      const body = (await page.locator('body').innerText()).toLowerCase();
-
-      // Denied body must not expose random IDs
-      expect(body).not.toContain(randomProjectId.toLowerCase());
-      expect(body).not.toContain(randomChapterId.toLowerCase());
-
-      // Crucially: denied body must NOT expose authenticated owner B's context
-      expect(body).not.toContain(projectB.projectTitle.toLowerCase());
-      expect(body).not.toContain(projectB.chapterTitle.toLowerCase());
-    }
+    await assertDeniedAcrossChapterRoutes({
+      page,
+      projectId: randomUUID(),
+      chapterId: randomUUID(),
+      secrets: [attacker.projectTitle, attacker.chapterTitle],
+    });
   });
 
-  test('owned project + ACTUAL foreign chapter fails correctly', async ({
+  test('owned project with foreign or random chapter is denied with identical branding', async ({
     page,
     browser,
   }, testInfo) => {
-    // Create victim A with Project A + Chapter A
-    const projectA = await createVictimContext(browser, testInfo, 'idor-foreign-chapter-victim');
-
-    // Attacker B creates own project + chapter
-    const projectB = await seedPr4ChapterForCurrentUser({
+    const victim = await createVictimFixture(browser, testInfo, 'idor-cross-project-victim');
+    const attacker = await seedPr4ChapterForCurrentUser({
       page,
       testInfo,
       label: 'idor-owned-project-attacker',
     });
 
-    // CASE 3: Owned project (B) + ACTUAL foreign chapter (A, created for owner A) → NOT_FOUND
-    // This is NOT a random chapter; it's a real chapter from a different tenant
-    await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectA.chapterId}/tulis`);
-    await expectBrandedNotFound(page);
-    let deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-    expect(deniedBody).not.toContain(projectA.chapterId);
-
-    await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectA.chapterId}/cek`);
-    await expectBrandedNotFound(page);
-    deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-
-    await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectA.chapterId}/selesaikan`);
-    await expectBrandedNotFound(page);
-    deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-
-    await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectA.chapterId}/naskah`);
-    await expectBrandedNotFound(page);
-    deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-
-    await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectA.chapterId}/publish`);
-    await expectBrandedNotFound(page);
-    deniedBody = (await page.locator('body').innerText()).toLowerCase();
-    expect(deniedBody).not.toContain(projectA.chapterTitle.toLowerCase());
-  });
-
-  test('owned project B cannot access random chapter ID', async ({ page }, testInfo) => {
-    // CASE 4: Owned project (B) + completely random chapter ID → NOT_FOUND
-
-    const projectB = await seedPr4ChapterForCurrentUser({
+    const canonicalNotFound = await assertDeniedAcrossChapterRoutes({
       page,
-      testInfo,
-      label: 'idor-owned-project-random-chapter',
+      projectId: attacker.projectId,
+      chapterId: victim.chapterId,
+      secrets: [
+        victim.projectTitle,
+        victim.chapterTitle,
+        attacker.projectTitle,
+        attacker.chapterTitle,
+      ],
     });
 
-    const randomChapterId = await createRandomUuid();
+    await assertDeniedAcrossChapterRoutes({
+      page,
+      projectId: attacker.projectId,
+      chapterId: randomUUID(),
+      secrets: [
+        victim.projectTitle,
+        victim.chapterTitle,
+        attacker.projectTitle,
+        attacker.chapterTitle,
+      ],
+      expectedNotFound: canonicalNotFound,
+    });
+  });
 
-    const routeSuffixes = ['tulis', 'cek', 'selesaikan', 'naskah', 'publish'] as const;
+  test('foreign or missing project cannot be paired with attacker chapter', async ({
+    page,
+    browser,
+  }, testInfo) => {
+    const victim = await createVictimFixture(browser, testInfo, 'idor-project-boundary-victim');
+    const attacker = await seedPr4ChapterForCurrentUser({
+      page,
+      testInfo,
+      label: 'idor-project-boundary-attacker',
+    });
+    const secrets = [
+      victim.projectTitle,
+      victim.chapterTitle,
+      attacker.projectTitle,
+      attacker.chapterTitle,
+    ];
 
-    for (const suffix of routeSuffixes) {
-      const url = `/app/proyek/${projectB.projectId}/bab/${randomChapterId}/${suffix}`;
-      await page.goto(url);
-      await expectBrandedNotFound(page);
+    const canonicalNotFound = await assertDeniedAcrossChapterRoutes({
+      page,
+      projectId: victim.projectId,
+      chapterId: attacker.chapterId,
+      secrets,
+    });
 
-      const body = (await page.locator('body').innerText()).toLowerCase();
+    await assertDeniedAcrossChapterRoutes({
+      page,
+      projectId: randomUUID(),
+      chapterId: attacker.chapterId,
+      secrets,
+      expectedNotFound: canonicalNotFound,
+    });
+  });
 
-      // Denied body must not expose random chapter ID
-      expect(body).not.toContain(randomChapterId.toLowerCase());
+  test('all denied project/chapter classes share one branded no-leak response', async ({
+    page,
+    browser,
+  }, testInfo) => {
+    const victim = await createVictimFixture(browser, testInfo, 'idor-identical-victim');
+    const attacker = await seedPr4ChapterForCurrentUser({
+      page,
+      testInfo,
+      label: 'idor-identical-attacker',
+    });
+    const missingProjectId = randomUUID();
+    const randomChapterId = randomUUID();
+    const secrets = [
+      victim.projectTitle,
+      victim.chapterTitle,
+      attacker.projectTitle,
+      attacker.chapterTitle,
+      missingProjectId,
+      randomChapterId,
+    ];
+    const deniedPairs = [
+      [victim.projectId, victim.chapterId],
+      [victim.projectId, attacker.chapterId],
+      [missingProjectId, randomChapterId],
+      [missingProjectId, attacker.chapterId],
+      [attacker.projectId, victim.chapterId],
+      [attacker.projectId, randomChapterId],
+    ] as const;
 
-      // Denied body must not expose authenticated owner B's context
-      expect(body).not.toContain(projectB.projectTitle.toLowerCase());
-      expect(body).not.toContain(projectB.chapterTitle.toLowerCase());
+    let canonicalNotFound: string | undefined;
+    for (const [projectId, chapterId] of deniedPairs) {
+      await page.goto(`/app/proyek/${projectId}/bab/${chapterId}/tulis`);
+      const notFoundText = await expectBrandedNotFound(page, secrets);
+      canonicalNotFound ??= notFoundText;
+      expect(notFoundText).toBe(canonicalNotFound);
     }
   });
 
-  test('no data leakage on denied access', async ({ page }, testInfo) => {
-    const projectAVictim = await seedPr4ChapterForCurrentUser({
-      page,
-      testInfo,
-      label: 'idor-no-leak-victim',
-    });
-
-    const randomProjectId = await createRandomUuid();
-    const randomChapterId = await createRandomUuid();
-
-    const route = `/app/proyek/${randomProjectId}/bab/${randomChapterId}/tulis`;
-    await page.goto(route);
-
-    const body = await page.locator('body').innerText();
-
-    // No leaked project/chapter titles
-    expect(body).not.toContain(projectAVictim.projectTitle);
-    expect(body).not.toContain(projectAVictim.chapterTitle);
-
-    // No raw IDs exposed in readable form
-    const uuidPattern = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-    const matches = body.match(uuidPattern) || [];
-    for (const match of matches) {
-      expect(match).not.toContain(projectAVictim.projectId);
-      expect(match).not.toContain(projectAVictim.chapterId);
-    }
-  });
-
-  test('positive control: owner B can access own project + chapter', async ({ page }, testInfo) => {
-    const projectB = await seedPr4ChapterForCurrentUser({
+  test('positive control: owner can access all five chapter workspaces', async ({
+    page,
+  }, testInfo) => {
+    const owner = await seedPr4ChapterForCurrentUser({
       page,
       testInfo,
       label: 'idor-positive-control',
     });
 
-    await page.goto(`/app/proyek/${projectB.projectId}/bab/${projectB.chapterId}/tulis`);
-    const body = await page.locator('body').innerText();
-
-    // Should NOT be NOT_FOUND
-    expect(body.toLowerCase()).not.toContain('tidak ditemukan');
-
-    // Must contain context
-    expect(body).toContain(projectB.projectTitle);
-    expect(body).toContain(projectB.chapterTitle);
+    for (const suffix of chapterRouteSuffixes) {
+      await page.goto(`/app/proyek/${owner.projectId}/bab/${owner.chapterId}/${suffix}`);
+      await expect(page.locator('main')).toContainText(owner.projectTitle);
+      await expect(page.locator('main')).toContainText(owner.chapterTitle);
+      await expect(
+        page.getByRole('heading', { level: 1, name: brandedNotFoundCopy.title, exact: true }),
+      ).toHaveCount(0);
+    }
   });
 });

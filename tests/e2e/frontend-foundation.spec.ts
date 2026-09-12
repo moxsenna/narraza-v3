@@ -82,6 +82,25 @@ test('global and project shells plus distinct mobile sheet and tablet drawer', a
     await expect(page.getByTestId('project-shell')).toHaveCount(0);
     await expect(page.getByTestId('project-sidebar')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Menu proyek' })).toHaveCount(0);
+
+    if (width === 375) {
+      const trigger = page.getByRole('button', { name: 'Lainnya' });
+      await trigger.click();
+      const dialog = page.getByRole('dialog', { name: 'Lainnya' });
+      await expect(dialog).toBeVisible();
+      // Credit is live (link); settings stays presentation-only (disabled).
+      await expect(dialog.getByRole('link', { name: 'Kredit & Penggunaan' })).toHaveAttribute(
+        'href',
+        '/app/kredit',
+      );
+      await expect(
+        dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Pengaturan' }),
+      ).toHaveCount(1);
+      await expect(dialog.getByText('Kemampuan ini belum tersedia.')).toHaveCount(1);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    }
+
     await noOverflow(page);
     await shot(page, 'global-shell', width);
   }

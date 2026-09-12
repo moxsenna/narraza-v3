@@ -52,7 +52,11 @@ export function MobileMoreSheet({
         { label: 'Kredit & Penggunaan', capabilityKey: 'app.credit.view', href: '/app/kredit' },
         { label: 'Pengaturan', capabilityKey: 'app.settings.view' },
       ]
-    : [];
+    : [
+        // Global shell has no project context: keep account routes reachable.
+        { label: 'Kredit & Penggunaan', capabilityKey: 'app.credit.view', href: '/app/kredit' },
+        { label: 'Pengaturan', capabilityKey: 'app.settings.view' },
+      ];
 
   return (
     <BottomSheet

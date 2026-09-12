@@ -449,10 +449,13 @@ export {
   createConfirmFoundation,
   createLockFoundation,
   toReadinessInput,
+  calculateFoundationReadiness,
   type UpdateFoundationDraftInput,
   type ConfirmFoundationInput,
   type LockFoundationInput,
   type FoundationOutput,
+  type FoundationReadinessKey,
+  type FoundationReadinessResult,
 } from './use-cases/foundation.js';
 export {
   createUpsertCharacter,

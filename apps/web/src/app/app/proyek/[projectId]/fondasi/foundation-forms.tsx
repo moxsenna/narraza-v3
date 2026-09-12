@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   confirmFoundationAction,
@@ -51,6 +51,7 @@ export function FoundationForms(props: FoundationFormValues) {
     initial,
   );
   const [lockState, lockAction, lockPending] = useActionState(lockFoundationAction, initial);
+  const [lockAcknowledged, setLockAcknowledged] = useState(false);
 
   useEffect(() => {
     if (draftState.ok || confirmState.ok || lockState.ok) router.refresh();
@@ -226,7 +227,7 @@ export function FoundationForms(props: FoundationFormValues) {
 
         {/* Section Header */}
         <h3 className="text-xs font-extrabold tracking-widest uppercase text-brand-700 pt-2">
-          RAHASIA / JADWAL REVEAL
+          Jadwal Rahasia
         </h3>
 
         <label className="block">
@@ -317,26 +318,31 @@ export function FoundationForms(props: FoundationFormValues) {
 
       {/* Lock Action - High Contrast Warning */}
       {props.status === 'confirmed' ? (
-        <div className="rounded-xl border border-line-200 bg-surface p-6">
+        <form action={lockAction} className="rounded-xl border border-line-200 bg-surface p-6">
           <input type="hidden" name="projectId" value={props.projectId} />
           <p className="text-sm text-ink-700 mb-4">
             Mengunci fondasi membekukan dasar cerita. Perubahan besar diajukan sebagai usulan.
           </p>
 
-          <label className="flex items-center gap-2 text-sm font-semibold mb-4">
-            <input type="checkbox" name="acknowledged" />
+          <label className="flex min-h-11 items-center gap-3 text-sm font-semibold mb-4">
+            <input
+              type="checkbox"
+              name="acknowledged"
+              checked={lockAcknowledged}
+              onChange={(event) => setLockAcknowledged(event.target.checked)}
+              className="size-5"
+            />
             Aku mengerti konsekuensinya
           </label>
 
           <button
             type="submit"
-            formAction={lockAction}
-            disabled={lockPending}
+            disabled={lockPending || !lockAcknowledged}
             className="w-full min-h-11 rounded-xl bg-brand-900 px-5 font-bold text-white disabled:opacity-60 hover:bg-brand-800 transition-colors"
           >
             {lockPending ? '…' : 'Kunci fondasi'}
           </button>
-        </div>
+        </form>
       ) : null}
 
       {/* Error Alert - Semantic Colors */}
