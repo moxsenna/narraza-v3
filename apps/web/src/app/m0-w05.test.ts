@@ -254,7 +254,9 @@ describe('M0 W0.5 public shell', () => {
     expect(dashboard).toContain('aria-disabled="true"');
 
     expect(mobileMore).toMatch(/\? \[\s*$/m);
-    expect(mobileMore).toContain(': []');
+    // Global branch keeps account routes reachable (kredit linked, settings
+    // presentation-only); project branch carries the chapter links.
+    expect(mobileMore).toContain("href: '/app/kredit'");
     expect(mobileMore).toContain("label: 'Kredit & Penggunaan'");
     expect(mobileMore).toContain("label: 'Pengaturan'");
     expect(mobileMore).toContain("capabilityKey: 'app.credit.view'");
