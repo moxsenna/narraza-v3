@@ -118,9 +118,7 @@ test('enabled drawer and sheet navigation closes dialogs for pointer and keyboar
     presentationSheet.dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Naskah' }),
   ).toHaveCount(1);
   await expect(
-    presentationSheet.dialog
-      .locator('[aria-disabled="true"]')
-      .filter({ hasText: 'Paket Publish' }),
+    presentationSheet.dialog.locator('[aria-disabled="true"]').filter({ hasText: 'Paket Publish' }),
   ).toHaveCount(1);
   await expect(
     presentationSheet.dialog.getByRole('link', { name: 'Kredit & Penggunaan' }),
