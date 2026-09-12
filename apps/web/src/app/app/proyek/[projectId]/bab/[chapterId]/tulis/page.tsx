@@ -1,8 +1,5 @@
 import { notFound } from 'next/navigation';
 
-import { CapabilityNotice } from '../../../../../../../components/composites/CapabilityNotice';
-import { Badge, Button, Card } from '../../../../../../../components/primitives';
-import { CAPABILITIES } from '../../../../../../../lib/frontend/capabilities';
 import { resolveChapterContext } from '../../../../../../../lib/server/capability-resolvers/chapter-context';
 
 export const dynamic = 'force-dynamic';
@@ -13,131 +10,86 @@ export default async function ChapterTulisPage({
   params: Promise<{ projectId: string; chapterId: string }>;
 }) {
   const { projectId, chapterId } = await params;
+
   const context = await resolveChapterContext(projectId, chapterId);
   if (context.kind !== 'resolved') notFound();
 
-  const capability = CAPABILITIES['chapter.write.compose'];
-  const chapterLabel =
-    context.chapterOrdinal === null
-      ? context.chapterTitle
-      : `Bab ${context.chapterOrdinal} · ${context.chapterTitle}`;
+  const { projectTitle, chapterTitle, chapterOrdinal } = context;
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
-      <header className="flex flex-col gap-4 border-b border-default pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-extrabold tracking-[0.12em] text-brand-strong">RUANG TULIS</p>
-          <h1 className="mt-2 text-3xl font-bold text-primary sm:text-4xl">{chapterLabel}</h1>
-          <p className="mt-2 text-sm font-semibold text-secondary">{context.projectTitle}</p>
-        </div>
-        <Badge tone="warning">Penulisan belum tersedia</Badge>
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <header className="mb-8 border-b border-border-default pb-4">
+        <p className="text-xs font-extrabold tracking-[0.08em] text-text-muted">BAB</p>
+        <h1 className="mt-2 font-serif text-3xl font-semibold text-text-primary sm:text-4xl">
+          {chapterTitle}
+        </h1>
+        {chapterOrdinal !== null && (
+          <p className="mt-1 text-sm font-medium text-text-secondary">
+            Bagian {chapterOrdinal} dari {projectTitle}
+          </p>
+        )}
       </header>
 
-      <div className="mt-6">
-        <CapabilityNotice
-          notice={{ capabilityKey: capability.key, reasonCode: 'BACKEND_NOT_AVAILABLE' }}
-        />
-      </div>
-
-      <section className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 space-y-5">
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-primary">Peta adegan</h2>
-                <p className="mt-1 text-sm leading-6 text-secondary">
-                  Urutan adegan akan berasal dari rencana bab yang tersedia.
-                </p>
-              </div>
-              <Badge>Belum ada adegan</Badge>
-            </div>
-            <div className="mt-5 grid grid-cols-3 gap-2" aria-label="Peta adegan belum tersedia">
-              {['Pembuka', 'Perubahan', 'Penutup'].map((step) => (
-                <div
-                  key={step}
-                  className="rounded-md border border-default bg-surface-soft px-3 py-4 text-center text-xs font-semibold text-muted"
-                >
-                  {step}
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <h2 className="text-lg font-bold text-primary">Arahan adegan</h2>
-            <p className="mt-2 text-sm leading-6 text-secondary">
-              Tujuan adegan, arah emosi, hal yang harus hadir, dan rahasia yang perlu dijaga akan
-              tampil dari data cerita.
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <section
+            aria-label="Buat adegan"
+            className="rounded-2xl border border-border-default bg-surface p-5 sm:p-6"
+            data-testid="scene-generation-unavailable"
+          >
+            <h2 className="text-base font-bold text-text-primary">Buat adegan</h2>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">
+              Pembuatan adegan otomatis belum dapat dilakukan di sini. Kamu akan bisa memulai proses
+              terjadwal dengan perkiraan biaya ketika fitur ini dirilis.
             </p>
-            <div className="mt-4 rounded-md border border-default bg-surface-soft p-4 text-sm text-muted">
-              Arahan belum tersedia untuk bab ini.
-            </div>
-          </Card>
+          </section>
 
-          <Card className="p-0">
-            <div
-              className="flex min-h-12 flex-wrap items-center gap-2 border-b border-default px-4 py-2 text-xs font-semibold text-muted"
-              aria-label="Alat penyunting tidak tersedia"
-            >
-              <span>Gaya paragraf</span>
-              <span aria-hidden="true">·</span>
-              <span>Tebal</span>
-              <span>Miring</span>
-              <span aria-hidden="true">·</span>
-              <span>Batalkan</span>
-            </div>
-            <div className="p-4 sm:p-6">
-              <label htmlFor="prose-editor" className="block text-sm font-bold text-primary">
-                Ruang menulis
-              </label>
-              <textarea
-                id="prose-editor"
-                name="prose"
-                rows={16}
-                placeholder="Tulisan untuk bab ini belum tersedia."
-                disabled
-                className="mt-3 w-full resize-none rounded-lg border border-default bg-surface-soft p-4 font-serif text-base leading-8 text-primary placeholder:text-muted disabled:cursor-not-allowed"
-              />
-              <p className="mt-3 text-sm leading-6 text-secondary">
-                Penulisan dari halaman ini belum tersedia.
-              </p>
-            </div>
-          </Card>
+          <div className="rounded-2xl border border-border-default bg-surface p-4">
+            <label htmlFor="prose-editor" className="block text-sm font-semibold text-text-primary">
+              Naskah Bab
+            </label>
+            <textarea
+              id="prose-editor"
+              name="prose"
+              rows={20}
+              placeholder="Belum ada naskah yang tersedia."
+              disabled
+              className="mt-2 w-full rounded-xl border border-border-default bg-surface-soft p-4 text-base leading-7 text-text-primary placeholder:text-text-muted focus:border-active focus:outline-none focus:ring-2 focus:ring-active disabled:cursor-not-allowed disabled:bg-surface-soft disabled:text-text-muted"
+            />
+          </div>
+
+          <section className="mt-4" data-testid="capability-notice">
+            <p className="text-sm font-semibold text-text-primary">
+              Penulisan dari halaman ini belum tersedia
+            </p>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">
+              Menulis dan menyunting naskah secara manual belum dapat dilakukan di sini. Pembuatan
+              adegan otomatis juga belum tersedia pada tahap ini.
+            </p>
+          </section>
         </div>
 
-        <aside className="space-y-5">
-          <Card>
-            <h2 className="text-lg font-bold text-primary">Bahan Aman untuk AI</h2>
-            <p className="mt-2 text-sm leading-6 text-secondary">
-              Referensi yang aman akan dirangkum dari karakter, fakta, dan arahan cerita. Isi
-              rahasia tidak dibuat atau ditampilkan tanpa data server.
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-border-default bg-surface p-5">
+            <h2 className="mb-3 text-base font-semibold text-text-primary">Panduan Scene</h2>
+            <p className="text-sm leading-6 text-text-secondary">
+              Panduan scene dan beat belum tersedia untuk bab ini.
             </p>
-            <Button className="mt-5 w-full" variant="secondary" disabled>
-              Lihat bahan
-            </Button>
-          </Card>
-          <Card>
-            <h2 className="text-lg font-bold text-primary">Tulis dengan bantuan Narra</h2>
-            <p className="mt-2 text-sm leading-6 text-secondary">
-              Perkiraan biaya harus berasal dari server sebelum proses dapat dimulai.
+          </div>
+
+          <div className="rounded-2xl border border-border-default bg-surface p-5">
+            <h2 className="mb-3 text-base font-semibold text-text-primary">Material Aman</h2>
+            <p className="text-sm leading-6 text-text-secondary">
+              Referensi karakter, fakta, dan konsep inti ditampilkan di sini.
             </p>
-            <Button className="mt-5 w-full" disabled>
-              Minta perkiraan biaya
-            </Button>
-            <p className="mt-2 text-xs leading-5 text-muted">
-              Tidak ada kredit yang ditahan dan tidak ada proses yang dimulai.
+          </div>
+
+          <div className="rounded-xl border border-border-default bg-status-warning-soft p-4">
+            <p className="text-sm font-semibold text-text-primary">Penulisan bab belum tersedia</p>
+            <p className="mt-1 text-sm leading-6 text-text-secondary">
+              Penulisan dari halaman ini belum tersedia.
             </p>
-          </Card>
-          <Card>
-            <h2 className="text-lg font-bold text-primary">Hasil tulisan</h2>
-            <p className="mt-2 text-sm leading-6 text-secondary">
-              Pilihan hasil, perbandingan, status simpan, dan konflik akan muncul hanya dari proses
-              nyata.
-            </p>
-            <Button className="mt-5 w-full" variant="secondary" disabled>
-              Bandingkan hasil
-            </Button>
-          </Card>
+          </div>
         </aside>
       </section>
     </main>

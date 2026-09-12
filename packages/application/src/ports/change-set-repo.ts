@@ -38,4 +38,9 @@ export interface ChangeSetRepo {
     appliedCanonicalVersion: number,
   ): Promise<CanonicalChangeSetRecord | null>;
   findById(projectId: string, changeSetId: string): Promise<CanonicalChangeSetRecord | null>;
+  /** Operations of one change set in ordinal order (accept reads back persisted ops). */
+  listOperations(
+    projectId: string,
+    changeSetId: string,
+  ): Promise<readonly CanonicalChangeOperationRecord[]>;
 }

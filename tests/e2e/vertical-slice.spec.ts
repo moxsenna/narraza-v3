@@ -35,7 +35,7 @@ test('vertical slice desktop: register to publish-shell with honest states', asy
   const chapterRoutes = [
     ['tulis', 'Penulisan dari halaman ini belum tersedia'],
     ['cek', 'Pemeriksaan otomatis untuk bab ini belum tersedia'],
-    ['selesaikan', 'Status penyelesaian bab belum dapat ditentukan saat ini'],
+    ['selesaikan', 'Belum ada usulan yang menunggu keputusan.'],
     ['naskah', 'Tidak ada naskah yang tersedia'],
     ['publish', 'Paket terbit belum tersedia'],
   ] as const;
@@ -49,6 +49,9 @@ test('vertical slice desktop: register to publish-shell with honest states', asy
   }
 
   body = await collectBody(page, '/app/kredit');
-  expect(body).toContain('Informasi kredit belum tersedia di akunmu saat ini.');
+  await expect(page.getByTestId('credit-summary')).toBeVisible();
+  for (const card of ['credit-available', 'credit-held', 'credit-reconciling']) {
+    await expect(page.getByTestId(card)).toContainText(/\d+/);
+  }
   leak(body, 'kredit');
 });

@@ -25,6 +25,7 @@ test('locks exact approved action policy sets', () => {
     'auth.verification',
     'legal.privacy',
     'legal.terms',
+    'app.credit.view',
   ]);
   expect(keysWithPolicy('SERVER_DERIVED')).toEqual([
     'app.dashboard.view',
@@ -42,7 +43,6 @@ test('locks exact approved action policy sets', () => {
   ]);
   expect(keysWithPolicy('UNAVAILABLE')).toEqual([
     'app.project.import',
-    'app.credit.view',
     'app.settings.view',
     'project.chat.ai-reply',
     'project.concept.choose',

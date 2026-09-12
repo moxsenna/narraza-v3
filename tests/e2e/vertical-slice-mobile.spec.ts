@@ -46,6 +46,7 @@ test('vertical slice mobile: core path with bottom nav', async ({ page }, testIn
   leak(body, 'bab/publish');
 
   body = await collectBody(page, '/app/kredit');
-  expect(body).toContain('Informasi kredit belum tersedia di akunmu saat ini.');
+  await expect(page.getByTestId('credit-summary')).toBeVisible();
+  await expect(page.getByTestId('credit-available')).toContainText(/\d+/);
   leak(body, 'kredit');
 });

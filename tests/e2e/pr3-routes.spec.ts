@@ -146,8 +146,10 @@ test('PR3 routes expose only honest owner-scoped presentation', async ({ page },
 
   await page.goto('/app/kredit');
   await expect(page.getByRole('heading', { level: 1, name: 'Kredit & penggunaan' })).toBeVisible();
-  await expect(page.getByText('Informasi kredit belum tersedia di akunmu saat ini.')).toBeVisible();
-  await expect(page.getByText('Kamu tidak perlu melakukan apa pun untuk sekarang.')).toBeVisible();
+  await expect(page.getByTestId('credit-available')).toContainText('0');
+  await expect(page.getByTestId('credit-held')).toContainText('0');
+  await expect(page.getByTestId('credit-reconciling')).toContainText('0');
+  await expect(page.getByTestId('credit-low-balance')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Kembali ke dashboard' })).toHaveAttribute(
     'href',
     '/app',

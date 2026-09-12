@@ -50,6 +50,9 @@ importers:
       '@narraza/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@narraza/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@narraza/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -161,7 +164,13 @@ importers:
       '@narraza/shared':
         specifier: workspace:*
         version: link:../shared
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
+      '@types/node':
+        specifier: 26.1.1
+        version: 26.1.1
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.1.1)(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
@@ -188,6 +197,9 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      '@types/node':
+        specifier: 26.1.1
+        version: 26.1.1
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.1.1)(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
@@ -216,6 +228,9 @@ importers:
         specifier: 8.22.0
         version: 8.22.0
     devDependencies:
+      '@narraza/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@testcontainers/postgresql':
         specifier: 12.0.4
         version: 12.0.4
@@ -237,6 +252,9 @@ importers:
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.1.1)(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   packages/shared:
     dependencies:

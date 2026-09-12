@@ -202,4 +202,43 @@ export interface ProposalRecord {
   readonly source: string;
   readonly status: string;
   readonly changeSetId: string | null;
+  readonly operationsHash: string;
+  readonly dependencyHash: string;
+  readonly revalidatedFromProposalId: string | null;
+  readonly validationReportId: string | null;
+}
+
+export interface CreditQuoteRecord {
+  readonly id: string;
+  readonly userId: string;
+  readonly projectId: string;
+  readonly workflowPlanProjectId: string | null;
+  readonly workflowPlanId: string | null;
+  readonly workflowPlanHash: string;
+  readonly dependencyHash: string;
+  readonly maxAmountMicroIdr: bigint;
+  readonly expiresAt: Date;
+  readonly consumedAt: Date | null;
+  readonly requestId: string | null;
+  readonly createdAt: Date;
+}
+
+export interface CreditReservationRecord {
+  readonly id: string;
+  readonly userId: string;
+  readonly projectId: string;
+  readonly jobId: string | null;
+  readonly projectJobId: string | null;
+  readonly status: 'open' | 'closing' | 'settled' | 'released' | 'cancelled' | 'expired';
+  readonly fundingModel: 'user_paid' | 'system_funded' | null;
+  readonly reservedMicroIdr: bigint;
+  readonly settledMicroIdr: bigint;
+  readonly releasedMicroIdr: bigint;
+  readonly exposureMicroIdr: bigint;
+  readonly closingAt: Date | null;
+  readonly quoteId: string | null;
+  readonly confirmationRequestId: string | null;
+  readonly schemaVersion: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
 }

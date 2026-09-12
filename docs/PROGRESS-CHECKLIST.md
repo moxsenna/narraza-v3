@@ -17,9 +17,9 @@ started early.
 | M0  | Repo, scaffold, auth, shell, CI            | ✅ **done** (merged `master`, 8 CI checks green, branch protection on)                                               |
 | M1  | Domain core & critical schema              | 🔄 W1.1–W1.5 merged to `master` (PR #1–#5); exit gate M1 still open (S3/S7 unit coverage + migration drift re-check) |
 | M2  | Ports, UnitOfWork, user-origin flow        | ✅ **done** (PR #6 merged; latest-head CI run 30166400617, 8/8 green)                                                |
-| M3  | Jobs, worker, outbox, credit               | 🔄 W3.1 done; next W3.2                                                                                              |
-| M4  | AI layer (mock + real adapters)            | ⬜ not started                                                                                                       |
-| M5  | Proposal accept, working draft, validation | ⬜ not started                                                                                                       |
+| M3  | Jobs, worker, outbox, credit               | ✅ **done** (PR #20 merged as `84f5e82` into `master`, 8/8 CI)                                                        |
+| M4  | AI layer (mock + real adapters)            | 🔄 backend + dev/mock exit-gate UI complete on `feat/m4-ai-foundation` (Draft PR); production AI activation stays deferred (D14 mock-only; owner sign-off RECEIVED, APPROVED FOR M4) |
+| M5  | Proposal accept, working draft, validation | 🟦 candidate — W5.1–W5.5 code-complete on `feat/m5-proposal-validation`, certification gates running (Draft PR pending) |
 | M6  | Full UI, design system, a11y, e2e          | ⬜ not started                                                                                                       |
 | M7  | Staging hardening                          | ⬜ not started                                                                                                       |
 | M8  | Production deploy & launch                 | ⬜ not started                                                                                                       |
@@ -127,86 +127,92 @@ started early.
   - [x] Invocation per stage key; attempts; CAS winner; late attempt records usage, not winner
   - [x] Three-phase harness (Tx create attempt → external mock → Tx finalize+settle → CPU validate → Tx C fenced publish)
   - [x] Tests: `invocation-winner`, `late-attempt`, `tombstone-mid-attempt`
-- [ ] **W3.3 Credit engine (S2.6 + D4 + D6)** _(Fable)_
-  - [ ] Ledger append-only + dedupe; reservations + closing; `safeRelease ≥ 0`; exposure exceeded → ops incident
-  - [ ] `issueCreditQuote` bound to workflowPlanHash+dependencyHash+maxMicroIdr+expiry(10m); consume once
-  - [ ] Confirm: revalidate owner/quote/hash/balance → jobId + reserve → enqueue (idempotent by requestId)
-  - [ ] Zero-charge: no-usable-output → full release; provider cost → system via AIUsageEvent
-  - [ ] Display conversion (D6): `microIdrToCredits` floor/ceil; `CreditSummaryView {available, held, reconciling}`
-  - [ ] Retention sweeper (unused quote/bundle, D12)
-  - [ ] Tests: `credit-quote`, `reservation-exposure`, `failed-job-zero-charge`, `credit-rounding`
-- [ ] **W3.4 Outbox** _(Fable)_
-  - [ ] OutboxEvent + receipts (processing/completed/uncertain/dead + deliveryGeneration); consumer module in worker (D11); idempotent handler; dead replay = new generation, same dedupeKey
-  - [ ] Tests: `outbox-idempotent`, `outbox-uncertain-delivery`, `outbox-replay-generation`
-- [ ] **W3.5 UI mechanics** _(Opus)_
-  - [ ] `CreditQuoteCard` generic (all paid actions, D4)
-  - [ ] `JobPhasePanel` (public phases, cancel, no %) + polling (D12) + recovery banner + JOB_ALREADY_ACTIVE
-  - [ ] Credit page (normal/low) + header chip from same `CreditSummaryView`
-  - [ ] Early e2e: `job-recovery` (mock job), `credit-summary`
+- [x] **W3.3 Credit engine (S2.6 + D4 + D6)** _(Fable)_ — Tasks 8–14 CLOSED; external PM final review PASS (2026-08-26, head `3e047f8`, PR #18 CI 8/8); W3.3 approved for merge
+  - [x] Ledger append-only + dedupe; reservations + closing; `safeRelease ≥ 0`; exposure exceeded → ops incident
+  - [x] `issueCreditQuote` bound to workflowPlanHash+dependencyHash+maxMicroIdr+expiry(10m); consume once
+  - [x] Confirm: revalidate owner/quote/hash/balance → jobId + reserve → enqueue (idempotent by requestId)
+  - [x] Zero-charge: no-usable-output → full release; provider cost → system via AIUsageEvent
+  - [x] Display conversion (D6): `microIdrToCredits` floor/ceil; `CreditSummaryView {available, held, reconciling}`
+  - [x] Retention sweeper (unused quote/bundle, D12): hourly bounded sweep, age > 24h strict DB clock, `FOR UPDATE SKIP LOCKED`, evidence rows never deleted; production retention-vs-confirmation race certified (`credit-retention-confirmation-race`)
+  - [x] Missing-reservation funding incidents: nonlegacy terminal jobs fail closed with durable typed incident `credit.job_missing_reservation` (dedupe `incident:job-missing-reservation:{jobId}`); `pre_d4_legacy` exempt
+  - [x] Tests: `credit-quote`, `reservation-exposure`, `failed-job-zero-charge`, `credit-rounding`, `ledger-reconciliation`, `usable-output-settlement`, `credit-retention` (20 cases), `missing-reservation-incident` (9 cases)
+  - Note (PM ratification recorded at Batch B): Task 12 retention maintenance wiring in worker-gen is approved. "Worker source diff empty" means no additional unauthorized worker behavior and no AI processor activation — not deletion of the approved retention wiring. Processor remains disabled (`JOB_PROCESSOR_ENABLED=false` gates claim/polling only; reclaim and retention stay active). D11/D12 semantics unchanged.
+- [x] **W3.4 Outbox** _(Fable)_ — CLOSED: external PM approved (final corrective head `0ef7fec`); merged into `master` as `b10475d2` via PR #19 with 8/8 CI
+  - [x] OutboxEvent + receipts (processing/completed/uncertain/dead + deliveryGeneration); consumer module in worker (D11); idempotent handler; dead replay = new generation, same dedupeKey
+  - [x] Tests: `outbox-idempotent`, `outbox-uncertain-delivery`, `outbox-replay-generation`
+- [x] **W3.5 UI mechanics** _(Opus)_ — corrective wave per PM final review implemented on `feat/m3-w3.5` (base `b10475d2`); full local gate regression green (see verification-matrix W3.5 corrected-architecture section); external PM final re-review PASSED on head `a2a7530` and merge authorized via PR #20 (merge commit)
+  - [x] `CreditQuoteCard` generic (all paid actions, D4) — real `issueCreditQuote` bound to plan/dependency hashes; expiry/insufficient/error states honest
+  - [x] `JobPhasePanel` (public phases, cancel, no %) + polling (D12: 2.5s ×1.5 → 10s) + recovery banner + JOB_ALREADY_ACTIVE fail-closed (`ambiguous`)
+  - [x] Credit page (normal/low) + header chip from same `CreditSummaryView` (single D6 conversion in application layer; `toCreditSummaryDisplay` never re-converts)
+  - [x] Capability truthfulness (PM blocker fixed): production `/tulis` renders the honest unavailable state and no quote/reservation/job can be created from the placeholder plan path; `chapter.write.compose` stays PRESENTATION until M4 owns real generation; the M3 mock vertical moved behind the fail-closed generation harness (preview tree) with the same production W3.5 components + real services; quote/confirm/cancel server actions re-derive the harness decision server-side
+  - [x] Confirmation exact replay (PM major fixed): reservation/job ids derive deterministically from the server-issued quote id (namespaced SHA-1 UUIDv5); repeated/concurrent confirm converges to `exact_replay` with one reservation and one job (web unit 8, PG integration replay/concurrency suite, real double-confirm E2E); Task 6 untouched
+  - [x] Terminal recovery per chapter (PM major fixed): `findLatestTerminalByProject` applies payload scope before ordering/limit (`payload @>` filter); PG regression proves older-A/newer-B lookup correctness; multi-chapter E2E proves A's truthful outcome survives B's newer completion
+  - [x] E2E: `job-recovery` (incl. real replay + multi-chapter), `credit-summary`, `m3-cancel-zero-charge` (queued cancel, failed zero-charge, confirm tampering) — green on desktop and mobile
+  - [x] Auth cleanup: app shell keeps exactly one `getCurrentUser()`; the header chip loads via `getCreditSummaryViewForUser(user.userId)`
 - **Exit gate M3**
-  - [ ] Mock job end-to-end from UI: quote → confirm → phases → success/fail → credit consistent; refresh mid → recover
-  - [ ] All S8 + credit matrix tests green
-  - [ ] `kill -9` worker mid-job → correct reclaim, no double publish (manual + fence test)
+  - [x] Mock job end-to-end from UI (fail-closed harness, production components + real services): quote → confirm → phases → success/fail → credit consistent; refresh mid → recover (`tests/e2e/job-recovery.spec.ts`, `tests/e2e/credit-summary.spec.ts`, `tests/e2e/m3-cancel-zero-charge.spec.ts`; desktop+mobile green)
+  - [x] All S8 + credit matrix tests green — packages unit 38 shared + 670 core + 281 application; DB integration (PostgreSQL 16, serial, incl. replay + terminal-lookup regression); web unit+contract 98; worker-gen 36
+  - [x] `kill -9` worker mid-job → correct reclaim, no double publish (local evidence: `node tests/evidence/process-crash-reclaim.mjs` → 13/13 PASS: SIGKILL via cross-platform Node child-process API, lease expiry → reclaim sweep → fence 1→3 → stale fence publish rejected (`lost`) → new worker fenced publish exactly once → reservation released zero-charge → ledger book conserved; Windows `taskkill` not required, not CI-wired per PM constraint)
 
 ---
 
 ## M4 — AI layer (mock + real adapters)
 
-- [ ] **W4.1 Port & mock provider** _(Opus, after pattern)_
-  - [ ] `buildWorkflowPlan`, `executeSingleAttempt`, `parseOutput`, `classifyError`, `decideNextAction`
-  - [ ] Mock provider deterministic per fixture + fault injection; `AI_ENABLE_MOCK` non-prod only
-- [ ] **W4.2 Routing & pricing** _(Opus)_
-  - [ ] RoutingPlan per stage + execution profiles; tier→profile; worst-case budget → quote basis
-  - [ ] `ModelPriceSnapshot` immutable + seeding; ceil estimates; requested vs resolved model ID
-  - [ ] Tests: `request-beat-snapshot`, `credit-quote-plan-binding` (full)
-- [ ] **W4.3 Prompt projectors + parsing (D13)** _(Fable for 1st pattern + injection wrapping; Opus for rest)_
-  - [ ] Typed projector per contract (intake-reply, concept×3, foundation-fill, character-build, outline-10, beat-write, judge, repair, extraction, publish-package)
-  - [ ] Explicit version + content hash; delimiter-wrap user content; zod `.strict()`; parse-repair path
-  - [ ] Judge → publicMessageCode (+internalRationale restricted)
-  - [ ] Tests: contract fixtures per projector, `proposal-operation-hash`, `prompt-injection-guard`
-- [ ] **W4.4 Model policy (D14)** _(Fable — security/governance decision)_
-  - [ ] `packages/ai/model-policy.ts` + `docs/model-policy.md`; restricted packet → allowlist only, else config error
-  - [ ] Test: `model-policy-allowlist`
-  - [ ] **Gate:** final no-training/no-retention provider list reviewed & signed by owner
-- [ ] **W4.5 Real adapters** _(Opus)_ — OpenRouter + Gemini (normalized errors, timeout, usage); env-gated; first used staging M7
-- [ ] **W4.6 Wire product workflows** _(Opus)_
-  - [ ] Intake reply (free fair-use D4, no card); signal extraction → sufficiency indicator
-  - [ ] Concept-gen (3) → pick → foundation draft (`concept-accept` full)
-  - [ ] Foundation-fill, character-build, outline-10 → proposals (Accept/Edit/Reject), not direct canon
-  - [ ] Beat-write: writer→judge in one plan; 1–3 candidates → GeneratedCandidate
-  - [ ] Repair: sanitized directives → new version+proposal; full re-extraction
-  - [ ] Publish-package → ArtifactProposal
-  - [ ] Integration tests per workflow (success, parse-fail→repair, total-fail→zero-charge)
+- [x] **W4.1 Port & mock provider** _(Opus, after pattern)_
+  - [x] `buildWorkflowPlan`, `executeSingleAttempt`, `parseOutput`, `classifyError`, `decideNextAction`
+  - [x] Mock provider deterministic per fixture + fault injection; `AI_ENABLE_MOCK` non-prod only
+- [x] **W4.2 Routing & pricing** _(Opus)_
+  - [x] RoutingPlan per stage + execution profiles; tier→profile; worst-case budget → quote basis
+  - [x] `ModelPriceSnapshot` immutable + seeding; ceil estimates; requested vs resolved model ID
+  - [x] Tests: `request-beat-snapshot`, `credit-quote-plan-binding` (full, expectations aligned to the five-stage frozen catalogue)
+- [x] **W4.3 Prompt projectors + parsing (D13)** _(Fable for 1st pattern + injection wrapping; Opus for rest)_
+  - [x] Typed projector per contract (intake-reply, concept×3, foundation-fill, character-build, outline-10, beat-write, judge, repair, extraction, publish-package)
+  - [x] Explicit version + content hash; delimiter-wrap user content; zod `.strict()`; parse-repair path
+  - [x] Judge → publicMessageCode (+internalRationale restricted)
+  - [x] Tests: contract fixtures per projector, `proposal-operation-hash`, `prompt-injection-guard`
+- [x] **W4.4 Model policy (D14)** _(Fable — security/governance decision)_
+  - [x] `packages/ai/model-policy.ts` + `docs/model-policy.md`; restricted packet → allowlist only, else config error; worker startup refuses restricted-unroutable processors (`assertRestrictedRoutingServiceable`)
+  - [x] Test: `model-policy-allowlist`
+  - [x] **Gate:** final no-training/no-retention provider list reviewed & signed by owner (`OWNER_D14_APPROVED`) — `restricted_allowed` for M4 is the deterministic in-process mock only; OpenRouter and Gemini remain NOT approved for restricted context; any future real-provider entry requires a new written no-training/no-retention review; first real-provider use remains staging M7
+- [x] **W4.5 Real adapters** _(Opus)_ — OpenRouter + Gemini (normalized errors, timeout, usage, frozen input ceiling); env-gated; code present, first real use staging M7
+- [x] **W4.6 Wire product workflows** _(Opus)_ — backend complete (system-funded intake, worker processor, fenced Tx C projection); production AI activation stays fail-closed/PRESENTATION; the M4 exit-gate dev/mock UI is delivered (see exit row)
+  - [x] Intake reply (free fair-use D4 60/day, no card, `rate_limit_counters` zero-new-table); sufficiency indicator = UI, delivered in the dev/mock harness
+  - [x] Concept-gen (3) → pick → foundation draft (`concept-accept` full)
+  - [x] Foundation-fill, character-build, outline-10 → proposals (Accept/Edit/Reject), not direct canon
+  - [x] Beat-write: writer→judge in one plan; judge repair path; candidates → GeneratedCandidate
+  - [x] Repair: sanitized directives → new version+proposal; full re-extraction
+  - [x] Publish-package → ArtifactProposal
+  - [x] Integration tests per workflow (success, parse-fail→repair, total-fail→zero-charge, cancel, orphan recovery, stale fence) — `m4-actual-worker-certification`
 - **Exit gate M4**
-  - [ ] From UI (dev, mock): chat reply; 3 concepts; foundation filled; outline 10; scene with 1–3 candidates; repair; publish package
-  - [ ] `command-no-ai`, `model-policy-allowlist`, `prompt-injection-guard`, parse contracts — green
-  - [ ] Model policy doc approved
+  - [x] From UI (dev, mock): chat reply; 3 concepts; concept pick → foundation draft; foundation proposal; outline 10; scene 1–3 candidates; repair; publish package proposal — delivered as the dev/mock exit-gate harness `/app/_preview/m4-vertical/[projectId]` (`m4-dev-mock-vertical` E2E): REAL M4 services, REAL worker processor, deterministic mock, real PostgreSQL; fail-closed outside dev/test (auth + ownership + environment policy), no direct DB writes from web, no browser-supplied provider/model ids, `publish_package` observes an `ArtifactProposal`. Production `/tulis` stays PRESENTATION and the production mock stays forbidden (D14) — production activation is NOT part of this row.
+  - [x] `command-no-ai`, `model-policy-allowlist`, `prompt-injection-guard`, parse contracts — green
+  - [x] Model policy doc approved — APPROVED FOR M4, owner sign-off received (`OWNER_D14_APPROVED`; see `docs/model-policy.md`)
 
 ---
 
 ## M5 — Proposal accept, working draft, validation binding
 
-- [ ] **W5.1 Working draft & versions** _(Opus, CAS pattern from M2/M3)_
-  - [ ] `ProseWorkingDraft` per (user, beat) unique; autosave CAS revision; conflict → DTO
-  - [ ] Snapshot → immutable `ProseVersion` (revision + content hash); pick candidate = seed draft
-  - [ ] Test: `working-draft`
-- [ ] **W5.2 Validation & repair binding** _(Fable/Opus)_
-  - [ ] `ValidationReport` bound (proseVersionId, proseContentHash, policyVersion); deterministic validator + AI judge (merge-findings)
-  - [ ] Edit draft → hash change → report stale (`validation-hash`)
-  - [ ] Override only server-allowlisted findings + reason (`override-allowlist`)
-  - [ ] Safe Repair orchestration: stop conditions, before/after, result = new ProseVersion + Proposal, never auto-accept
-- [ ] **W5.3 Full atomic accept (S4.4)** _(Fable, no compromise)_
-  - [ ] Lock proposal+group+project → ownership → status guard → stale decision → supersede pre-check → eligibility → CAS ops → bump revisions → canon +1 once → accept + supersede siblings → audit/outbox
-  - [ ] CAS fail → new tx conditional `WHERE status='pending'` → stale
-  - [ ] User-edited prose → Proposal `source=user` + re-extraction
-  - [ ] Publish artifact accept without canon bump
-  - [ ] Tests: `accept-proposal`, `accept-cas-stale`, `accept-supersede`, `proposal-unrelated-version-bump`, `user-proposal`, `publish-artifact`, `prose-accept-order` (integration), `proposal-dto` (contract)
-- [ ] **W5.4 Close Chapter & PublicProposalView** _(Opus)_
-  - [ ] Read model sanitized diff + server-derived `availableActions`; high-risk → second confirm
-  - [ ] "Terapkan & jadikan resmi" = accept chapter change set
-- [ ] **W5.5 Final progress reducer + intake sufficiency** _(Opus)_
-  - [ ] Reducer covers all stages to publish; nextAction per page; sidebar badges
-  - [ ] Deterministic intake sufficiency → CTA "Susun 3 Konsep"
+- [x] **W5.1 Working draft & versions** _(Opus, CAS pattern from M2/M3)_ — `45fbf43`
+  - [x] `ProseWorkingDraft` per (user, beat) unique; autosave CAS revision; conflict → DTO
+  - [x] Snapshot → immutable `ProseVersion` (revision + content hash); pick candidate = seed draft
+  - [x] Test: `working-draft`
+- [x] **W5.2 Validation & repair binding** _(Fable/Opus)_ — `3c2820b`
+  - [x] `ValidationReport` bound (proseVersionId, proseContentHash, policyVersion); deterministic validator (merge-findings; judge path policy-gated, M5 deterministic-only)
+  - [x] Edit draft → hash change → report stale (`validation-hash`)
+  - [x] Override only server-allowlisted findings + reason (`override-allowlist`; initial allowlist EMPTY, default deny)
+  - [x] Safe Repair orchestration: stop conditions, before/after, result = new ProseVersion + Proposal, never auto-accept
+- [x] **W5.3 Full atomic accept (S4.4)** _(Fable, no compromise)_ — `7c05442`
+  - [x] Lock project owner-first → proposal+group guards → dependency staleness (needs_revalidation) → CAS base → persisted-ops hash re-verification → sole last `prose.accept` → apply via write door → canon +1 once → accept + supersede siblings same tx → audit/outbox
+  - [x] CAS fail → new tx conditional `WHERE status='pending'` → stale (`createMarkStaleProposal`)
+  - [x] User-edited prose → Proposal `source=user` with server-owned hashes
+  - [x] Publish artifact accept without canon bump (`createPublishArtifact`; prose must be beat-accepted)
+  - [x] Tests: `accept-proposal`, `accept-cas-stale`, `accept-supersede`, `proposal-unrelated-version-bump`, `user-proposal`, `proposal-operation-hash`, `publish-artifact`, `proposal-view` (integration), `prose-accept-order` (core unit), `proposal-dto` (web contract)
+- [x] **W5.4 Close Chapter & PublicProposalView** _(Opus)_ — `421d74a`
+  - [x] Read model sanitized projection (`toPublicProposalView`: static labels, no raw ops/payloads/hashes) + server-derived `availableActions`; high-risk → server-enforced confirm phrase
+  - [x] "Terapkan & jadikan resmi" = accept change set (Tutup Bab page + proposal actions)
+- [x] **W5.5 Final progress reducer + intake sufficiency** _(Opus)_ — `f0ad645`
+  - [x] Reducer covers all stages to publish (intake→foundation→planning→writing→review→publish); nextAction per page; sidebar badges
+  - [x] Deterministic intake sufficiency from persisted signal_count → CTA "Susun 3 Konsep"
 - **Exit gate M5**
   - [ ] Full mock flow: intake → concept → foundation lock → outline → write → check → repair → accept → manuscript → publish — from UI, no manual DB
   - [ ] All S2/S4/S7/S9 invariants (proposal/canon/draft/validation) green

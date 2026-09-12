@@ -25,8 +25,10 @@ const routeExpectations = [
     unavailableText: 'Pemeriksaan otomatis untuk bab ini belum tersedia',
   },
   {
+    // W5.4: selesaikan is the functional Tutup Bab view; with no pending
+    // proposals it renders its honest empty state.
     suffix: 'selesaikan',
-    unavailableText: 'Status penyelesaian bab belum dapat ditentukan saat ini',
+    unavailableText: 'Belum ada usulan yang menunggu keputusan',
   },
   {
     suffix: 'naskah',
@@ -39,9 +41,12 @@ const routeExpectations = [
 ] as const;
 
 const disabledControls = {
-  tulis: ['Lihat bahan', 'Minta perkiraan biaya', 'Bandingkan hasil'],
+  // tulis exposes only a disabled editor (handled separately below).
+  tulis: [] as const,
   cek: ['Cek cerita sekarang', 'Minta perkiraan biaya'],
-  selesaikan: ['Terapkan & jadikan resmi', 'Buka langkah berikutnya'],
+  // selesaikan renders the real M5 proposal list; with zero proposals there
+  // are no decision buttons (asserted via proposals-empty below).
+  selesaikan: [] as const,
   naskah: [],
   publish: ['Salin', 'Salin semua', 'Ekspor paket', 'Buat Paket Publish'],
 } as const;
@@ -124,6 +129,10 @@ test('disabled presentation controls cause no network or database side effects',
 
       if (routeExpectation.suffix === 'tulis') {
         await activateNativeDisabledControl(page.locator('textarea[name="prose"]'));
+      }
+
+      if (routeExpectation.suffix === 'selesaikan') {
+        await expect(page.getByTestId('proposals-empty')).toBeVisible();
       }
 
       for (const name of disabledControls[routeExpectation.suffix]) {

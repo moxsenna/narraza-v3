@@ -564,7 +564,7 @@ model ProseVersion {
   beat                   Beat                 @relation("BeatProseVersions", fields: [projectId, beatId], references: [projectId, id], onDelete: Cascade)
   acceptedByBeat         Beat?                @relation("AcceptedProse")
   disclosures            FactDisclosure[]
-  evidence               ProseEvidence[]        @relation("ProseEvidenceContentHash")
+  evidence               ProseEvidence[]      @relation("ProseEvidenceContentHash")
   characterStates        CharacterState[]
   validationReports      ValidationReport[]
   hashBoundReports       ValidationReport[]   @relation("ValidationReportProseHash")
@@ -873,8 +873,8 @@ model GenerationJob {
   generatedCandidates GeneratedCandidate[]
   intakeMessages      IntakeMessage[]
   conceptSets         ConceptSet[]
-  boundReservations   CreditReservation[]      @relation("ReservationBoundJob")
-  reservation         CreditReservation?       @relation("JobReservationPointer", fields: [projectId, id, reservationId], references: [projectId, jobId, id], onDelete: NoAction, onUpdate: NoAction, map: "generation_jobs_reservation_binding_fkey")
+  boundReservations   CreditReservation[]    @relation("ReservationBoundJob")
+  reservation         CreditReservation?     @relation("JobReservationPointer", fields: [projectId, id, reservationId], references: [projectId, jobId, id], onDelete: NoAction, onUpdate: NoAction, map: "generation_jobs_reservation_binding_fkey")
   artifactProposals   ArtifactProposal[]
 
   @@unique([projectId, id])
@@ -951,48 +951,82 @@ model CreditLedgerEntry {
 }
 
 model CreditReservation {
-  id               String    @id
-  userId           String    @map("user_id")
-  projectId        String?   @map("project_id")
-  jobProjectId     String?   @map("job_project_id")
-  jobId            String?   @map("job_id")
-  status           String
-  reservedMicroIdr BigInt    @map("reserved_micro_idr")
-  settledMicroIdr  BigInt    @default(0) @map("settled_micro_idr")
-  releasedMicroIdr BigInt    @default(0) @map("released_micro_idr")
-  exposureMicroIdr BigInt    @map("exposure_micro_idr")
-  closingAt        DateTime? @map("closing_at") @db.Timestamptz(3)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                         String    @id
+  userId                     String    @map("user_id")
+  projectId                  String?   @map("project_id")
+  jobProjectId               String?   @map("job_project_id")
+  jobId                      String?   @map("job_id")
+  status                     String
+  fundingModel               String?   @map("funding_model")
+  reservedMicroIdr           BigInt    @map("reserved_micro_idr")
+  settledMicroIdr            BigInt    @default(0) @map("settled_micro_idr")
+  releasedMicroIdr           BigInt    @default(0) @map("released_micro_idr")
+  exposureMicroIdr           BigInt    @map("exposure_micro_idr")
+  closingAt                  DateTime? @map("closing_at") @db.Timestamptz(3)
+  quoteId                    String?   @map("quote_id")
+  confirmationRequestId      String?   @map("confirmation_request_id")
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user     User           @relation(fields: [userId], references: [id], onDelete: Restrict)
-  boundJob       GenerationJob?   @relation("ReservationBoundJob", fields: [jobProjectId, jobId], references: [projectId, id], onDelete: SetNull, onUpdate: NoAction, map: "credit_reservations_job_binding_fkey")
-  pointedToByJob GenerationJob[]  @relation("JobReservationPointer")
+  user               User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  boundJob           GenerationJob?            @relation("ReservationBoundJob", fields: [jobProjectId, jobId], references: [projectId, id], onDelete: SetNull, onUpdate: NoAction, map: "credit_reservations_job_binding_fkey")
+  pointedToByJob     GenerationJob[]           @relation("JobReservationPointer")
+  billingAllocations CreditBillingAllocation[]
+  quote              CreditQuote?              @relation("QuoteReservations", fields: [quoteId], references: [id], map: "credit_reservations_quote_id_fkey")
 
   @@unique([projectId, jobId, id])
+  @@unique([quoteId])
+  @@unique([confirmationRequestId])
   @@index([userId, status])
   @@map("credit_reservations")
 }
 
 model CreditQuote {
-  id                String    @id
-  userId            String    @map("user_id")
-  projectId            String    @map("project_id")
-  workflowPlanProjectId String?   @map("workflow_plan_project_id")
-  workflowPlanId       String?   @map("workflow_plan_id")
-  workflowPlanHash  String    @map("workflow_plan_hash")
-  dependencyHash    String    @map("dependency_hash")
-  maxAmountMicroIdr BigInt    @map("max_amount_micro_idr")
-  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(3)
-  consumedAt        DateTime? @map("consumed_at") @db.Timestamptz(3)
-  requestId         String?   @map("request_id")
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                      String    @id
+  userId                  String    @map("user_id")
+  projectId               String    @map("project_id")
+  workflowPlanProjectId   String?   @map("workflow_plan_project_id")
+  workflowPlanId          String?   @map("workflow_plan_id")
+  workflowPlanHash        String    @map("workflow_plan_hash")
+  dependencyHash          String    @map("dependency_hash")
+  maxAmountMicroIdr       BigInt    @map("max_amount_micro_idr")
+  expiresAt               DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt              DateTime? @map("consumed_at") @db.Timestamptz(3)
+  requestId               String?   @map("request_id")
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user         User            @relation(fields: [userId], references: [id], onDelete: Restrict)
   workflowPlan AiWorkflowPlan? @relation(fields: [workflowPlanProjectId, workflowPlanId, workflowPlanHash], references: [projectId, id, planHash], onDelete: NoAction, onUpdate: NoAction, map: "credit_quotes_plan_binding_fkey")
+  reservations CreditReservation[] @relation("QuoteReservations")
 
   @@index([userId, expiresAt])
   @@map("credit_quotes")
+}
+
+model CreditBillingAllocation {
+  id                         String   @id
+  projectId                  String   @map("project_id")
+  jobId                      String   @map("job_id")
+  reservationId              String   @map("reservation_id")
+  usableOutputKind           String   @map("usable_output_kind")
+  usableOutputRef            String   @map("usable_output_ref")
+  contributingAttemptIdsHash String   @map("contributing_attempt_ids_hash")
+  providerCostMicroIdr       BigInt   @map("provider_cost_micro_idr")
+  userSettlementMicroIdr     BigInt   @map("user_settlement_micro_idr")
+  systemSubsidyMicroIdr      BigInt   @map("system_subsidy_micro_idr") @default(0)
+  billingPolicyVersion       Int      @map("billing_policy_version") @default(1)
+  billingPolicyPayload       Json     @map("billing_policy_payload")
+  dedupeKey                  String   @unique @map("dedupe_key")
+  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  // project_id / job_id are retained scalar evidence (W3.2 retention pattern):
+  // no FK to projects/generation_jobs so the permitted project purge
+  // (DELETE FROM projects) succeeds while this financial evidence survives.
+  reservation CreditReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, reservationId, usableOutputKind, usableOutputRef])
+  @@index([contributingAttemptIdsHash])
+  @@map("credit_billing_allocations")
 }
 
 model ValidationReport {
@@ -1104,20 +1138,20 @@ model OutboxEvent {
 }
 
 model OutboxReceipt {
-  id                 String    @id
-  outboxEventId      String    @map("outbox_event_id")
-  consumerKey        String    @map("consumer_key")
-  deliveryGeneration Int       @map("delivery_generation")
-  status             String
-  attemptCount       Int       @default(0) @map("attempt_count")
+  id                  String    @id
+  outboxEventId       String    @map("outbox_event_id")
+  consumerKey         String    @map("consumer_key")
+  deliveryGeneration  Int       @map("delivery_generation")
+  status              String
+  attemptCount        Int       @default(0) @map("attempt_count")
   processingStartedAt DateTime? @map("processing_started_at") @db.Timestamptz(3)
   leaseExpiresAt      DateTime? @map("lease_expires_at") @db.Timestamptz(3)
   completedAt         DateTime? @map("completed_at") @db.Timestamptz(3)
   uncertainAt         DateTime? @map("uncertain_at") @db.Timestamptz(3)
   deadAt              DateTime? @map("dead_at") @db.Timestamptz(3)
   lastErrorCode       String?   @map("last_error_code")
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   outboxEvent OutboxEvent @relation(fields: [outboxEventId], references: [id], onDelete: Restrict)
 

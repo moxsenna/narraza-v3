@@ -24,47 +24,35 @@ export function MobileMoreSheet({
 }) {
   const base =
     context.kind === 'project' ? `/app/proyek/${encodeURIComponent(context.projectId)}` : null;
-  const items: readonly SheetItem[] =
-    context.kind === 'global'
-      ? [
-          { label: 'Kredit & Penggunaan', capabilityKey: 'app.credit.view' },
-          { label: 'Pengaturan', capabilityKey: 'app.settings.view' },
-        ]
-      : [
-          {
-            label: 'Chat Narra',
-            capabilityKey: 'project.chat.user-message',
-            href: `${base}/chat`,
-          },
-          {
-            label: 'Fondasi',
-            capabilityKey: 'project.foundation.manage',
-            href: `${base}/fondasi`,
-          },
-          {
-            label: 'Karakter',
-            capabilityKey: 'project.characters.read',
-            href: `${base}/karakter`,
-          },
-          {
-            label: 'Jadwal Rahasia',
-            capabilityKey: 'project.secrets.read',
-            href: `${base}/rahasia`,
-          },
-          { label: 'Fakta', capabilityKey: 'project.facts.read', href: `${base}/fakta` },
-          {
-            label: 'Naskah',
-            capabilityKey: 'project.manuscript.view',
-            href: `${base}/naskah`,
-          },
-          {
-            label: 'Paket Publish',
-            capabilityKey: 'project.publish.view',
-            href: `${base}/publish`,
-          },
-          { label: 'Kredit & Penggunaan', capabilityKey: 'app.credit.view' },
-          { label: 'Pengaturan', capabilityKey: 'app.settings.view' },
-        ];
+  const items: readonly SheetItem[] = base
+    ? [
+        {
+          label: 'Chat Narra',
+          capabilityKey: 'project.chat.user-message',
+          href: `${base}/chat`,
+        },
+        {
+          label: 'Fondasi',
+          capabilityKey: 'project.foundation.manage',
+          href: `${base}/fondasi`,
+        },
+        {
+          label: 'Karakter',
+          capabilityKey: 'project.characters.read',
+          href: `${base}/karakter`,
+        },
+        {
+          label: 'Jadwal Rahasia',
+          capabilityKey: 'project.secrets.read',
+          href: `${base}/rahasia`,
+        },
+        { label: 'Fakta', capabilityKey: 'project.facts.read', href: `${base}/fakta` },
+        { label: 'Naskah', capabilityKey: 'project.manuscript.view' },
+        { label: 'Paket Publish', capabilityKey: 'project.publish.view' },
+        { label: 'Kredit & Penggunaan', capabilityKey: 'app.credit.view', href: '/app/kredit' },
+        { label: 'Pengaturan', capabilityKey: 'app.settings.view' },
+      ]
+    : [];
 
   return (
     <BottomSheet

@@ -17,6 +17,7 @@ function harness(overrides: Partial<JobLoopDependencies> = {}) {
   };
   const deps: JobLoopDependencies = {
     service,
+    sweepCreditRetention: vi.fn().mockResolvedValue({ deletedQuotes: 0, deletedBundles: 0 }),
     processor: vi.fn().mockResolvedValue(undefined),
     settings: {
       leaseMs: 60_000,
@@ -25,6 +26,8 @@ function harness(overrides: Partial<JobLoopDependencies> = {}) {
       pollMs: 1_000,
       errorBackoffMs: 5_000,
       shutdownDrainMs: 30_000,
+      retentionSweepMs: 3_600_000,
+      retentionMaxAgeHours: 24,
     },
     sleep: vi.fn().mockResolvedValue(undefined),
     schedule: vi.fn((callback, ms) => setTimeout(callback, ms)),
@@ -152,6 +155,90 @@ describe('job loop', () => {
     expect(scheduled).toHaveLength(1);
   });
 
+  it('starts retention maintenance when processor is disabled', async () => {
+    const sweepCreditRetention = vi.fn().mockResolvedValue({ deletedQuotes: 0, deletedBundles: 0 });
+    const { service, loop } = harness({ processor: undefined, sweepCreditRetention });
+
+    loop.start();
+    await vi.waitFor(() => expect(sweepCreditRetention).toHaveBeenCalledOnce());
+
+    expect(service.claim).not.toHaveBeenCalled();
+    expect(sweepCreditRetention).toHaveBeenCalledWith({ maxAgeHours: 24 });
+    await loop.shutdown();
+  });
+
+  it('runs retention without processor, uses semantic settings, and schedules after completion', async () => {
+    let release!: (value: { deletedQuotes: number; deletedBundles: number }) => void;
+    const pending = new Promise<{ deletedQuotes: number; deletedBundles: number }>(
+      (resolve) => (release = resolve),
+    );
+    const sweepCreditRetention = vi.fn().mockReturnValue(pending);
+    const { deps, loop } = harness({ processor: undefined, sweepCreditRetention });
+
+    const first = loop.sweepCreditRetention();
+    const second = loop.sweepCreditRetention();
+    expect(first).toBe(second);
+    expect(sweepCreditRetention).toHaveBeenCalledOnce();
+    expect(sweepCreditRetention).toHaveBeenCalledWith({ maxAgeHours: 24 });
+    expect(deps.schedule).not.toHaveBeenCalledWith(expect.any(Function), 3_600_000);
+
+    release({ deletedQuotes: 1, deletedBundles: 2 });
+    await first;
+
+    expect(deps.logger.info).toHaveBeenCalledWith({
+      event: 'credit_retention_sweep',
+      deletedQuotes: 1,
+      deletedBundles: 2,
+    });
+    expect(deps.schedule).toHaveBeenCalledWith(expect.any(Function), 3_600_000);
+  });
+
+  it('cancels retention timer and waits for in-flight sweep before disconnect', async () => {
+    let release!: (value: { deletedQuotes: number; deletedBundles: number }) => void;
+    const pending = new Promise<{ deletedQuotes: number; deletedBundles: number }>(
+      (resolve) => (release = resolve),
+    );
+    const order: string[] = [];
+    const sweepCreditRetention = vi.fn().mockReturnValue(pending);
+    const { deps, loop } = harness({
+      processor: undefined,
+      sweepCreditRetention,
+      disconnect: vi.fn(async () => {
+        order.push('disconnect');
+      }),
+    });
+
+    const sweep = loop.sweepCreditRetention().then(() => order.push('sweep'));
+    const shutdown = loop.shutdown();
+    expect(deps.disconnect).not.toHaveBeenCalled();
+
+    release({ deletedQuotes: 0, deletedBundles: 0 });
+    await Promise.all([sweep, shutdown]);
+
+    expect(order).toEqual(['sweep', 'disconnect']);
+    expect(deps.cancelTimer).toHaveBeenCalled();
+  });
+
+  it('bounds hung retention sweep with existing shutdown deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const never = new Promise<never>(() => {});
+      const { deps, loop } = harness({
+        processor: undefined,
+        sweepCreditRetention: vi.fn().mockReturnValue(never),
+      });
+
+      void loop.sweepCreditRetention();
+      const shutdown = loop.shutdown();
+      await vi.advanceTimersByTimeAsync(30_000);
+      await shutdown;
+
+      expect(deps.disconnect).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('runs one reclaim per nonoverlapping tick and stops scheduling after shutdown', async () => {
     const { service, deps, loop } = harness();
     const first = loop.reclaimOnce();
@@ -162,6 +249,59 @@ describe('job loop', () => {
     await loop.reclaimOnce();
     expect(service.reclaimOne).toHaveBeenCalledOnce();
     expect(deps.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('logs controlled funding violations from reclaim without raising a reclaim error', async () => {
+    const { service, deps, loop } = harness();
+    service.reclaimOne.mockResolvedValue({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      job: { id: 'j' },
+    });
+
+    await loop.reclaimOnce();
+
+    expect(deps.logger.info).toHaveBeenCalledWith({
+      event: 'job_funding_violation',
+      phase: 'reclaim',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      jobId: 'j',
+    });
+    expect(deps.logger.error).not.toHaveBeenCalled();
+    expect(deps.schedule).toHaveBeenCalledWith(expect.any(Function), 30_000);
+  });
+
+  it('logs controlled funding violations from publish and never raises a poll error', async () => {
+    const processor = vi.fn().mockResolvedValue(undefined);
+    const { service, deps, loop } = harness({ processor });
+    service.claim.mockResolvedValue(claimed);
+    service.withFencedPublish.mockResolvedValue({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'system_funded',
+      incident: 'replayed',
+      job: { id: 'j' },
+    });
+
+    const run = loop.pollOnce();
+    await vi.waitFor(() => expect(service.withFencedPublish).toHaveBeenCalledOnce());
+    await run;
+
+    expect(deps.logger.info).toHaveBeenCalledWith({
+      event: 'job_funding_violation',
+      phase: 'publish',
+      reason: 'missing_reservation',
+      fundingModel: 'system_funded',
+      incident: 'replayed',
+      jobId: identity.jobId,
+    });
+    expect(deps.logger.error).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'job_poll_error' }),
+    );
   });
 
   it('waits for a deferred claim, then requeues its exact identity without starting processor', async () => {
@@ -611,6 +751,8 @@ describe('job loop', () => {
           pollMs: 1_000,
           errorBackoffMs: 5_000,
           shutdownDrainMs: 30_000,
+          retentionSweepMs: 3_600_000,
+          retentionMaxAgeHours: 24,
         },
         disconnect: vi.fn(async () => {
           order.push(`disconnect:${Date.now()}`);

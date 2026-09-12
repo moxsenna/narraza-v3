@@ -81,6 +81,20 @@ export async function getProjectProgress(projectId: string): Promise<ProjectProg
       (n) => n.entityType === 'beat' && n.acceptedProseVersionId !== null,
     );
 
+    // W5.5 snapshot extensions: pending proposals + published artifacts.
+    let pendingProposalCount = 0;
+    if (ports.proposalGroup) {
+      const pendingGroups = await ports.proposalGroup.listPendingByProject(projectId);
+      for (const group of pendingGroups) {
+        pendingProposalCount += (
+          await ports.proposal.listPendingInGroup(projectId, group.id, '__none__')
+        ).length;
+      }
+    }
+    const artifactPublishedCount = ports.artifactProposal
+      ? await ports.artifactProposal.countAcceptedByProject(projectId)
+      : 0;
+
     return projectProgressView({
       projectStatus: project.status,
       hasIntakeMessages: messages.some((m) => m.role === 'user'),
@@ -91,6 +105,9 @@ export async function getProjectProgress(projectId: string): Promise<ProjectProg
       factCount: facts.length,
       chapterCount: chapters.length,
       beatWithAcceptedProseCount: acceptedBeats.length,
+      intakeSignalCount: session?.signalCount ?? 0,
+      pendingProposalCount,
+      artifactPublishedCount,
     });
   });
 }

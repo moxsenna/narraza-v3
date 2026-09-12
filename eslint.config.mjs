@@ -48,8 +48,15 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs'],
-    languageOptions: { globals: { process: 'readonly' } },
+    files: ['scripts/**/*.mjs', 'tests/evidence/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      },
+    },
   },
   prettier,
 );

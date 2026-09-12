@@ -11,27 +11,31 @@ describe('Checkpoint C presentation contracts', () => {
   test('all chapter workspaces keep explicit owner-scoped chapter resolution', () => {
     for (const route of chapterRoutes) {
       const page = source(`app/app/proyek/[projectId]/bab/[chapterId]/${route}/page.tsx`);
-      expect(page).toContain('resolveChapterContext(projectId, chapterId)');
+      expect(page).toMatch(/resolveChapter(Context|Proposals)\(projectId, chapterId\)/);
       expect(page).toContain('notFound()');
       expect(page).not.toMatch(/\[[0]\]|\.at\(0\)|fixture|localStorage/);
     }
   });
 
-  test('future workspaces expose prototype anatomy with native disabled controls', () => {
+  test('workspaces expose real UI anatomy with honest unavailable states', () => {
     const write = source('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx');
     const check = source('app/app/proyek/[projectId]/bab/[chapterId]/cek/page.tsx');
     const complete = source('app/app/proyek/[projectId]/bab/[chapterId]/selesaikan/page.tsx');
+    const completeCards = source(
+      'app/app/proyek/[projectId]/bab/[chapterId]/selesaikan/proposal-cards.tsx',
+    );
     const manuscript = source('app/app/proyek/[projectId]/bab/[chapterId]/naskah/page.tsx');
     const publish = source('app/app/proyek/[projectId]/bab/[chapterId]/publish/page.tsx');
 
-    for (const copy of ['Peta adegan', 'Arahan adegan', 'Ruang menulis', 'Bahan Aman untuk AI']) {
-      expect(write).toContain(copy);
-    }
-    expect(write).toContain('Minta perkiraan biaya');
+    expect(write).toContain('Buat adegan');
+    expect(write).toContain('Naskah Bab');
+    expect(write).toContain('Penulisan dari halaman ini belum tersedia');
     expect(check).toContain('Temuan Cek Cerita');
     expect(check).toContain('Perbaiki dengan aman');
-    expect(complete).toContain('Perubahan yang perlu ditinjau');
-    expect(complete).toContain('Terapkan & jadikan resmi');
+    expect(complete).toContain('Tutup Bab');
+    expect(complete).toContain('proposal-list');
+    expect(completeCards).toContain('Terapkan &amp; jadikan resmi');
+    expect(completeCards).toContain('jadikan resmi');
     expect(manuscript).toContain('Versi tulisan resmi');
     for (const copy of [
       'Judul & teaser',
@@ -45,7 +49,10 @@ describe('Checkpoint C presentation contracts', () => {
     for (const page of [write, check, complete, manuscript, publish]) {
       expect(page).not.toMatch(/onClick=|action=|formAction=|setTimeout|fetch\(/);
     }
-    for (const page of [write, check, complete, publish]) expect(page).toContain('disabled');
+    // selesaikan/page.tsx renders no controls itself (decision forms live in
+    // proposal-cards.tsx behind availableActions); the rest keep native
+    // disabled controls while their flows are unavailable.
+    for (const page of [write, check, publish]) expect(page).toContain('disabled');
   });
 
   test('concept, credit, settings, and import surfaces stay honest', () => {
@@ -57,7 +64,10 @@ describe('Checkpoint C presentation contracts', () => {
     expect(concept).toContain("CAPABILITIES['project.concept.choose']");
     expect(concept).toContain('Tiga arah cerita');
     expect(concept).toContain('disabled');
-    expect(credit).toContain("CAPABILITIES['app.credit.view']");
+    // Credit renders the real M3 summary (single D6 conversion); values are
+    // bare numbers from the ledger, never "N kredit" fabrications.
+    expect(credit).toContain('getMyCreditSummaryView');
+    expect(credit).toContain('credit-summary');
     for (const copy of ['Kredit tersedia', 'Kredit ditahan', 'Sedang dicocokkan']) {
       expect(credit).toContain(copy);
     }
@@ -128,7 +138,11 @@ describe('Checkpoint C presentation contracts', () => {
     expect(bottomNav).toContain(
       "{ label: 'Cek', icon: 'check', capabilityKey: 'chapter.check.run' }",
     );
-    expect(moreSheet).toContain('href: `${base}/naskah`');
-    expect(moreSheet).toContain('href: `${base}/publish`');
+    // Naskah/publish stay presentation-only (no href); credit is real (href).
+    expect(moreSheet).toContain("{ label: 'Naskah', capabilityKey: 'project.manuscript.view' }");
+    expect(moreSheet).toContain(
+      "{ label: 'Paket Publish', capabilityKey: 'project.publish.view' }",
+    );
+    expect(moreSheet).toContain("href: '/app/kredit'");
   });
 });

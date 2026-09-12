@@ -1,13 +1,16 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import type { MissingReservationViolation } from '../credits/reservation-reconciliation-service.js';
 import type {
   JobInsertInput,
   JobInsertResult,
   JobPort,
+  JobReclaimResult,
   JobTerminalTransitionResult,
 } from '../ports/job-port.js';
 import type { LedgerPort } from '../ports/ledger-port.js';
 import type { TxPorts, UnitOfWork } from '../ports/unit-of-work.js';
 import type {
+  CreditReservationRecord,
   GenerationJobRecord,
   JobLeaseIdentity,
   JsonObject,
@@ -19,11 +22,36 @@ import {
   type FencedPublishContext,
   type FencedPublishResult,
   type FencedPublishSentinelInput,
+  type JobFinishResult,
+  type JobReclaimServiceResult,
   type ManualRetryInput,
   type ManualRetryResult,
 } from './job-service.js';
 
 const fixedDate = new Date('2026-07-26T12:00:00.000Z');
+
+function reservation(overrides: Partial<CreditReservationRecord> = {}): CreditReservationRecord {
+  return {
+    id: 'reservation-old',
+    userId: 'user-1',
+    projectId: 'project-1',
+    jobId: 'job-1',
+    projectJobId: 'project-1',
+    status: 'released',
+    fundingModel: 'user_paid',
+    reservedMicroIdr: 1_000n,
+    settledMicroIdr: 0n,
+    releasedMicroIdr: 1_000n,
+    exposureMicroIdr: 0n,
+    closingAt: null,
+    quoteId: 'quote-1',
+    confirmationRequestId: 'confirmation-1',
+    schemaVersion: 1,
+    createdAt: fixedDate,
+    updatedAt: fixedDate,
+    ...overrides,
+  };
+}
 
 function job(overrides: Partial<GenerationJobRecord> = {}): GenerationJobRecord {
   return {
@@ -52,6 +80,7 @@ function job(overrides: Partial<GenerationJobRecord> = {}): GenerationJobRecord 
 interface HarnessOptions {
   readonly projectDeletedAt?: Date | null;
   readonly lockedJob?: GenerationJobRecord | null;
+  readonly lockedReservation?: CreditReservationRecord | null;
   readonly releaseResult?:
     | { readonly kind: 'released' }
     | { readonly kind: 'already_released' }
@@ -70,6 +99,7 @@ function makeHarness(options: HarnessOptions = {}) {
     insert: vi.fn(),
     findById: vi.fn(),
     listActiveByProject: vi.fn(),
+    findLatestTerminalByProject: vi.fn(),
     lockForUpdate: vi.fn(async () => {
       calls.push('job.lockForUpdate');
       return options.lockedJob === undefined ? job() : options.lockedJob;
@@ -104,15 +134,36 @@ function makeHarness(options: HarnessOptions = {}) {
     }),
   } satisfies LedgerPort;
 
+  const creditReservation = {
+    lockBound: vi.fn(async () => {
+      calls.push('creditReservation.lockBound');
+      return options.lockedReservation === undefined ? reservation() : options.lockedReservation;
+    }),
+    applyReconciliationTarget: vi.fn(async () => {
+      calls.push('creditReservation.applyReconciliationTarget');
+      return { kind: 'reconciled' as const };
+    }),
+  };
+
   const ports = {
     project: {
       lockForUpdate: vi.fn(async () => {
         calls.push('project.lockForUpdate');
-        return { deletedAt: options.projectDeletedAt ?? null };
+        return {
+          ownerUserId: 'user-1',
+          deletedAt: options.projectDeletedAt ?? null,
+        };
       }),
     },
     job: jobPort,
     ledger: ledgerPort,
+    creditReservation,
+    workflowInvocation: {
+      countUnresolvedAttempts: vi.fn(async () => {
+        calls.push('workflowInvocation.countUnresolvedAttempts');
+        return 0;
+      }),
+    },
     allocateId: () => {
       calls.push('allocateId');
       return `allocated-${++allocated}`;
@@ -147,6 +198,7 @@ function makeHarness(options: HarnessOptions = {}) {
     calls,
     jobPort,
     ledgerPort,
+    creditReservation,
     ports,
     unitOfWork,
     executeCount: () => executeCount,
@@ -171,6 +223,7 @@ describe('job cancellation', () => {
     expect(h.calls).toEqual([
       'begin',
       'job.lockForUpdate',
+      'creditReservation.lockBound',
       'allocateId',
       'ledger.releaseQueuedCancellation',
       'job.cancelQueued',
@@ -209,6 +262,52 @@ describe('job cancellation', () => {
     expect(h.ledgerPort.releaseQueuedCancellation).not.toHaveBeenCalled();
   });
 
+  it('cancels system-funded queued job by persisted funding model with zero ledger impact', async () => {
+    const cancelledJob = job({ kind: 'chat_intake_reply', status: 'cancelled' });
+    const h = makeHarness({
+      lockedJob: job({ kind: 'chat_intake_reply' }),
+      lockedReservation: reservation({
+        status: 'open',
+        fundingModel: 'system_funded',
+        releasedMicroIdr: 0n,
+        exposureMicroIdr: 1_000n,
+        quoteId: null,
+        confirmationRequestId: 'system-budget:job-1',
+      }),
+      cancelQueuedResult: { kind: 'cancelled', job: cancelledJob },
+    });
+
+    const result = await createJobService(h.unitOfWork).cancel({
+      projectId: 'project-1',
+      jobId: 'job-1',
+    });
+
+    expect(result).toEqual({ kind: 'cancelled', job: cancelledJob });
+    expect(h.ledgerPort.releaseQueuedCancellation).not.toHaveBeenCalled();
+    expect(h.creditReservation.applyReconciliationTarget).toHaveBeenCalledWith({
+      reservationId: 'reservation-old',
+      userId: 'user-1',
+      projectId: 'project-1',
+      jobProjectId: 'project-1',
+      jobId: 'job-1',
+      settledTargetMicroIdr: 0n,
+      releasedTargetMicroIdr: 1_000n,
+      exposureTargetMicroIdr: 0n,
+      terminalReason: 'cancelled',
+    });
+    expect(h.calls).toEqual([
+      'begin',
+      'job.lockForUpdate',
+      'creditReservation.lockBound',
+      'job.cancelQueued',
+      'project.lockForUpdate',
+      'creditReservation.lockBound',
+      'workflowInvocation.countUnresolvedAttempts',
+      'creditReservation.applyReconciliationTarget',
+      'commit',
+    ]);
+  });
+
   it('treats an already-released reservation as idempotent success without rollback', async () => {
     const h = makeHarness({ releaseResult: { kind: 'already_released' } });
 
@@ -221,6 +320,7 @@ describe('job cancellation', () => {
     expect(h.calls).toEqual([
       'begin',
       'job.lockForUpdate',
+      'creditReservation.lockBound',
       'allocateId',
       'ledger.releaseQueuedCancellation',
       'job.cancelQueued',
@@ -347,6 +447,7 @@ describe('job cancellation', () => {
     expect(h.calls).toEqual([
       'begin',
       'job.lockForUpdate',
+      'creditReservation.lockBound',
       'allocateId',
       'ledger.releaseQueuedCancellation',
       'rollback',
@@ -366,6 +467,7 @@ describe('job cancellation', () => {
     expect(h.calls).toEqual([
       'begin',
       'job.lockForUpdate',
+      'creditReservation.lockBound',
       'allocateId',
       'ledger.releaseQueuedCancellation',
       'job.cancelQueued',
@@ -445,6 +547,7 @@ describe('manual retry', () => {
           id: 'allocated-1',
           projectId: source.projectId,
           kind: source.kind,
+          fundingModel: 'pre_d4_legacy',
           priority: source.priority,
           availableInMs: 43_200_000,
           retryOfJobId: source.id,
@@ -536,6 +639,7 @@ describe('manual retry', () => {
   it.each([
     ['conflict', 'conflict'],
     ['binding_invalid', 'reservation_binding_invalid'],
+    ['funding_model_mismatch', 'funding_model_mismatch'],
   ] as const)('maps insert %s to %s', async (insertKind, resultKind) => {
     const h = makeHarness({ lockedJob: job({ status: 'dead' }) });
     h.jobPort.insert.mockImplementationOnce(async () => {
@@ -548,13 +652,123 @@ describe('manual retry', () => {
     expect(result).toEqual({ kind: resultKind });
   });
 
-  it('declares binding-invalid port and service result variants', () => {
+  it('declares binding-invalid and funding-mismatch port and service result variants', () => {
     expectTypeOf<Extract<JobInsertResult, { readonly kind: 'binding_invalid' }>>().toEqualTypeOf<{
       readonly kind: 'binding_invalid';
     }>();
     expectTypeOf<
+      Extract<JobInsertResult, { readonly kind: 'funding_model_mismatch' }>
+    >().toEqualTypeOf<{ readonly kind: 'funding_model_mismatch' }>();
+    expectTypeOf<
       Extract<ManualRetryResult, { readonly kind: 'reservation_binding_invalid' }>
     >().toEqualTypeOf<{ readonly kind: 'reservation_binding_invalid' }>();
+    expectTypeOf<
+      Extract<ManualRetryResult, { readonly kind: 'funding_model_mismatch' }>
+    >().toEqualTypeOf<{ readonly kind: 'funding_model_mismatch' }>();
+  });
+
+  describe('funding model enqueue guard in manualRetry unit tests', () => {
+    it('rejects user_paid job with missing reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'concept_generation' }),
+      });
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: null });
+
+      expect(result).toEqual({
+        kind: 'funding_model_violation',
+        reason: 'missing_reservation_for_paid',
+        fundingModel: 'user_paid',
+      });
+      expect(h.jobPort.insert).not.toHaveBeenCalled();
+      expect(h.executeCount()).toBe(1);
+    });
+
+    it('allows user_paid job with non-empty reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'concept_generation' }),
+      });
+      h.jobPort.insert.mockImplementationOnce(async (input) => ({
+        kind: 'inserted',
+        job: job({ id: input.id, kind: input.kind, reservationId: input.reservationId }),
+      }));
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: 'res-paid-1' });
+
+      expect(result.kind).toBe('created');
+      expect(h.jobPort.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ reservationId: 'res-paid-1' }),
+      );
+    });
+
+    it('rejects system_funded job with missing reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'chat_intake' }),
+      });
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: null });
+
+      expect(result).toEqual({
+        kind: 'funding_model_violation',
+        reason: 'missing_reservation_for_system_funded',
+        fundingModel: 'system_funded',
+      });
+      expect(h.jobPort.insert).not.toHaveBeenCalled();
+    });
+
+    it('allows system_funded job with non-empty reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'chat_intake' }),
+      });
+      h.jobPort.insert.mockImplementationOnce(async (input) => ({
+        kind: 'inserted',
+        job: job({ id: input.id, kind: input.kind, reservationId: input.reservationId }),
+      }));
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: 'res-sys-1' });
+
+      expect(result.kind).toBe('created');
+      expect(h.jobPort.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ reservationId: 'res-sys-1' }),
+      );
+    });
+
+    it('allows pre_d4_legacy job without reservationId', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'prose' }),
+      });
+      h.jobPort.insert.mockImplementationOnce(async (input) => ({
+        kind: 'inserted',
+        job: job({ id: input.id, kind: input.kind, reservationId: input.reservationId }),
+      }));
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: null });
+
+      expect(result.kind).toBe('created');
+      expect(h.jobPort.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ reservationId: null }),
+      );
+    });
+
+    it('rejects unmapped/unknown job kind with funding_model_violation', async () => {
+      const h = makeHarness({
+        lockedJob: job({ status: 'failed', kind: 'unmapped_custom_action' }),
+      });
+      const service = createJobService(h.unitOfWork);
+
+      const result = await service.manualRetry({ ...retryInput, reservationId: 'res-1' });
+
+      expect(result).toEqual({
+        kind: 'funding_model_violation',
+        reason: 'unknown_kind',
+      });
+      expect(h.jobPort.insert).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -914,6 +1128,395 @@ describe('fenced publish', () => {
       }),
     ).rejects.toBe(failure);
     expect(h.calls.at(-1)).toBe('rollback');
+  });
+});
+
+describe('terminal funding-binding incidents', () => {
+  interface FundingHarnessOptions {
+    readonly lockedJob?: GenerationJobRecord | null;
+    readonly incident?: 'appended' | 'replayed' | 'conflict';
+    /** Minimal bound-reservation shape for tests that exercise lockBound. */
+    readonly lockedReservation?: { readonly status: string; readonly fundingModel: string | null };
+    readonly reclaimApply?:
+      | { readonly kind: 'cancelled'; readonly job: GenerationJobRecord }
+      | { readonly kind: 'requeued'; readonly job: GenerationJobRecord }
+      | { readonly kind: 'none' };
+  }
+
+  /** Full W3.3-capable harness: creditReservation present, typed incident outbox. */
+  function makeFundingHarness(options: FundingHarnessOptions = {}) {
+    const calls: string[] = [];
+    const runningPaid = job({
+      status: 'running',
+      kind: 'concept_generation',
+      reservationId: null,
+      leaseToken: 'lease-1',
+      leaseExpiresAt: fixedDate,
+      fenceVersion: 4,
+    });
+    /** The locked row is the source of truth for every derived terminal record. */
+    const baseJob = () => (options.lockedJob ?? runningPaid) as GenerationJobRecord;
+
+    const jobPort = {
+      lockForUpdate: vi.fn(async () => {
+        calls.push('job.lockForUpdate');
+        return baseJob();
+      }),
+      transitionRunningToTerminal: vi.fn(async (input: { status: string }) => {
+        calls.push('job.transitionRunningToTerminal');
+        return {
+          kind: 'terminalized' as const,
+          job: job({
+            ...baseJob(),
+            status: input.status as GenerationJobRecord['status'],
+            leaseToken: null,
+            leaseExpiresAt: null,
+            fenceVersion: baseJob().fenceVersion + 1,
+          }),
+        };
+      }),
+      reclaimNextExpired: vi.fn(),
+      lockNextExpiredForReclaim: vi.fn(async () => {
+        calls.push('job.lockNextExpiredForReclaim');
+        return {
+          kind: 'locked' as const,
+          job: runningPaid,
+          ownerUserId: 'user-1',
+          outcome: 'cancel' as const,
+        };
+      }),
+      applyLockedExpiredReclaim: vi.fn(async () => {
+        calls.push('job.applyLockedExpiredReclaim');
+        return (
+          options.reclaimApply ?? {
+            kind: 'cancelled' as const,
+            job: job({ ...baseJob(), status: 'cancelled' }),
+          }
+        );
+      }),
+      lockForFencedPublish: vi.fn(async () => {
+        calls.push('job.lockForFencedPublish');
+        return { kind: 'locked' as const, job: baseJob() };
+      }),
+    };
+
+    const appendMissingIncident = vi.fn(async () => {
+      calls.push('outbox.appendMissingJobReservationIncident');
+      return { kind: options.incident ?? ('appended' as const) };
+    });
+    const ledgerSettlement = vi.fn(async () => {
+      calls.push('ledger.appendReservationSettlement');
+      return { kind: 'settled' as const };
+    });
+    const classifyPublishedOutput = vi.fn();
+
+    const ports = {
+      project: {
+        lockForUpdate: vi.fn(async () => {
+          calls.push('project.lockForUpdate');
+          return { id: 'project-1', ownerUserId: 'user-1', deletedAt: null };
+        }),
+      },
+      job: jobPort,
+      ledger: { appendReservationSettlement: ledgerSettlement },
+      creditBillingAllocation: {},
+      usableOutputClassifier: { classifyPublishedOutput },
+      creditReservation: {
+        lockBound: vi.fn(async () => ({
+          id: 'reservation-old',
+          status: options.lockedReservation?.status ?? 'open',
+          fundingModel: options.lockedReservation?.fundingModel ?? null,
+        })),
+      },
+      outbox: {
+        append: vi.fn(async () => {
+          calls.push('outbox.append');
+        }),
+        appendMissingJobReservationIncident: appendMissingIncident,
+      },
+      dbNow: vi.fn(async () => {
+        calls.push('dbNow');
+        return fixedDate;
+      }),
+    } as unknown as TxPorts;
+
+    const unitOfWork: UnitOfWork = {
+      async execute<T>(fn: (txPorts: TxPorts) => Promise<T>): Promise<T> {
+        calls.push('begin');
+        try {
+          const result = await fn(ports);
+          calls.push('commit');
+          return result;
+        } catch (error) {
+          calls.push('rollback');
+          throw error;
+        }
+      },
+    };
+
+    return {
+      calls,
+      jobPort,
+      appendMissingIncident,
+      ledgerSettlement,
+      classifyPublishedOutput,
+      service: createJobService(unitOfWork),
+      runningPaid,
+    };
+  }
+
+  it('finish commits failed terminal state and one incident atomically with exact ordering', async () => {
+    const h = makeFundingHarness();
+
+    const result = await h.service.finish({ ...identity, status: 'failed' });
+
+    expect(result).toMatchObject({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      job: { id: 'job-1', status: 'failed' },
+    });
+    expect(h.calls).toEqual([
+      'begin',
+      'project.lockForUpdate',
+      'job.lockForUpdate',
+      'job.transitionRunningToTerminal',
+      'outbox.appendMissingJobReservationIncident',
+      'commit',
+    ]);
+    expect(h.jobPort.transitionRunningToTerminal).toHaveBeenCalledWith({
+      ...identity,
+      status: 'failed',
+    });
+    expect(h.appendMissingIncident).toHaveBeenCalledWith({
+      id: 'incident:job-missing-reservation:job-1',
+      projectId: 'project-1',
+      jobId: 'job-1',
+      jobKind: 'concept_generation',
+      fundingModel: 'user_paid',
+      dedupeKey: 'incident:job-missing-reservation:job-1',
+    });
+  });
+
+  it('finish maps requested succeeded to durable failed and never fakes success', async () => {
+    const h = makeFundingHarness();
+
+    const result = await h.service.finish({ ...identity, status: 'succeeded' });
+
+    expect(result).toMatchObject({
+      kind: 'funding_model_violation',
+      fundingModel: 'user_paid',
+      job: { status: 'failed' },
+    });
+    expect(h.jobPort.transitionRunningToTerminal).toHaveBeenCalledWith({
+      ...identity,
+      status: 'failed',
+    });
+    expect(h.calls).not.toContain('outbox.append');
+  });
+
+  it('finish keeps requested dead for unbounded system_funded jobs and replays the incident', async () => {
+    const h = makeFundingHarness({
+      lockedJob: job({
+        status: 'running',
+        kind: 'chat_intake',
+        reservationId: null,
+        leaseToken: 'lease-1',
+        leaseExpiresAt: fixedDate,
+        fenceVersion: 4,
+      }),
+      incident: 'replayed',
+    });
+
+    const result = await h.service.finish({ ...identity, status: 'dead' });
+
+    expect(result).toEqual({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'system_funded',
+      incident: 'replayed',
+      job: expect.objectContaining({ id: 'job-1', status: 'dead' }),
+    });
+    expect(h.jobPort.transitionRunningToTerminal).toHaveBeenCalledWith({
+      ...identity,
+      status: 'dead',
+    });
+    expect(h.appendMissingIncident).toHaveBeenCalledTimes(1);
+  });
+
+  it('finish keeps exact baseline not_bound behavior for pre_d4_legacy null reservations', async () => {
+    const h = makeFundingHarness({
+      lockedJob: job({
+        status: 'running',
+        kind: 'prose',
+        reservationId: null,
+        leaseToken: 'lease-1',
+        leaseExpiresAt: fixedDate,
+        fenceVersion: 4,
+      }),
+    });
+
+    const result = await h.service.finish({ ...identity, status: 'succeeded' });
+
+    expect(result).toMatchObject({ kind: 'terminalized', job: { status: 'succeeded' } });
+    expect(result).not.toHaveProperty('incident');
+    expect(h.appendMissingIncident).not.toHaveBeenCalled();
+    expect(h.calls).toEqual([
+      'begin',
+      'project.lockForUpdate',
+      'job.lockForUpdate',
+      'job.transitionRunningToTerminal',
+      'commit',
+    ]);
+  });
+
+  it('finish bound jobs reconcile without any missing-reservation incident', async () => {
+    const h = makeFundingHarness({
+      lockedJob: job({
+        status: 'running',
+        kind: 'prose',
+        reservationId: 'reservation-old',
+        leaseToken: 'lease-1',
+        leaseExpiresAt: fixedDate,
+        fenceVersion: 4,
+      }),
+      lockedReservation: { status: 'released', fundingModel: null },
+    });
+
+    const result = await h.service.finish({ ...identity, status: 'failed' });
+
+    expect(result).toMatchObject({ kind: 'terminalized' });
+    expect(h.appendMissingIncident).not.toHaveBeenCalled();
+  });
+
+  it('fenced publish preflight records the incident, skips callback and all financial work, and commits failed', async () => {
+    const h = makeFundingHarness();
+    const callback = vi.fn(async () => {
+      h.calls.push('callback');
+    });
+
+    const result = await h.service.withFencedPublish(identity, callback, {
+      settleUsableOutput: true,
+    });
+
+    expect(result).toEqual({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      job: expect.objectContaining({ id: 'job-1', status: 'failed' }),
+    });
+    expect(callback).not.toHaveBeenCalled();
+    expect(h.classifyPublishedOutput).not.toHaveBeenCalled();
+    expect(h.ledgerSettlement).not.toHaveBeenCalled();
+    expect(h.calls).toEqual([
+      'begin',
+      'project.lockForUpdate',
+      'job.lockForFencedPublish',
+      'outbox.appendMissingJobReservationIncident',
+      'job.transitionRunningToTerminal',
+      'commit',
+    ]);
+    expect(h.calls).not.toContain('dbNow');
+    expect(h.calls).not.toContain('outbox.append');
+    expect(h.jobPort.transitionRunningToTerminal).toHaveBeenCalledWith({
+      ...identity,
+      status: 'failed',
+    });
+  });
+
+  it('fenced publish terminal CAS rejection after incident rolls everything back', async () => {
+    const h = makeFundingHarness();
+    h.jobPort.transitionRunningToTerminal.mockImplementationOnce(async () => {
+      h.calls.push('job.transitionRunningToTerminal');
+      return { kind: 'lost_ownership' as const };
+    });
+
+    const result = await h.service.withFencedPublish(identity, async () => {
+      h.calls.push('callback');
+    });
+
+    expect(result).toEqual({ kind: 'lost_ownership' });
+    expect(h.calls.at(-1)).toBe('rollback');
+    expect(h.calls).not.toContain('commit');
+  });
+
+  it('reclaim cancel path appends incident then applies cancellation in one UoW', async () => {
+    const h = makeFundingHarness();
+
+    const result = await h.service.reclaimOne({});
+
+    expect(result).toEqual({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      job: expect.objectContaining({ id: 'job-1', status: 'cancelled' }),
+    });
+    expect(h.calls).toEqual([
+      'begin',
+      'job.lockNextExpiredForReclaim',
+      'outbox.appendMissingJobReservationIncident',
+      'job.applyLockedExpiredReclaim',
+      'commit',
+    ]);
+    expect(h.jobPort.applyLockedExpiredReclaim).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      jobId: 'job-1',
+      outcome: 'cancel',
+    });
+  });
+
+  it('reclaim rolls back the incident when cancellation CAS returns none', async () => {
+    const h = makeFundingHarness({ reclaimApply: { kind: 'none' } });
+
+    const result = await h.service.reclaimOne({});
+
+    expect(result).toEqual({ kind: 'none' });
+    expect(h.calls).toEqual([
+      'begin',
+      'job.lockNextExpiredForReclaim',
+      'outbox.appendMissingJobReservationIncident',
+      'job.applyLockedExpiredReclaim',
+      'rollback',
+    ]);
+  });
+
+  it('reclaim requeue path never touches the funding incident path', async () => {
+    const h = makeFundingHarness({
+      reclaimApply: { kind: 'requeued', job: job({ status: 'queued' }) },
+    });
+    h.jobPort.lockNextExpiredForReclaim.mockImplementationOnce(async () => {
+      h.calls.push('job.lockNextExpiredForReclaim');
+      return {
+        kind: 'locked' as const,
+        job: h.runningPaid,
+        ownerUserId: 'user-1',
+        outcome: 'requeue' as const,
+      };
+    });
+
+    const result = await h.service.reclaimOne({});
+
+    expect(result).toMatchObject({ kind: 'requeued' });
+    expect(h.appendMissingIncident).not.toHaveBeenCalled();
+  });
+
+  it('service results declare funding violation variants alongside port outcomes', () => {
+    expectTypeOf<JobFinishResult>().toEqualTypeOf<
+      | JobTerminalTransitionResult
+      | (MissingReservationViolation & { readonly job: GenerationJobRecord })
+    >();
+    expectTypeOf<JobReclaimServiceResult>().toEqualTypeOf<
+      JobReclaimResult | (MissingReservationViolation & { readonly job: GenerationJobRecord })
+    >();
+    expectTypeOf<
+      Extract<FencedPublishResult, { readonly kind: 'funding_model_violation' }>
+    >().toEqualTypeOf<MissingReservationViolation & { readonly job: GenerationJobRecord }>();
+    expectTypeOf<
+      Extract<JobFinishResult, { readonly reason: 'missing_reservation' }>['fundingModel']
+    >().toEqualTypeOf<'user_paid' | 'system_funded'>();
   });
 });
 

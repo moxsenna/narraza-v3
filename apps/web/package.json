@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@narraza/application": "workspace:*",
+    "@narraza/core": "workspace:*",
     "@narraza/db": "workspace:*",
     "@narraza/shared": "workspace:*",
     "@node-rs/argon2": "2.0.2",

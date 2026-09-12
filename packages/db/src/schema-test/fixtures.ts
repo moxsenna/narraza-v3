@@ -49,6 +49,7 @@ export const APPLICATION_TABLES = [
   'validation_findings',
   'validation_reports',
   'workflow_invocations',
+  'credit_billing_allocations',
 ] as const;
 
 export const M0_ENUMS = {

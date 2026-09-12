@@ -45,7 +45,15 @@ export type ThreePhaseAttemptResult =
   | { readonly kind: 'already_started' }
   | { readonly kind: 'begin_denied'; readonly outcome: 'conflict' | 'not_authorized' }
   | Extract<ExecutorOutcome, { readonly kind: 'recoverable_no_response' }>
-  | { readonly kind: 'finalize_denied'; readonly outcome: 'conflict' | 'not_authorized' }
+  | {
+      readonly kind: 'finalize_denied';
+      readonly outcome:
+        | 'conflict'
+        | 'not_authorized'
+        | 'reconciliation_conflict'
+        | 'reconciliation_incident_conflict'
+        | 'funding_model_violation';
+    }
   | {
       readonly kind: 'finalized_without_publish';
       readonly winner: Extract<
@@ -121,7 +129,13 @@ export function createThreePhaseAttemptHarness(
         usage: executed.usage,
       });
       emit('tx-b:commit');
-      if (finalized.kind === 'conflict' || finalized.kind === 'not_authorized')
+      if (
+        finalized.kind === 'conflict' ||
+        finalized.kind === 'not_authorized' ||
+        finalized.kind === 'reconciliation_conflict' ||
+        finalized.kind === 'reconciliation_incident_conflict' ||
+        finalized.kind === 'funding_model_violation'
+      )
         return { kind: 'finalize_denied', outcome: finalized.kind };
       if (finalized.kind !== 'finalized' || finalized.winner !== 'selected')
         return { kind: 'finalized_without_publish', winner: finalized.winner };
@@ -133,25 +147,29 @@ export function createThreePhaseAttemptHarness(
         return { kind: 'validation_failed', errorCode: validation.errorCode };
 
       emit('tx-c:begin');
-      const published = await deps.jobs.withFencedPublish(input, async (context) => {
-        emit('sentinel:append');
-        await context.appendSentinel({
-          aggregateType: 'workflow_invocation',
-          aggregateId: input.invocationId,
-          eventType: 'workflow_attempt_validated',
-          dedupeKey: `workflow-attempt-validated:${input.invocationId}:${input.attemptId}`,
-          schemaVersion: 1,
-          payload: {
-            projectId: input.projectId,
-            jobId: input.jobId,
-            invocationId: input.invocationId,
-            attemptId: input.attemptId,
-            stageKey: input.stageKey,
-            resultHash: executed.resultHash,
-          },
-        });
-        emit('job:terminalize');
-      });
+      const published = await deps.jobs.withFencedPublish(
+        input,
+        async (context) => {
+          emit('sentinel:append');
+          await context.appendSentinel({
+            aggregateType: 'workflow_invocation',
+            aggregateId: input.invocationId,
+            eventType: 'workflow_attempt_validated',
+            dedupeKey: `workflow-attempt-validated:${input.invocationId}:${input.attemptId}`,
+            schemaVersion: 1,
+            payload: {
+              projectId: input.projectId,
+              jobId: input.jobId,
+              invocationId: input.invocationId,
+              attemptId: input.attemptId,
+              stageKey: input.stageKey,
+              resultHash: executed.resultHash,
+            },
+          });
+          emit('job:terminalize');
+        },
+        { settleUsableOutput: true },
+      );
       emit('tx-c:commit');
       return published.kind === 'published'
         ? { kind: 'published', job: published.job }

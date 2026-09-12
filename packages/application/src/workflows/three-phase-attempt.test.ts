@@ -1,11 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import type {
   BeginAttemptInput,
   FinalizeAttemptResult,
 } from '../ports/workflow-invocation-port.js';
 import type { WorkflowInvocationService } from './workflow-invocation-service.js';
 import type { JobService } from '../jobs/job-service.js';
-import { createThreePhaseAttemptHarness, type ExecutorOutcome } from './three-phase-attempt.js';
+import {
+  createThreePhaseAttemptHarness,
+  type ExecutorOutcome,
+  type ThreePhaseAttemptResult,
+} from './three-phase-attempt.js';
 
 const input: BeginAttemptInput = {
   projectId: 'project',
@@ -187,5 +191,63 @@ describe('three-phase attempt harness', () => {
       winner,
     });
     expect(deps.validator).not.toHaveBeenCalled();
+  });
+
+  it('denies finalize with funding_model_violation before validation or publish run', async () => {
+    const deps = setup();
+    vi.mocked(deps.workflow.finalizeAttempt).mockResolvedValue({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      job: {} as never,
+    });
+
+    expect(await createThreePhaseAttemptHarness(deps).run(input)).toEqual({
+      kind: 'finalize_denied',
+      outcome: 'funding_model_violation',
+    });
+    expect(deps.executor).toHaveBeenCalledOnce();
+    expect(deps.validator).not.toHaveBeenCalled();
+    expect(deps.jobs.withFencedPublish).not.toHaveBeenCalled();
+  });
+
+  it.each(['appended', 'replayed', 'conflict'] as const)(
+    'derives publish denial from fenced publish funding violation (%s)',
+    async (incident) => {
+      const deps = setup();
+      vi.mocked(deps.jobs.withFencedPublish).mockResolvedValue({
+        kind: 'funding_model_violation',
+        reason: 'missing_reservation',
+        fundingModel: 'system_funded',
+        incident,
+        job: {} as never,
+      });
+
+      expect(await createThreePhaseAttemptHarness(deps).run(input)).toEqual({
+        kind: 'publish_denied',
+        outcome: 'funding_model_violation',
+      });
+      expect(deps.validator).toHaveBeenCalledOnce();
+      expect(deps.appendSentinel).not.toHaveBeenCalled();
+    },
+  );
+
+  it('locks the funding violation outcome vocabulary into the harness result', () => {
+    expectTypeOf<
+      Extract<ThreePhaseAttemptResult, { readonly kind: 'finalize_denied' }>['outcome']
+    >().toEqualTypeOf<
+      | 'conflict'
+      | 'not_authorized'
+      | 'reconciliation_conflict'
+      | 'reconciliation_incident_conflict'
+      | 'funding_model_violation'
+    >();
+    expectTypeOf<
+      Extract<
+        Extract<ThreePhaseAttemptResult, { readonly kind: 'publish_denied' }>['outcome'],
+        'funding_model_violation'
+      >
+    >().toEqualTypeOf<'funding_model_violation'>();
   });
 });

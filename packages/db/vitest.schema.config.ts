@@ -12,6 +12,7 @@ export default defineConfig({
       '@narraza/application': path.resolve(here, '../application/src/index.ts'),
       '@narraza/core': path.resolve(here, '../core/src/index.ts'),
       '@narraza/shared': path.resolve(here, '../shared/src/index.ts'),
+      '@narraza/ai': path.resolve(here, '../ai/src/index.ts'),
     },
   },
   test: {

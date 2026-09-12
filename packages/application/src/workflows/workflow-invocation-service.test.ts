@@ -1,16 +1,20 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import type { MissingReservationViolation } from '../credits/reservation-reconciliation-service.js';
+import { ReservationReconciliationConflict } from '../credits/reservation-reconciliation-error.js';
 import type { AiUsagePort, UsageMetrics } from '../ports/ai-usage-port.js';
 import type { JobPort } from '../ports/job-port.js';
 import type { ProjectRepo } from '../ports/project-repo.js';
 import type { TxPorts, UnitOfWork } from '../ports/unit-of-work.js';
 import type {
   BeginAttemptInput,
+  FinalizeAttemptResult,
   GenerationAttemptPort,
   WorkflowInvocationPort,
 } from '../ports/workflow-invocation-port.js';
 import type {
   GenerationAttemptRecord,
   GenerationAttemptStatus,
+  GenerationJobRecord,
   ProjectRecord,
   WorkflowInvocationRecord,
   WorkflowInvocationStatus,
@@ -82,6 +86,10 @@ interface HarnessOptions {
     | 'conflict'
     | 'not_authorized';
   retryFinalizeOnce?: boolean;
+  reconciliationConflict?: boolean;
+  /** Late Tx L locks a terminal nonlegacy job whose reservationId is null. */
+  missingReservation?: boolean;
+  incident?: 'appended' | 'replayed' | 'conflict';
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -93,6 +101,10 @@ function harness(options: HarnessOptions = {}) {
       const kind = options.begin ?? 'started';
       return kind === 'conflict' ? { kind } : { kind, invocation, attempt };
     }),
+    lockForFinalization: vi.fn(async () => {
+      calls.push('workflow.lockForFinalization');
+      return { kind: 'locked' as const, invocation };
+    }),
     classifyWinner: vi.fn<WorkflowInvocationPort['classifyWinner']>(async () => {
       calls.push('workflow.classifyWinner');
       const kind = options.winner ?? 'selected';
@@ -100,7 +112,9 @@ function harness(options: HarnessOptions = {}) {
         ? { kind }
         : { kind: 'classified', winner: kind };
     }),
-  } satisfies WorkflowInvocationPort;
+  } as unknown as WorkflowInvocationPort & {
+    lockForFinalization: ReturnType<typeof vi.fn>;
+  };
   const generationAttempt = {
     finalizeAttempt: vi.fn<GenerationAttemptPort['finalizeAttempt']>(async (input) => {
       calls.push('attempt.finalize');
@@ -136,19 +150,68 @@ function harness(options: HarnessOptions = {}) {
       calls.push('job.lockLiveOwnerForAttempt');
       return { kind: options.owner ?? 'locked' } as const;
     }),
-  } as unknown as JobPort;
+    lockForFinalization: vi.fn(async () => {
+      calls.push('job.lockForFinalization');
+      return { kind: 'locked' as const, eligibility: 'eligible' as const };
+    }),
+  } as unknown as JobPort & {
+    lockForFinalization: ReturnType<typeof vi.fn>;
+  };
   const projectRepo = {
     lockForUpdate: vi.fn(async () => {
       calls.push('project.lockForUpdate');
       return options.project === undefined ? project : options.project;
     }),
   } as unknown as ProjectRepo;
+  const appendReservationReconciliationIncident = vi.fn(async () => {
+    calls.push('outbox.appendReservationReconciliationIncident');
+    return { kind: options.incident ?? 'appended' } as const;
+  });
+  const appendMissingJobReservationIncident = vi.fn(async () => {
+    calls.push('outbox.appendMissingJobReservationIncident');
+    return { kind: options.incident ?? 'appended' } as const;
+  });
+  const terminalUnboundJob: GenerationJobRecord = {
+    id: 'job-1',
+    projectId: 'project-1',
+    kind: 'concept_generation',
+    status: 'failed',
+    priority: 7,
+    availableAt: now,
+    leaseToken: null,
+    leaseExpiresAt: null,
+    fenceVersion: 2,
+    cancelRequestedAt: null,
+    retryOfJobId: null,
+    bundleId: null,
+    workflowPlanId: null,
+    reservationId: null,
+    schemaVersion: 1,
+    payload: {},
+    createdAt: now,
+    updatedAt: now,
+  };
   const ports = {
     project: projectRepo,
     job,
     workflowInvocation: workflow,
     generationAttempt,
     aiUsage,
+    outbox: { appendReservationReconciliationIncident, appendMissingJobReservationIncident },
+    ...(options.reconciliationConflict && {
+      creditReservation: {},
+      job: { ...job, lockForReconciliation: vi.fn() },
+    }),
+    ...(options.missingReservation && {
+      creditReservation: {},
+      job: {
+        ...job,
+        lockForReconciliation: vi.fn(async () => {
+          calls.push('job.lockForReconciliation');
+          return terminalUnboundJob;
+        }),
+      },
+    }),
   } as unknown as TxPorts;
   const unitOfWork: UnitOfWork = {
     async execute<T>(fn: (ports: TxPorts) => Promise<T>): Promise<T> {
@@ -156,6 +219,13 @@ function harness(options: HarnessOptions = {}) {
         transactionAttempt += 1;
         calls.push('begin');
         try {
+          if (options.reconciliationConflict && transactionAttempt === 2) {
+            throw new ReservationReconciliationConflict('release_conflict', {
+              reservationId: 'reservation-1',
+              jobId: 'job-1',
+              allocationId: null,
+            });
+          }
           const result = await fn(ports);
           calls.push('commit');
           return result;
@@ -180,6 +250,9 @@ function harness(options: HarnessOptions = {}) {
     aiUsage,
     job,
     projectRepo,
+    appendReservationReconciliationIncident,
+    appendMissingJobReservationIncident,
+    terminalUnboundJob,
     service: createWorkflowInvocationService(unitOfWork),
   };
 }
@@ -253,6 +326,9 @@ describe('workflow invocation service Tx B', () => {
       expect(result).toMatchObject({ winner });
       expect(h.calls).toEqual([
         'begin',
+        'project.lockForUpdate',
+        'job.lockForFinalization',
+        'workflow.lockForFinalization',
         'attempt.finalize',
         'usage.appendForAttempt',
         'workflow.classifyWinner',
@@ -271,6 +347,7 @@ describe('workflow invocation service Tx B', () => {
       finalizeInput,
       expect.any(Object),
       false,
+      'eligible',
     );
   });
 
@@ -293,6 +370,115 @@ describe('workflow invocation service Tx B', () => {
       expect(input).toMatchObject({ invocationId: 'invocation-1', attemptId: 'attempt-1' });
     }
     expect(h.aiUsage.appendForAttempt).toHaveBeenCalledOnce();
+  });
+
+  it.each(['appended', 'replayed'] as const)(
+    'records reconciliation conflict in separate transaction with semantic %s result',
+    async (incident) => {
+      const h = harness({ reconciliationConflict: true, incident });
+      await expect(h.service.finalizeAttempt(finalizeInput)).resolves.toEqual({
+        kind: 'reconciliation_conflict',
+        reason: 'release_conflict',
+      });
+      expect(h.calls).toEqual([
+        'begin',
+        'project.lockForUpdate',
+        'job.lockForFinalization',
+        'workflow.lockForFinalization',
+        'attempt.finalize',
+        'usage.appendForAttempt',
+        'workflow.classifyWinner',
+        'commit',
+        'begin',
+        'rollback',
+        'begin',
+        'outbox.appendReservationReconciliationIncident',
+        'commit',
+      ]);
+      expect(h.appendReservationReconciliationIncident).toHaveBeenCalledWith({
+        id: 'incident:reservation-reconciliation:reservation-1:job-1:release_conflict:none',
+        reservationId: 'reservation-1',
+        jobId: 'job-1',
+        reason: 'release_conflict',
+        allocationId: null,
+        dedupeKey: 'incident:reservation-reconciliation:reservation-1:job-1:release_conflict:none',
+      });
+    },
+  );
+
+  it('surfaces controlled typed result when reconciliation incident semantics conflict', async () => {
+    const h = harness({ reconciliationConflict: true, incident: 'conflict' });
+    await expect(h.service.finalizeAttempt(finalizeInput)).resolves.toEqual({
+      kind: 'reconciliation_incident_conflict',
+      reason: 'release_conflict',
+    });
+    expect(h.calls.slice(-3)).toEqual([
+      'begin',
+      'outbox.appendReservationReconciliationIncident',
+      'commit',
+    ]);
+  });
+
+  it('late Tx L commits one incident for unbound terminal job and returns typed outcome after Tx B usage', async () => {
+    const h = harness({ missingReservation: true });
+    const result = await h.service.finalizeAttempt(finalizeInput);
+
+    expect(result).toEqual({
+      kind: 'funding_model_violation',
+      reason: 'missing_reservation',
+      fundingModel: 'user_paid',
+      incident: 'appended',
+      job: h.terminalUnboundJob,
+    });
+    expect(h.calls).toEqual([
+      'begin',
+      'project.lockForUpdate',
+      'job.lockForFinalization',
+      'workflow.lockForFinalization',
+      'attempt.finalize',
+      'usage.appendForAttempt',
+      'workflow.classifyWinner',
+      'commit',
+      'begin',
+      'project.lockForUpdate',
+      'job.lockForReconciliation',
+      'outbox.appendMissingJobReservationIncident',
+      'commit',
+    ]);
+    expect(h.appendMissingJobReservationIncident).toHaveBeenCalledWith({
+      id: 'incident:job-missing-reservation:job-1',
+      projectId: 'project-1',
+      jobId: 'job-1',
+      jobKind: 'concept_generation',
+      fundingModel: 'user_paid',
+      dedupeKey: 'incident:job-missing-reservation:job-1',
+    });
+    expect(h.aiUsage.appendForAttempt).toHaveBeenCalledOnce();
+  });
+
+  it('replays the same funding incident without duplicating durable rows', async () => {
+    const h = harness({ missingReservation: true, incident: 'replayed' });
+    await expect(h.service.finalizeAttempt(finalizeInput)).resolves.toMatchObject({
+      kind: 'funding_model_violation',
+      incident: 'replayed',
+    });
+    expect(h.appendMissingJobReservationIncident).toHaveBeenCalledOnce();
+  });
+
+  it('does not run late reconciliation when capability ports are absent', async () => {
+    const h = harness();
+    await expect(h.service.finalizeAttempt(finalizeInput)).resolves.toMatchObject({
+      kind: 'finalized',
+      winner: 'selected',
+    });
+    expect(h.calls.at(-2)).toBe('workflow.classifyWinner');
+    expect(h.calls.at(-1)).toBe('commit');
+  });
+
+  it('declares the funding violation variant on FinalizeAttemptResult', () => {
+    expectTypeOf<
+      Extract<FinalizeAttemptResult, { readonly kind: 'funding_model_violation' }>
+    >().toEqualTypeOf<MissingReservationViolation & { readonly job: GenerationJobRecord }>();
   });
 
   it('keeps chargedParty out of caller-controlled metrics and commands', () => {

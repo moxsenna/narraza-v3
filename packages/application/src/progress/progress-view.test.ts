@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { projectProgressView, type ProjectProgressSnapshot } from './project-progress-view.js';
+import {
+  intakeSufficiencyView,
+  projectProgressView,
+  type ProjectProgressSnapshot,
+} from './project-progress-view.js';
 
 const base = (over: Partial<ProjectProgressSnapshot> = {}): ProjectProgressSnapshot => ({
   projectStatus: 'active',
@@ -80,5 +84,68 @@ describe('progress-view', () => {
     expect(v.stage).toBe('writing');
     expect(v.nextAction.code).toBe('continue_writing');
     expect(v.counts.acceptedBeats).toBe(2);
+  });
+});
+
+describe('progress-view W5.5', () => {
+  it('pending proposals → review stage with close-chapter action and badge', () => {
+    const v = projectProgressView(
+      base({
+        hasIntakeMessages: true,
+        foundationStatus: 'locked',
+        chapterCount: 3,
+        beatWithAcceptedProseCount: 1,
+        pendingProposalCount: 2,
+      }),
+    );
+    expect(v.stage).toBe('review');
+    expect(v.nextAction).toEqual({ code: 'close_chapter', hrefHint: 'selesaikan' });
+    expect(v.badges.pendingProposals).toBe(2);
+  });
+
+  it('published artifacts → publish stage (publish wins over review)', () => {
+    const v = projectProgressView(
+      base({
+        hasIntakeMessages: true,
+        foundationStatus: 'locked',
+        chapterCount: 3,
+        beatWithAcceptedProseCount: 2,
+        pendingProposalCount: 1,
+        artifactPublishedCount: 1,
+      }),
+    );
+    expect(v.stage).toBe('publish');
+    expect(v.nextAction).toEqual({ code: 'publish_artifact', hrefHint: 'publish' });
+    expect(v.badges.pendingProposals).toBe(1);
+  });
+
+  it('W5.5 fields default to zero (backward compatible)', () => {
+    const v = projectProgressView(
+      base({
+        hasIntakeMessages: true,
+        foundationStatus: 'locked',
+        chapterCount: 3,
+      }),
+    );
+    expect(v.stage).toBe('writing');
+    expect(v.badges.pendingProposals).toBe(0);
+  });
+
+  it('intake sufficiency: below 3 collected signals keeps chat CTA', () => {
+    expect(intakeSufficiencyView({ collectedSignalCount: 0 }).sufficient).toBe(false);
+    expect(intakeSufficiencyView({ collectedSignalCount: 2 }).nextAction).toEqual({
+      code: 'continue_intake',
+      hrefHint: 'chat',
+    });
+  });
+
+  it('intake sufficiency: 3 fields collected flips CTA to compose concepts', () => {
+    const v = intakeSufficiencyView({ collectedSignalCount: 3 });
+    expect(v.sufficient).toBe(true);
+    expect(v.nextAction).toEqual({ code: 'compose_concepts', hrefHint: 'konsep' });
+    // More signals stay sufficient; negatives clamp to zero.
+    expect(intakeSufficiencyView({ collectedSignalCount: 7 }).sufficient).toBe(true);
+    expect(intakeSufficiencyView({ collectedSignalCount: -4 }).collected).toBe(0);
+    expect(intakeSufficiencyView({ collectedSignalCount: NaN }).collected).toBe(0);
   });
 });

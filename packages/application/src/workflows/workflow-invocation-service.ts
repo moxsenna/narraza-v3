@@ -1,3 +1,5 @@
+import { ReservationReconciliationConflict } from '../credits/reservation-reconciliation-error.js';
+import { reconcileTerminalReservation } from '../credits/reservation-reconciliation-service.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
 import type {
   BeginAttemptInput,
@@ -34,7 +36,19 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
 
     async finalizeAttempt(input) {
       try {
-        return await unitOfWork.execute<FinalizeAttemptResult>(async (ports) => {
+        let supportsLateReconciliation = false;
+        const result = await unitOfWork.execute<FinalizeAttemptResult>(async (ports) => {
+          supportsLateReconciliation =
+            ports.creditReservation !== undefined && ports.job.lockForReconciliation !== undefined;
+          const project = await ports.project.lockForUpdate(input.projectId);
+          if (project === null) return { kind: 'not_authorized' };
+
+          const job = await ports.job.lockForFinalization(input);
+          if (job.kind === 'not_authorized') return { kind: 'not_authorized' };
+
+          const invocation = await ports.workflowInvocation.lockForFinalization(input);
+          if (invocation.kind === 'not_authorized') return { kind: 'not_authorized' };
+
           const finalized = await ports.generationAttempt.finalizeAttempt(input);
           if (finalized.kind === 'not_authorized') return finalized;
           if (finalized.kind === 'conflict') throw new FinalizeRollback({ kind: 'conflict' });
@@ -42,18 +56,73 @@ export function createWorkflowInvocationService(unitOfWork: UnitOfWork): Workflo
           const usage = await ports.aiUsage.appendForAttempt(finalized.attempt, input.usage);
           if (usage.kind === 'conflict') throw new FinalizeRollback({ kind: 'conflict' });
 
+          const eligibility = project.deletedAt !== null ? 'project_tombstoned' : job.eligibility;
           const classified = await ports.workflowInvocation.classifyWinner(
             input,
             finalized.attempt,
             finalized.kind === 'finalized',
+            eligibility,
           );
           if (classified.kind === 'conflict') throw new FinalizeRollback({ kind: 'conflict' });
           if (classified.kind === 'not_authorized') return classified;
 
           return { kind: finalized.kind, attempt: finalized.attempt, winner: classified.winner };
         });
+
+        if (
+          supportsLateReconciliation &&
+          (result.kind === 'finalized' || result.kind === 'replayed')
+        ) {
+          const fundingViolation = await unitOfWork.execute(async (ports) => {
+            const project = await ports.project.lockForUpdate(input.projectId);
+            if (project === null) return undefined;
+            const job = await ports.job.lockForReconciliation({
+              projectId: input.projectId,
+              jobId: input.jobId,
+            });
+            if (
+              job === null ||
+              !['succeeded', 'failed', 'dead', 'cancelled'].includes(job.status)
+            ) {
+              return undefined;
+            }
+            const reconciled = await reconcileTerminalReservation(ports, {
+              ownerUserId: project.ownerUserId,
+              job,
+              terminalReason: job.status === 'cancelled' ? 'cancelled' : 'released',
+            });
+            return reconciled.kind === 'funding_model_violation'
+              ? { ...reconciled, job }
+              : undefined;
+          });
+          if (fundingViolation) return fundingViolation;
+        }
+        return result;
       } catch (error) {
         if (error instanceof FinalizeRollback) return error.result;
+        if (error instanceof ReservationReconciliationConflict) {
+          const { reservationId, jobId, allocationId } = error.context;
+          const allocationKey = allocationId ?? 'none';
+          const dedupeKey =
+            `incident:reservation-reconciliation:${reservationId}:${jobId}:${error.reason}:${allocationKey}` as const;
+          const incident = await unitOfWork.execute(async (ports) => {
+            const appendIncident = ports.outbox.appendReservationReconciliationIncident;
+            if (appendIncident === undefined) {
+              throw new Error('reservation reconciliation incident capability unavailable');
+            }
+            return appendIncident({
+              id: dedupeKey,
+              reservationId,
+              jobId,
+              reason: error.reason,
+              allocationId,
+              dedupeKey,
+            });
+          });
+          return incident.kind === 'conflict'
+            ? { kind: 'reconciliation_incident_conflict', reason: error.reason }
+            : { kind: 'reconciliation_conflict', reason: error.reason };
+        }
         throw error;
       }
     },

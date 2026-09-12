@@ -1,4 +1,5 @@
 import { createWorkflowInvocationService } from '@narraza/application';
+import { Pool } from 'pg';
 import { expect } from 'vitest';
 import {
   createPrismaForUrl,
@@ -15,6 +16,58 @@ const jobId = '75000000-0000-4000-8000-000000000001';
 const invocationId = '76000000-0000-4000-8000-000000000001';
 const attemptA = '77000000-0000-4000-8000-000000000001';
 const attemptB = '77000000-0000-4000-8000-000000000002';
+
+interface HeldRowLock {
+  readonly applicationName: string;
+  release(): Promise<void>;
+}
+
+async function holdRowLock(
+  databaseUrl: string,
+  applicationName: string,
+  sql: string,
+  parameters: readonly unknown[],
+): Promise<HeldRowLock> {
+  const pool = new Pool({ connectionString: databaseUrl, application_name: applicationName });
+  const client = await pool.connect();
+  let active = true;
+  try {
+    await client.query('BEGIN');
+    await client.query(sql, [...parameters]);
+  } catch (error) {
+    client.release();
+    await pool.end();
+    throw error;
+  }
+  return {
+    applicationName,
+    async release() {
+      if (!active) return;
+      active = false;
+      await client.query('ROLLBACK').catch(() => undefined);
+      client.release();
+      await pool.end();
+    },
+  };
+}
+
+async function waitForBlocker(observer: Pool, waiterApplicationName: string): Promise<string> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const result = await observer.query(
+      `SELECT blocker.application_name
+         FROM pg_stat_activity waiter
+         CROSS JOIN LATERAL unnest(pg_blocking_pids(waiter.pid)) blocker_pid
+         JOIN pg_stat_activity blocker ON blocker.pid=blocker_pid
+        WHERE waiter.application_name=$1`,
+      [waiterApplicationName],
+    );
+    const blocker = result.rows[0]?.application_name as string | undefined;
+    if (blocker) return blocker;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`${waiterApplicationName} did not block before deadline`);
+}
 
 async function setup(
   client: Parameters<Parameters<typeof suite.test>[1]>[0]['client'],
@@ -68,6 +121,108 @@ const finalizeInput = (
   },
 });
 
+function namedDatabaseUrl(databaseUrl: string, applicationName: string): string {
+  const url = new URL(databaseUrl);
+  url.searchParams.set('application_name', applicationName);
+  return url.toString();
+}
+
+suite.test(
+  'Tx A and Tx B acquire project, job, invocation, then attempt locks',
+  async ({ client, databaseUrl }) => {
+    const setupState = await setup(client, databaseUrl);
+    await setupState.service.beginAttempt(beginInput(setupState.identity, attemptA));
+    await setupState.prisma.$disconnect();
+
+    const txAPrisma = createPrismaForUrl(namedDatabaseUrl(databaseUrl, 'tx-a-order'));
+    const txAService = createWorkflowInvocationService(createUnitOfWork(txAPrisma));
+    const txAHolders: HeldRowLock[] = [];
+    let txA: Promise<unknown> | undefined;
+    try {
+      txAHolders.push(
+        await holdRowLock(
+          databaseUrl,
+          'holder-project-a',
+          'SELECT id FROM projects WHERE id=$1 FOR UPDATE',
+          [ids.projectA],
+        ),
+        await holdRowLock(
+          databaseUrl,
+          'holder-job-a',
+          'SELECT id FROM generation_jobs WHERE project_id=$1 AND id=$2 FOR UPDATE',
+          [ids.projectA, jobId],
+        ),
+        await holdRowLock(
+          databaseUrl,
+          'holder-invocation-a',
+          'SELECT id FROM workflow_invocations WHERE project_id=$1 AND job_id=$2 AND id=$3 FOR UPDATE',
+          [ids.projectA, jobId, invocationId],
+        ),
+      );
+      txA = txAService.beginAttempt(beginInput(setupState.identity, attemptB));
+      expect(await waitForBlocker(client, 'tx-a-order')).toBe('holder-project-a');
+      await txAHolders[0]!.release();
+      expect(await waitForBlocker(client, 'tx-a-order')).toBe('holder-job-a');
+      await txAHolders[1]!.release();
+      expect(await waitForBlocker(client, 'tx-a-order')).toBe('holder-invocation-a');
+      await txAHolders[2]!.release();
+      expect(await txA).toMatchObject({ kind: 'started' });
+    } finally {
+      await Promise.all(txAHolders.map((holder) => holder.release()));
+      await txA?.catch(() => undefined);
+      await txAPrisma.$disconnect();
+    }
+
+    const txBPrisma = createPrismaForUrl(namedDatabaseUrl(databaseUrl, 'tx-b-order'));
+    const txBService = createWorkflowInvocationService(createUnitOfWork(txBPrisma));
+    const txBHolders: HeldRowLock[] = [];
+    let txB: Promise<unknown> | undefined;
+    try {
+      txBHolders.push(
+        await holdRowLock(
+          databaseUrl,
+          'holder-project-b',
+          'SELECT id FROM projects WHERE id=$1 FOR UPDATE',
+          [ids.projectA],
+        ),
+        await holdRowLock(
+          databaseUrl,
+          'holder-job-b',
+          'SELECT id FROM generation_jobs WHERE project_id=$1 AND id=$2 FOR UPDATE',
+          [ids.projectA, jobId],
+        ),
+        await holdRowLock(
+          databaseUrl,
+          'holder-invocation-b',
+          'SELECT id FROM workflow_invocations WHERE project_id=$1 AND job_id=$2 AND id=$3 FOR UPDATE',
+          [ids.projectA, jobId, invocationId],
+        ),
+        await holdRowLock(
+          databaseUrl,
+          'holder-attempt-b',
+          'SELECT id FROM generation_attempts WHERE project_id=$1 AND job_id=$2 AND invocation_id=$3 AND id=$4 FOR UPDATE',
+          [ids.projectA, jobId, invocationId, attemptB],
+        ),
+      );
+      txB = txBService.finalizeAttempt(finalizeInput(setupState.identity, attemptB));
+      expect(await waitForBlocker(client, 'tx-b-order')).toBe('holder-project-b');
+      await txBHolders[0]!.release();
+      expect(await waitForBlocker(client, 'tx-b-order')).toBe('holder-job-b');
+      await txBHolders[1]!.release();
+      expect(await waitForBlocker(client, 'tx-b-order')).toBe('holder-invocation-b');
+      await txBHolders[2]!.release();
+      expect(await waitForBlocker(client, 'tx-b-order')).toBe('holder-attempt-b');
+      await txBHolders[3]!.release();
+      expect(await txB).toMatchObject({ kind: 'finalized', winner: 'selected' });
+    } finally {
+      await Promise.all(txBHolders.map((holder) => holder.release()));
+      await txB?.catch(() => undefined);
+      await txBPrisma.$disconnect();
+    }
+  },
+  30_000,
+);
+
 suite.test(
   'CAS zero-row unsupported invocation state returns conflict',
   async ({ client, databaseUrl }) => {
@@ -86,62 +241,66 @@ suite.test(
   },
 );
 
-suite.test('Tx A denial table creates zero lifecycle rows', async ({ client, databaseUrl }) => {
-  const cases = [
-    ['wrong project', async () => ({ projectId: ids.projectB })],
-    [
-      'terminal job',
-      async () => {
-        await client.query(
-          `UPDATE generation_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL WHERE id=$1`,
-          [jobId],
-        );
-        return {};
-      },
-    ],
-    [
-      'expired lease',
-      async () => {
-        await client.query(
-          `UPDATE generation_jobs SET lease_expires_at=now()-interval '1 second' WHERE id=$1`,
-          [jobId],
-        );
-        return {};
-      },
-    ],
-    [
-      'cancellation',
-      async () => {
-        await client.query(`UPDATE generation_jobs SET cancel_requested_at=now() WHERE id=$1`, [
-          jobId,
-        ]);
-        return {};
-      },
-    ],
-    [
-      'tombstone',
-      async () => {
-        await client.query(`UPDATE projects SET deleted_at=now() WHERE id=$1`, [ids.projectA]);
-        return {};
-      },
-    ],
-  ] as const;
-  for (const [name, mutate] of cases) {
-    await client.query(
-      `TRUNCATE workflow_invocations,generation_attempts,ai_usage_events,generation_jobs,model_price_snapshots,projects,users CASCADE`,
-    );
-    const { prisma, service, identity } = await setup(client, databaseUrl);
-    const override = await mutate();
-    expect(await service.beginAttempt({ ...beginInput(identity), ...override }), name).toEqual({
-      kind: 'not_authorized',
-    });
-    const count = await client.query(
-      `SELECT (SELECT count(*) FROM workflow_invocations)::int invocations,(SELECT count(*) FROM generation_attempts)::int attempts`,
-    );
-    expect(count.rows[0], name).toEqual({ invocations: 0, attempts: 0 });
-    await prisma.$disconnect();
-  }
-});
+suite.test(
+  'Tx A denial table creates zero lifecycle rows',
+  async ({ client, databaseUrl }) => {
+    const cases = [
+      ['wrong project', async () => ({ projectId: ids.projectB })],
+      [
+        'terminal job',
+        async () => {
+          await client.query(
+            `UPDATE generation_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL WHERE id=$1`,
+            [jobId],
+          );
+          return {};
+        },
+      ],
+      [
+        'expired lease',
+        async () => {
+          await client.query(
+            `UPDATE generation_jobs SET lease_expires_at=now()-interval '1 second' WHERE id=$1`,
+            [jobId],
+          );
+          return {};
+        },
+      ],
+      [
+        'cancellation',
+        async () => {
+          await client.query(`UPDATE generation_jobs SET cancel_requested_at=now() WHERE id=$1`, [
+            jobId,
+          ]);
+          return {};
+        },
+      ],
+      [
+        'tombstone',
+        async () => {
+          await client.query(`UPDATE projects SET deleted_at=now() WHERE id=$1`, [ids.projectA]);
+          return {};
+        },
+      ],
+    ] as const;
+    for (const [name, mutate] of cases) {
+      await client.query(
+        `TRUNCATE workflow_invocations,generation_attempts,ai_usage_events,generation_jobs,model_price_snapshots,projects,users CASCADE`,
+      );
+      const { prisma, service, identity } = await setup(client, databaseUrl);
+      const override = await mutate();
+      expect(await service.beginAttempt({ ...beginInput(identity), ...override }), name).toEqual({
+        kind: 'not_authorized',
+      });
+      const count = await client.query(
+        `SELECT (SELECT count(*) FROM workflow_invocations)::int invocations,(SELECT count(*) FROM generation_attempts)::int attempts`,
+      );
+      expect(count.rows[0], name).toEqual({ invocations: 0, attempts: 0 });
+      await prisma.$disconnect();
+    }
+  },
+  60_000,
+);
 
 suite.test(
   'usage replay certification: started matching usage and terminal divergent usage',

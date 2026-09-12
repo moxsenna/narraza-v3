@@ -33,6 +33,7 @@ export type {
   CanonicalChangeSetRecord,
   CanonicalChangeOperationRecord,
   ProposalRecord,
+  CreditQuoteRecord,
   ProjectInsertInput,
   ProjectRepo,
   FoundationInsertInput,
@@ -67,11 +68,23 @@ export type {
   AuditAppendInput,
   AuditPort,
   OutboxAppendInput,
+  CreditOverageIncidentInput,
+  CreditOverageIncidentResult,
+  ReservationReconciliationIncidentInput,
+  ReservationReconciliationIncidentReason,
+  ReservationReconciliationIncidentResult,
+  MissingJobReservationFundingModel,
+  MissingJobReservationIncidentInput,
+  MissingJobReservationIncidentResult,
   OutboxPort,
   SnapshotAppendInput,
   SnapshotPort,
   ReleaseQueuedCancellationInput,
   ReleaseQueuedCancellationResult,
+  AppendReservationSettlementInput,
+  ReservationSettlementAppendResult,
+  AppendReservationReleaseInput,
+  ReservationReleaseAppendResult,
   LedgerPort,
   JobInsertInput,
   JobInsertResult,
@@ -91,8 +104,10 @@ export type {
   JobRunningCancellationResult,
   JobReclaimInput,
   JobReclaimResult,
+  JobExpiredReclaimLockResult,
   JobFencedLockResult,
   JobLiveOwnerLockResult,
+  JobFinalizationLockResult,
   JobPort,
   UsageMetrics,
   AppendUsageResult,
@@ -106,14 +121,120 @@ export type {
   BeginAttemptPortResult,
   FinalizeAttemptPortResult,
   WinnerClassificationResult,
+  FinalizationEligibility,
+  InvocationFinalizationLockResult,
   WorkflowInvocationPort,
   GenerationAttemptPort,
+  QuoteInsertInput,
+  QuoteInsertResult,
+  QuotePort,
+  CreditBalanceSnapshot,
+  CreditSummaryView,
+  CreditBalancePort,
+  CreditReservationRecord,
+  AppendCreditBillingAllocationInput,
+  AppendCreditBillingAllocationResult,
+  CreditBillingAllocationPort,
+  UsableOutputClassification,
+  ClassifyPublishedOutputInput,
+  UsableOutputClassifier,
+  CreditReservationPort,
+  CreateReservationInput,
+  CreateReservationResult,
+  ApplyReconciliationTargetInput,
+  ReconciliationApplyResult,
+  DeleteEligibleCreditRetentionInput,
+  CreditRetentionSweepResult,
+  CreditRetentionPort,
+  OutboxDeliveryEvent,
+  OutboxDeliveryReceipt,
+  OutboxClaim,
+  ClaimNextOutboxInput,
+  ClaimNextOutboxResult,
+  OutboxFinalizeFence,
+  OutboxFailureFence,
+  OutboxFinalizeResult,
+  ReplayDeadOutboxInput,
+  ReplayDeadOutboxResult,
+  OutboxNotReplayableReason,
+  OutboxDeliveryPort,
+  OutboxDeliveryUnitOfWork,
   IsolationLevel,
   UnitOfWorkOptions,
   TxPorts,
   UnitOfWork,
+  ProseWorkingDraftRecord,
+  ProseVersionRecord,
+  ProseDraftUpsertInput,
+  ProseVersionInsertInput,
+  ProseDraftRepo,
+  ProseVersionRepo,
+  ProposalGroupRecord,
+  ProposalGroupInsertInput,
+  ProposalGroupRepo,
+  ArtifactProposalRecord,
+  PublishArtifactRecord,
+  PublishArtifactInsertInput,
+  ArtifactProposalRepo,
+  ValidationReportRecord,
+  ValidationFindingRecord,
+  ValidationReportInsertInput,
+  ValidationFindingInsertInput,
+  ValidationReportRepo,
+  ValidationFindingRepo,
 } from './ports/index.js';
 
+export type {
+  M4ProductOutputPort,
+  PublishM4ProductOutputInput,
+} from './ai/m4-product-output-port.js';
+
+export type {
+  M4ConceptSetView,
+  M4CandidateGroupView,
+  M4ArtifactProposalView,
+  M4ProseVersionView,
+  M4ProductReadPort,
+} from './ports/m4-product-read-port.js';
+
+export {
+  createCreditQuoteService,
+  type IssueQuoteInput,
+  type IssueQuoteResult,
+  type CreditQuoteService,
+} from './credits/quote-service.js';
+
+export {
+  createCreditSummaryService,
+  type CreditSummaryInput,
+  type CreditSummaryService,
+} from './credits/credit-summary-service.js';
+
+export { computeCreditSummaryView } from './credits/credit-summary.js';
+export {
+  MICRO_IDR_PER_CREDIT,
+  microIdrToCreditsFloor,
+  microIdrToCreditsCeil,
+} from './credits/credit-rounding.js';
+export {
+  createCreditRetentionService,
+  DEFAULT_RETENTION_MAX_AGE_HOURS,
+  DEFAULT_RETENTION_BATCH_SIZE,
+  type CreditRetentionSweepInput,
+  type CreditRetentionService,
+} from './credits/credit-retention-service.js';
+export {
+  ReservationReconciliationConflict,
+  type ReservationReconciliationConflictReason,
+} from './credits/reservation-reconciliation-error.js';
+export {
+  recordMissingJobReservationIncident,
+  reconcileTerminalReservation,
+  type MissingReservationViolation,
+  type RecordMissingJobReservationOutcome,
+  type ReservationReconciliationResult,
+  type ReservationSettlementEvidence,
+} from './credits/reservation-reconciliation-service.js';
 export {
   createJobService,
   type CancelInput,
@@ -127,9 +248,45 @@ export {
   type ReclaimOneInput,
   type FencedPublishSentinelInput,
   type FencedPublishContext,
+  type FencedPublishOptions,
   type FencedPublishResult,
+  type JobFinishResult,
+  type JobReclaimServiceResult,
   type JobService,
 } from './jobs/job-service.js';
+
+export {
+  outboxIdempotencyKey,
+  type OutboxHandler,
+  type OutboxHandlerContext,
+  type OutboxHandlerResult,
+} from './outbox/outbox-handler.js';
+export {
+  createOutboxHandlerRegistry,
+  createProductionOutboxHandlerRegistry,
+  type OutboxHandlerRegistry,
+} from './outbox/outbox-handler-registry.js';
+export {
+  createOutboxDeliveryService,
+  type OutboxDeliveryOutcome,
+  type OutboxDeliveryService,
+  type OutboxDeliveryServiceSettings,
+  type OutboxReplayOutcome,
+  type OutboxTerminalKind,
+} from './outbox/outbox-delivery-service.js';
+export {
+  createOutboxConsumerLoop,
+  type OutboxConsumerLoop,
+  type OutboxConsumerLoopDependencies,
+  type OutboxConsumerLoopSettings,
+} from './outbox/outbox-consumer-loop.js';
+export {
+  createOutboxModule,
+  outboxSettingsFromEnv,
+  type OutboxModuleDependencies,
+  type OutboxModuleSettings,
+  type OutboxSettingsEnv,
+} from './outbox/outbox-module.js';
 
 export {
   createWorkflowInvocationService,
@@ -164,7 +321,98 @@ export type {
   Mailer,
 } from './auth/ports.js';
 export { type AuthConfig, type EmailTokenPurpose } from './auth/constants.js';
+
+// M4 Block A: frozen context bundles + deterministic mock price fixtures.
+export { toStoredDataClass } from './ai/context-bundle-port.js';
+export type {
+  ContextBundlePort,
+  ContextBundleRecord,
+  ContextBundleCreateInput,
+  ContextBundleSnapshot,
+  FrozenContextPacketRecord,
+  StoredDataClass,
+} from './ai/context-bundle-port.js';
+export {
+  createContextBundleFreezeService,
+  type FreezeBundleInput,
+  type FreezeBundleResult,
+  type FreezeBundleErrorCode,
+  type FrozenBundle,
+  type ContextPacketLike,
+} from './ai/context-bundle-freeze-service.js';
+export type {
+  ModelPriceSnapshotPort,
+  ModelPriceSnapshotRecord,
+  ModelPriceSnapshotSeedInput,
+} from './ai/model-price-port.js';
+export { seedMockPriceSnapshots } from './ai/seed-mock-prices.js';
+// M4 Block B: frozen workflow plans + paid-generation preparation.
+export type {
+  WorkflowPlanPort,
+  WorkflowPlanRecord,
+  WorkflowPlanCreateInput,
+} from './ai/workflow-plan-port.js';
+export {
+  buildWorkflowPlan,
+  createWorkflowPlanFreezeService,
+  frozenWorkflowKinds,
+  workflowDataClasses,
+} from './ai/workflow-plan-freeze-service.js';
+export type {
+  BuildPlanErrorCode,
+  BuildWorkflowPlanInput,
+  BuildWorkflowPlanResult,
+  FrozenWorkflowPlan,
+} from './ai/workflow-plan-freeze-service.js';
+export { createPaidGenerationPreparationService } from './ai/paid-generation-preparation-service.js';
+export type {
+  PreparePaidGenerationInput,
+  PreparePaidGenerationResult,
+} from './ai/paid-generation-preparation-service.js';
+// M4 Block C: attempt recovery + orchestrator (executor injected at composition).
+export { ORPHAN_ATTEMPT_ERROR_CODE, orphanAttemptPayload } from './ai/attempt-recovery-port.js';
+export type { AttemptRecoveryPort } from './ai/attempt-recovery-port.js';
+export { createAttemptRecoveryService } from './ai/attempt-recovery-service.js';
+export {
+  createAttemptOrchestrator,
+  type AttemptOrchestratorDeps,
+  type OrchestratorStageRequest,
+  type RunPlanInput,
+  type RunPlanResult,
+} from './ai/attempt-orchestrator.js';
+export {
+  MOCK_PRICE_SNAPSHOT_FIXTURES,
+  MOCK_PRICE_SNAPSHOT_ID,
+  MOCK_PROVIDER_ID,
+  MOCK_WRITER_MODEL_ID,
+  MOCK_JUDGE_MODEL_ID,
+  MOCK_PRICE_EFFECTIVE_AT,
+} from './ai/mock-price-fixtures.js';
 export { type AuthError, type AuthErrorCode } from './auth/errors.js';
+// M4 Block D: exact system-funded intake admission and reservation/job binding.
+export {
+  INTAKE_FAIR_USE_COUNTER_KIND,
+  type SystemFundedIntakePort,
+} from './ai/system-funded-intake-port.js';
+export {
+  DEFAULT_INTAKE_FAIR_USE_DAILY_LIMIT,
+  SystemFundedIntakeRollbackError,
+  createSystemFundedIntakeService,
+  type CreateSystemFundedIntakeInput,
+  type CreateSystemFundedIntakeResult,
+} from './ai/system-funded-intake-service.js';
+
+// Task 6: Credit quote confirmation service
+export { createCreditQuoteConfirmationService } from './credits/credit-quote-confirmation-service.js';
+export type {
+  CreateConfirmationInput,
+  ConfirmQuoteResult,
+} from './credits/confirmation-contract.js';
+// Re-export Task 2 pure functions for integration testing
+export {
+  computeReservationTargets,
+  deriveReservationStatus,
+} from './credits/reservation-target.js';
 export {
   createAuthService,
   type AuthService,
@@ -231,10 +479,77 @@ export {
   type AcceptConceptInput,
   type AcceptConceptOutput,
 } from './use-cases/accept-concept.js';
+export {
+  createSaveWorkingDraft,
+  createSeedDraftFromCandidate,
+  createSnapshotProseVersion,
+  type SaveWorkingDraftInput,
+  type SaveWorkingDraftOutput,
+  type DraftConflict,
+  type SeedDraftFromCandidateInput,
+  type SnapshotProseVersionInput,
+  type SnapshotProseVersionOutput,
+} from './use-cases/prose-draft.js';
+export {
+  createValidateProseVersion,
+  createOverrideFinding,
+  isOverrideAllowed,
+  M5_VALIDATION_POLICY_VERSION,
+  toPublicValidationView,
+  type ValidateProseVersionInput,
+  type ValidateProseVersionOutput,
+  type PublicValidationView,
+  type OverrideFindingInput,
+} from './use-cases/prose-validation.js';
+export {
+  createRequestSafeRepair,
+  repairInstructionFor,
+  severityScoreFor,
+  toRepairDirective,
+  type RequestSafeRepairInput,
+  type RequestSafeRepairOutput,
+  type PreviousRepairAttempt,
+} from './use-cases/prose-repair.js';
+export {
+  createPrepareProseProposal,
+  beatDependencyManifest,
+  dependencyManifestHashFor,
+  hashOperations,
+  PROPOSAL_DEPENDENCY_POLICY_VERSION,
+  type PrepareProseProposalInput,
+  type PrepareProseProposalOutput,
+  type PreparedProposal,
+} from './use-cases/proposal-prepare.js';
+export {
+  createAcceptProposal,
+  createMarkStaleProposal,
+  type AcceptProposalInput,
+  type AcceptProposalOutput,
+} from './use-cases/proposal-accept.js';
+export {
+  createPublishArtifact,
+  type PublishArtifactInput,
+  type PublishArtifactOutput,
+} from './use-cases/publish-artifact.js';
+export {
+  toPublicProposalView,
+  createGetPendingProposals,
+  createRejectProposal,
+  type PublicProposalOp,
+  type PublicProposalView,
+  type PublicProposalInputRow,
+  type GetPendingProposalsInput,
+  type PendingProposalView,
+  type RejectProposalInput,
+} from './use-cases/proposal-view.js';
 
-// Progress reducer v1 (W2.4).
+// Progress reducer v2 + intake sufficiency (W2.4 / W5.5).
 export {
   projectProgressView,
+  intakeSufficiencyView,
+  REQUIRED_INTAKE_SIGNALS,
   type ProjectProgressSnapshot,
   type ProjectProgressView,
+  type IntakeSufficiencyInput,
+  type IntakeSufficiencyView,
 } from './progress/project-progress-view.js';

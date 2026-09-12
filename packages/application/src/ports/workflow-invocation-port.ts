@@ -1,6 +1,8 @@
+import type { MissingReservationViolation } from '../credits/missing-reservation-violation.js';
 import type { UsageMetrics } from './ai-usage-port.js';
 import type {
   GenerationAttemptRecord,
+  GenerationJobRecord,
   JobLeaseIdentity,
   JsonObject,
   WorkflowInvocationRecord,
@@ -63,6 +65,18 @@ export type FinalizeAttemptResult =
       readonly winner: WinnerOutcome;
     }
   | { readonly kind: 'conflict' }
+  | {
+      readonly kind: 'reconciliation_conflict';
+      readonly reason:
+        'allocation_conflict' | 'settlement_conflict' | 'release_conflict' | 'reservation_conflict';
+    }
+  | {
+      readonly kind: 'reconciliation_incident_conflict';
+      readonly reason:
+        'allocation_conflict' | 'settlement_conflict' | 'release_conflict' | 'reservation_conflict';
+    }
+  /** Late reconciliation hit a terminal job with no reservation binding; incident committed, usage preserved. */
+  | (MissingReservationViolation & { readonly job: GenerationJobRecord })
   | { readonly kind: 'not_authorized' };
 
 export type BeginAttemptPortResult = Exclude<
@@ -79,12 +93,25 @@ export type WinnerClassificationResult =
   | { readonly kind: 'conflict' }
   | { readonly kind: 'not_authorized' };
 
+export type FinalizationEligibility =
+  'eligible' | 'ineligible_owner' | 'cancelled' | 'project_tombstoned';
+
+export type InvocationFinalizationLockResult =
+  | { readonly kind: 'locked'; readonly invocation: WorkflowInvocationRecord }
+  | { readonly kind: 'not_authorized' };
+
 export interface WorkflowInvocationPort {
+  countUnresolvedAttempts(input: {
+    readonly projectId: string;
+    readonly jobId: string;
+  }): Promise<number>;
   beginAttempt(input: BeginAttemptInput): Promise<BeginAttemptPortResult>;
+  lockForFinalization(input: FinalizeAttemptInput): Promise<InvocationFinalizationLockResult>;
   classifyWinner(
     input: FinalizeAttemptInput,
     attempt: GenerationAttemptRecord,
     allowSelection: boolean,
+    eligibility: FinalizationEligibility,
   ): Promise<WinnerClassificationResult>;
 }
 
