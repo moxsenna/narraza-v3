@@ -11,7 +11,13 @@ import { loadOutboxEnv, outboxEnvSchema } from './outbox.js';
  */
 
 const AI_KEYS = ['OPENROUTER_API_KEY', 'GEMINI_API_KEY', 'AI_ENABLE_MOCK'];
-const WEB_SECRETS = ['AUTH_SECRET', 'RATE_LIMIT_PEPPER', 'EMAIL_TOKEN_PEPPER', 'RESEND_API_KEY'];
+const WEB_SECRETS = [
+  'AUTH_SECRET',
+  'RATE_LIMIT_PEPPER',
+  'EMAIL_TOKEN_PEPPER',
+  'RESEND_API_KEY',
+  'MAILKETING_API_TOKEN',
+];
 
 describe('env-boundary', () => {
   const webKeys = Object.keys(webEnvSchema.shape);
@@ -334,9 +340,10 @@ describe('loadWebEnv', () => {
     EMAIL_TOKEN_PEPPER: 'q'.repeat(32),
   };
 
-  it('requires an email transport (Resend or SMTP)', () => {
-    expect(() => loadWebEnv(base)).toThrow(/RESEND_API_KEY or SMTP_URL/);
+  it('requires an email transport (Resend, SMTP, or Mailketing)', () => {
+    expect(() => loadWebEnv(base)).toThrow(/RESEND_API_KEY, SMTP_URL, MAILKETING_API_TOKEN/);
     expect(() => loadWebEnv({ ...base, SMTP_URL: 'smtp://localhost:1025' })).not.toThrow();
+    expect(() => loadWebEnv({ ...base, MAILKETING_API_TOKEN: 'token-123' })).not.toThrow();
   });
 
   it('applies D21 defaults', () => {

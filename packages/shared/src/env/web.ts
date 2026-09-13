@@ -15,10 +15,13 @@ export const webEnvSchema = z.object({
   DATABASE_URL_WEB: z.string().min(1),
 
   // Email (D10, repurposed by D21 for verification + password reset).
-  // Production uses Resend; dev/CI uses SMTP to Mailpit. Exactly one must be usable.
+  // Production uses Resend or Mailketing; dev/CI uses SMTP to Mailpit.
+  // Exactly one must be usable.
   EMAIL_FROM: z.string().min(3),
   RESEND_API_KEY: z.string().min(1).optional(),
   SMTP_URL: z.string().min(1).optional(),
+  MAILKETING_API_TOKEN: z.string().min(1).optional(),
+  MAILKETING_FROM_NAME: z.string().min(1).optional(),
 
   // Peppers (≠ AUTH_SECRET; S6.3 / D21).
   RATE_LIMIT_PEPPER: secretString,
@@ -62,8 +65,10 @@ export function loadWebEnv(source: EnvSource = process.env): WebEnv {
     throw new Error(`Invalid web env:\n${z.prettifyError(parsed.error)}`);
   }
   const env = parsed.data;
-  if (!env.RESEND_API_KEY && !env.SMTP_URL) {
-    throw new Error('Invalid web env: either RESEND_API_KEY or SMTP_URL must be set');
+  if (!env.RESEND_API_KEY && !env.SMTP_URL && !env.MAILKETING_API_TOKEN) {
+    throw new Error(
+      'Invalid web env: one of RESEND_API_KEY, SMTP_URL, MAILKETING_API_TOKEN must be set',
+    );
   }
   return env;
 }
