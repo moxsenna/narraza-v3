@@ -61,6 +61,8 @@ function build(): AuthBundle {
         from: env.EMAIL_FROM,
         smtpUrl: env.SMTP_URL,
         resendApiKey: env.RESEND_API_KEY,
+        mailketingApiToken: env.MAILKETING_API_TOKEN,
+        mailketingFromName: env.MAILKETING_FROM_NAME,
       }),
     },
     config,

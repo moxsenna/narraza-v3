@@ -11,6 +11,17 @@ export interface MailerConfig {
   from: string;
   smtpUrl?: string | undefined;
   resendApiKey?: string | undefined;
+  mailketingApiToken?: string | undefined;
+  mailketingFromName?: string | undefined;
+}
+
+function splitFrom(from: string, fallbackName: string): { name: string; email: string } {
+  const match = from.match(/^(.*)<([^<>]+)>$/);
+  if (match) {
+    const name = match[1]!.trim().replace(/^["']|["']$/g, '');
+    return { name: name || fallbackName, email: match[2]!.trim() };
+  }
+  return { name: fallbackName, email: from.trim() };
 }
 
 const VERIFY = {
@@ -50,7 +61,36 @@ export function createMailer(config: MailerConfig): Mailer {
       }
       return;
     }
-    throw new Error('Mailer misconfigured: no SMTP_URL or RESEND_API_KEY');
+    if (config.mailketingApiToken) {
+      const sender = splitFrom(config.from, config.mailketingFromName ?? 'Narraza');
+      const res = await fetch('https://api.mailketing.co.id/api/v2/send', {
+        method: 'POST',
+        headers: {
+          'X-Api-Token': config.mailketingApiToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from_name: config.mailketingFromName ?? sender.name,
+          from_email: sender.email,
+          subject,
+          recipient: to,
+          content: text,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Mailketing send failed: ${res.status}`);
+      }
+      const body: unknown = await res.json();
+      if (
+        typeof body !== 'object' ||
+        body === null ||
+        (body as { success?: unknown }).success !== true
+      ) {
+        throw new Error('Mailketing send rejected');
+      }
+      return;
+    }
+    throw new Error('Mailer misconfigured: no SMTP_URL, RESEND_API_KEY, or MAILKETING_API_TOKEN');
   }
 
   return {
