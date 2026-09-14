@@ -249,7 +249,7 @@ export const APP_MESSAGES_ID = {
         },
         {
           heading: 'Ceritamu tidak dipakai melatih AI',
-          body: 'Cerita dan datamu tidak dipakai untuk melatih model AI. Proses yang memakai kebenaran cerita hanya dikirim ke model yang menjamin tertulis tanpa pelatihan dan tanpa penyimpanan (kebijakan model D14).',
+          body: 'Cerita dan datamu tidak dipakai untuk melatih model AI. Proses yang memakai kebenaran cerita hanya dikirim ke model yang menjamin tertulis tanpa pelatihan dan tanpa penyimpanan.',
         },
         {
           heading: 'Apa yang dikirim ke penyedia AI',

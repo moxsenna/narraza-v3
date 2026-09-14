@@ -80,7 +80,11 @@ export function buildProjectNavigation(projectId: string): readonly ProjectNavig
     {
       label: 'LAINNYA',
       items: [
-        { label: 'Kredit & Penggunaan', capabilityKey: 'app.credit.view' },
+        {
+          label: 'Kredit & Penggunaan',
+          capabilityKey: 'app.credit.view',
+          href: '/app/kredit',
+        },
         { label: 'Pengaturan', capabilityKey: 'app.settings.view' },
       ],
     },

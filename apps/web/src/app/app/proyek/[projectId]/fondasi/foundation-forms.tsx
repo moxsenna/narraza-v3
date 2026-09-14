@@ -73,7 +73,7 @@ export function FoundationForms(props: FoundationFormValues) {
 
         {/* Section Headers - Semantic brand-700 */}
         <h3 className="text-xs font-extrabold tracking-widest uppercase text-brand-700">
-          DASAR CERITA
+          Isi dasar cerita
         </h3>
 
         <label className="block">
@@ -349,6 +349,13 @@ export function FoundationForms(props: FoundationFormValues) {
       {err ? (
         <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700" role="alert">
           {err}
+        </p>
+      ) : draftState.ok ? (
+        <p
+          className="rounded-xl bg-status-success-soft px-3 py-2 text-sm text-status-success"
+          role="status"
+        >
+          Draft tersimpan.
         </p>
       ) : null}
     </section>
