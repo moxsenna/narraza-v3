@@ -37,7 +37,28 @@ async function requestJson(
     throw new ProviderUnavailableError(response.status);
   }
   if (!response.ok) throw new ProviderRefusalError(response.headers.get('x-request-id'));
-  return { response, json: (await response.json()) as unknown };
+  const text = await response.text();
+  try {
+    return { response, json: JSON.parse(text) as unknown };
+  } catch {
+    return { response, json: parseJsonWithSseTrailer(text) };
+  }
+}
+
+/**
+ * Some OpenAI-compatible gateways append an SSE `data: [DONE]` trailer to an
+ * otherwise valid JSON body (observed 2026-09-14 against nine-router). Strip
+ * exactly one trailing trailer; anything else stays a refusal — never guess
+ * at malformed provider output.
+ */
+export function parseJsonWithSseTrailer(text: string): unknown {
+  const stripped = text.replace(/\s*data:\s*\[DONE\]\s*$/, '');
+  if (stripped === text) throw new ProviderRefusalError(null);
+  try {
+    return JSON.parse(stripped) as unknown;
+  } catch {
+    throw new ProviderRefusalError(null);
+  }
 }
 
 function numberOrZero(value: unknown): number {
