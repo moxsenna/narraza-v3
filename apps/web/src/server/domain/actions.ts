@@ -13,6 +13,7 @@ import {
 } from '@narraza/application';
 import { getCurrentUser } from '../auth/session';
 import { domainMessage } from '../../messages/domain-id';
+import { requestIntakeReplyAction } from './intake-actions';
 import { getUnitOfWork } from './uow';
 
 async function requireActiveUser() {
@@ -32,6 +33,7 @@ export type ActionState = {
   ok: boolean;
   message?: string;
   projectId?: string;
+  intake?: 'queued' | 'fair_use_limited' | 'unavailable';
 };
 
 export async function createProjectAction(
@@ -83,7 +85,17 @@ export async function appendIntakeMessageAction(
     return { ok: false, message: publicError(result.error) };
   }
 
-  return { ok: true, projectId };
+  // Product intake reply (R1 sell-ready): best-effort job trigger. The user
+  // message is already persisted — intake outcomes (queued, fair-use cap,
+  // unavailable) never fail the save, and surface via the optional field.
+  let intake: 'queued' | 'fair_use_limited' | 'unavailable';
+  try {
+    intake = await requestIntakeReplyAction(projectId, auth.value.id);
+  } catch {
+    intake = 'unavailable';
+  }
+
+  return { ok: true, projectId, intake };
 }
 
 function formStr(formData: FormData, key: string): string {

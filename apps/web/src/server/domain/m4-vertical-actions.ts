@@ -16,13 +16,20 @@ import {
   createSystemFundedIntakeService,
   createWorkflowPlanFreezeService,
   seedMockPriceSnapshots,
+  type BuildWorkflowPlanInput,
   type ContextPacketLike,
   type JsonObject,
 } from '@narraza/application';
-import { context, dependency } from '@narraza/core';
+import { context, type dependency } from '@narraza/core';
 import { resolveM4VerticalAccess } from '../../lib/server/preview/m4-vertical-harness';
 import { deriveM4ConfirmationIdentity } from '../../lib/server/confirmation-identity';
 import type { M4VerticalWorkflowKind } from './m4-vertical';
+import {
+  dependencyEntries,
+  computeDependencyHash,
+  packetMetadata,
+  recoveryPacket,
+} from './intake-packet';
 import { getUnitOfWork } from './uow';
 
 /**
@@ -89,54 +96,6 @@ function done(projectId: string): never {
   redirect(verticalPath(projectId));
 }
 
-function packetMetadata(projectId: string, dependencyHash: string): context.PacketMetadata {
-  return {
-    schemaVersion: context.PACKET_SCHEMA_VERSION,
-    projectId,
-    dependencyHash,
-    policyVersion: context.PACKET_POLICY_VERSION,
-  };
-}
-
-function dependencyEntries(
-  outline: readonly { entityType: string; id: string; revision: number; deletedAt: Date | null }[],
-): dependency.DependencyEntry[] {
-  return outline
-    .filter((node) => node.deletedAt === null)
-    .map((node) => ({
-      entityType: node.entityType,
-      entityId: node.id,
-      revision: node.revision,
-      deleted: false,
-    }));
-}
-
-function computeDependencyHash(entries: readonly dependency.DependencyEntry[]): string {
-  return dependency.dependencyManifestHash(dependency.buildDependencyManifest(entries));
-}
-
-/**
- * Parse-repair recovery envelope for the frozen bundle. Every M4 plan template
- * carries a parse-repair stage whose packetKind is 'repair', and the worker
- * pre-validates every stage's frozen binding before its first provider call —
- * so the bundle must contain this packet up front. It is a recovery-context
- * marker, not product data (the safe_repair PRODUCT workflow builds its own
- * real repair packet through the core builder instead).
- */
-function recoveryPacket(
-  projectId: string,
-  dependencyHash: string,
-  workflowKind: string,
-): ContextPacketLike {
-  const envelope: ContextPacketLike = {
-    kind: 'repair',
-    dataClass: 'writer_safe',
-    metadata: packetMetadata(projectId, dependencyHash),
-  };
-  const withContent = { ...envelope, content: { recoveryFor: workflowKind } };
-  return withContent;
-}
-
 /**
  * Beat display title, derived from real stored state. The beats table stores
  * the title inside the payload envelope, so the outline record's flat title
@@ -170,7 +129,7 @@ function plannerFoundation(payload: JsonObject): context.FoundationPlanningConte
   };
 }
 
-async function readVerticalContext(projectId: string) {
+export async function readVerticalContext(projectId: string) {
   return getUnitOfWork().execute(async (ports) => {
     const foundation = await ports.foundation.findByProjectId(projectId);
     const outline = await ports.outline.listByProject(projectId);
@@ -182,11 +141,14 @@ async function readVerticalContext(projectId: string) {
   });
 }
 
-async function freezeBundleAndPlan(
+export type PlanProfileOverride = Pick<BuildWorkflowPlanInput, 'profile' | 'priceSnapshots'>;
+
+export async function freezeBundleAndPlan(
   projectId: string,
   workflowKind: string,
   entries: readonly dependency.DependencyEntry[],
   packets: readonly ContextPacketLike[],
+  overrides?: PlanProfileOverride,
 ): Promise<
   | {
       kind: 'ok';
@@ -214,8 +176,8 @@ async function freezeBundleAndPlan(
   const built = buildWorkflowPlan({
     projectId,
     workflowKind,
-    profile: M4_HARNESS_PROFILE,
-    priceSnapshots: M4_HARNESS_PRICE_SNAPSHOTS,
+    profile: overrides?.profile ?? M4_HARNESS_PROFILE,
+    priceSnapshots: overrides?.priceSnapshots ?? M4_HARNESS_PRICE_SNAPSHOTS,
   });
   if (built.kind !== 'built') return { kind: 'error', error: 'invalid' };
 
