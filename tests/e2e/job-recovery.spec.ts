@@ -67,7 +67,7 @@ test('mock job runs end-to-end from the UI and recovers after refresh', async ({
     await expect(card).toBeVisible();
     await expect(card).toContainText('35');
     await expect(card).toContainText('Saldo tersedia');
-    await expect(card).toContainText('100');
+    await expect(card).toContainText('200');
 
     const quotedBody = (await page.locator('body').innerText()).toLowerCase();
     expect(quotedBody).not.toContain('workflowplanhash');
@@ -95,10 +95,11 @@ test('mock job runs end-to-end from the UI and recovers after refresh', async ({
 
     // Held credits appear from the same CreditSummaryView source. D6 defines
     // available = book - held - reconciling, so an open 35-credit hold against
-    // a 100-credit book leaves 65 spendable while the job is still running.
+    // a 200-credit book (100 seed + 100 new-user grant) leaves 165 spendable
+    // while the job is still running.
     await page.goto('/app/kredit');
     await expect(page.getByTestId('credit-held')).toContainText('35');
-    await expect(page.getByTestId('credit-available')).toContainText('65');
+    await expect(page.getByTestId('credit-available')).toContainText('165');
 
     // Return to the harness so the live polling panel is mounted again, then
     // complete through the real fenced publish; no usable output exists, so
@@ -116,7 +117,7 @@ test('mock job runs end-to-end from the UI and recovers after refresh', async ({
     await expect(live).toContainText('Kreditmu tidak dipotong');
     await expect(live).not.toContainText('Menunggu diproses');
     await page.goto('/app');
-    await expect(page.getByTestId('header-credit-chip')).toContainText('100');
+    await expect(page.getByTestId('header-credit-chip')).toContainText('200');
 
     // A fresh load still shows the truthful terminal outcome (immutable job)
     // and keeps the start flow available for the next run.

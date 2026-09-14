@@ -146,10 +146,12 @@ test('PR3 routes expose only honest owner-scoped presentation', async ({ page },
 
   await page.goto('/app/kredit');
   await expect(page.getByRole('heading', { level: 1, name: 'Kredit & penggunaan' })).toBeVisible();
-  await expect(page.getByTestId('credit-available')).toContainText('0');
+  // Fresh verified users carry the +100 new-user grant, so the honest
+  // first-run snapshot shows 100 available and no low-balance state.
+  await expect(page.getByTestId('credit-available')).toContainText('100');
   await expect(page.getByTestId('credit-held')).toContainText('0');
   await expect(page.getByTestId('credit-reconciling')).toContainText('0');
-  await expect(page.getByTestId('credit-low-balance')).toBeVisible();
+  await expect(page.getByTestId('credit-low-balance')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Kembali ke dashboard' })).toHaveAttribute(
     'href',
     '/app',

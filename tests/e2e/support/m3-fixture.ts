@@ -87,6 +87,32 @@ export async function grantBookCredit(userId: string, amountMicroIdr: bigint): P
   }
 }
 
+/**
+ * Test-only spend adjustment: writes a debit `adjustment` entry that the
+ * book query subtracts, so low-balance states stay reachable now that every
+ * fresh E2E user carries the +100 new-user grant. Never used outside E2E
+ * seeding; production spend flows only through settlement.
+ */
+export async function spendBookCredit(userId: string, amountMicroIdr: bigint): Promise<void> {
+  if (!DATABASE_URL) throw new Error('DATABASE_URL or DATABASE_URL_WEB required for M3 fixture');
+  const db = await import('../../../packages/db/dist/index.js');
+  const prisma = db.createPrismaClient(DATABASE_URL);
+  try {
+    await prisma.creditLedgerEntry.create({
+      data: {
+        id: randomUUID(),
+        userId,
+        entryType: 'adjustment',
+        direction: 'debit',
+        amountMicroIdr,
+        dedupeKey: `e2e-spend:${userId}:${randomUUID()}`,
+      },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export type M3JobDriver = Readonly<{
   /**
    * Claims the fixture project's job. The real claim path is a global FIFO with
