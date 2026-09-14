@@ -7,7 +7,12 @@ import {
   createProductionOutboxHandlerRegistry,
   outboxSettingsFromEnv,
 } from '@narraza/application';
-import { createM4MockProvider, createOpenRouterProvider, createGeminiProvider } from '@narraza/ai';
+import {
+  createM4MockProvider,
+  createOpenAICompatibleProvider,
+  createOpenRouterProvider,
+  createGeminiProvider,
+} from '@narraza/ai';
 import { createOutboxDeliveryUnitOfWork, createPrismaClient, createUnitOfWork } from '@narraza/db';
 import { loadWorkerEnv } from '@narraza/shared/env/worker';
 import pino from 'pino';
@@ -32,6 +37,16 @@ export function runProductionMain(): ComposedLoop {
   }
   if (env.GEMINI_API_KEY) {
     providers.set('gemini', createGeminiProvider({ apiKey: env.GEMINI_API_KEY }));
+  }
+  if (env.NINE_ROUTER_API_KEY) {
+    providers.set(
+      'nine-router',
+      createOpenAICompatibleProvider({
+        apiKey: env.NINE_ROUTER_API_KEY,
+        baseUrl: env.NINE_ROUTER_BASE_URL ?? 'https://9router.appvibe.web.id/v1',
+        providerId: 'nine-router',
+      }),
+    );
   }
   assertRestrictedRoutingServiceable({ processorEnabled: env.JOB_PROCESSOR_ENABLED, providers });
   const processor = env.JOB_PROCESSOR_ENABLED

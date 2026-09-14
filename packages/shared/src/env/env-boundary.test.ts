@@ -192,6 +192,17 @@ describe('worker lifecycle env', () => {
     expect(
       loadWorkerEnv({ ...base, JOB_PROCESSOR_ENABLED: 'true', GEMINI_API_KEY: 'k' }),
     ).toBeDefined();
+    expect(
+      loadWorkerEnv({ ...base, JOB_PROCESSOR_ENABLED: 'true', NINE_ROUTER_API_KEY: 'k' }),
+    ).toBeDefined();
+    expect(
+      loadWorkerEnv({
+        ...base,
+        JOB_PROCESSOR_ENABLED: 'true',
+        NINE_ROUTER_API_KEY: 'k',
+        NINE_ROUTER_BASE_URL: 'https://nine.example/v1/',
+      }).NINE_ROUTER_BASE_URL,
+    ).toBe('https://nine.example/v1/');
   });
 
   it('keeps mock policy independent from processor gate', () => {

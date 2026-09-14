@@ -33,9 +33,11 @@ export {
 export { createMockProvider, DEFAULT_MOCK_SCENARIO, type MockFixture } from './mock-provider.js';
 export {
   assertSingleAttemptInputCeiling,
-  createOpenRouterProvider,
   createGeminiProvider,
+  createOpenAICompatibleProvider,
+  createOpenRouterProvider,
   type HttpAdapterOptions,
+  type OpenAICompatibleAdapterOptions,
 } from './http-adapters.js';
 export { PROMPT_ENVELOPE_VERSION, renderPrompt } from './prompt-envelope.js';
 export type { PromptContentBlock, RenderedPrompt, RenderPromptInput } from './prompt-envelope.js';

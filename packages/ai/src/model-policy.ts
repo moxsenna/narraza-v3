@@ -14,9 +14,19 @@ import type { AttemptDataClass } from './provider-port.js';
  * restricted data, and restricted input is never silently downgraded to a
  * safer-looking class. Enforcement happens inside the provider adapter, at
  * the last possible point before a call leaves the process.
+ *
+ * D14 amendment 2026-09-14 (owner-directed production use): `nine-router`
+ * (owner-operated OpenAI-compatible gateway) is restricted_allowed with model
+ * `gweb/gemini-3.8-flash`. Trust basis: the gateway runs on owner-controlled
+ * infrastructure and downstream is the Google Gemini API. RESIDUAL RISK (open):
+ * gateway request-body logging/retention was not verified — confirm 9Router
+ * does not persist prompts before treating this as fully attested (M7).
  */
 
-export const RESTRICTED_ALLOWED_PROVIDERS: ReadonlySet<string> = new Set(['mock'] as const);
+export const RESTRICTED_ALLOWED_PROVIDERS: ReadonlySet<string> = new Set([
+  'mock',
+  'nine-router',
+] as const);
 
 export const RESTRICTED_DATA_CLASSES: ReadonlySet<AttemptDataClass> = new Set([
   'author_private',

@@ -143,6 +143,11 @@ describe('model-policy-allowlist', () => {
     ).not.toThrow();
     expect(isRestrictedAllowed('mock')).toBe(true);
     expect(isRestrictedAllowed('openrouter')).toBe(false);
+    // D14 amendment 2026-09-14: owner-operated nine-router gateway.
+    expect(isRestrictedAllowed('nine-router')).toBe(true);
+    expect(() =>
+      assertModelPolicy({ providerId: 'nine-router', dataClass: 'author_private' }),
+    ).not.toThrow();
   });
 });
 
