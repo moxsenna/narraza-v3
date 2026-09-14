@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ModelPolicyViolation } from './model-policy.js';
-import { createGeminiProvider, createOpenRouterProvider } from './http-adapters.js';
+import {
+  createGeminiProvider,
+  createOpenAICompatibleProvider,
+  createOpenRouterProvider,
+} from './http-adapters.js';
 
 const base = {
   providerId: 'ignored-by-adapter',
@@ -69,6 +73,15 @@ describe('real provider adapters (no-network contract)', () => {
   it.each([
     ['OpenRouter', createOpenRouterProvider({ apiKey: 'test-key', fetch: vi.fn() })],
     ['Gemini', createGeminiProvider({ apiKey: 'test-key', fetch: vi.fn() })],
+    [
+      'NineRouter',
+      createOpenAICompatibleProvider({
+        apiKey: 'test-key',
+        baseUrl: 'https://nine.example/v1/',
+        providerId: 'nine-router',
+        fetch: vi.fn(),
+      }),
+    ],
   ])('%s rejects UTF-8 input above frozen ceiling before fetch', async (_name, provider) => {
     await expect(
       provider.executeSingleAttempt({ ...base, userPrompt: 'é', maxInputTokens: 8 }),
@@ -82,5 +95,35 @@ describe('real provider adapters (no-network contract)', () => {
     await expect(
       provider.executeSingleAttempt({ ...base, dataClass: 'author_private' }),
     ).rejects.toBeInstanceOf(ModelPolicyViolation);
+  });
+
+  it('maps one nine-router response against the configured base URL', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'nr-request',
+          choices: [{ message: { content: '{"ok":true}' } }],
+          usage: { prompt_tokens: 5, completion_tokens: 2 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const result = await createOpenAICompatibleProvider({
+      apiKey: 'test-key',
+      baseUrl: 'https://nine.example/v1/',
+      providerId: 'nine-router',
+      fetch,
+    }).executeSingleAttempt({ ...base, requestedModelId: 'gweb/gemini-3.8-flash' });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0]?.[0]).toBe('https://nine.example/v1/chat/completions');
+    expect(JSON.parse((fetch.mock.calls[0]?.[1] as RequestInit).body as string)).toMatchObject({
+      model: 'gweb/gemini-3.8-flash',
+      max_tokens: 321,
+    });
+    expect(result).toMatchObject({
+      providerRequestId: 'nr-request',
+      rawBody: '{"ok":true}',
+      usage: { inputTokens: 5, outputTokens: 2, providerReportedCostMicroIdr: null },
+    });
   });
 });

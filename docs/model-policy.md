@@ -31,6 +31,17 @@ restricted_allowed yet; until sign-off, restricted workflows run on the mock
 provider only. Non-restricted classes (`writer_safe`, `review_safe`) are not
 gated by this list.
 
+## D14 amendment 2026-09-14 — nine-router (owner-directed)
+
+| Provider | Endpoint / model | Basis |
+| --- | --- | --- |
+| `nine-router` | owner-operated OpenAI-compatible gateway → `gweb/gemini-3.8-flash` | Owner-directed production use (2026-09-14); gateway runs on owner-controlled infrastructure, downstream is the Google Gemini API. |
+
+**Residual risk (open, M7):** gateway request-body logging/retention was not
+verified — confirm 9Router does not persist prompts to treat this entry as
+fully attested. Until then, restricted traffic is owner-accepted, not
+independently proven.
+
 ## Violations
 
 A routing attempt that would send restricted context to a non-allowlisted

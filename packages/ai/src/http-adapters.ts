@@ -114,6 +114,71 @@ export function createOpenRouterProvider(options: HttpAdapterOptions): ProviderP
   };
 }
 
+export interface OpenAICompatibleAdapterOptions extends HttpAdapterOptions {
+  /** OpenAI-compatible base URL, e.g. a self-hosted gateway (no trailing slash needed). */
+  readonly baseUrl: string;
+  /** Trust-domain id used by the D14 model-policy gate (NOT the model id). */
+  readonly providerId: string;
+}
+
+/**
+ * Generic OpenAI chat-completions adapter for self-hosted gateways
+ * (nine-router). Same request/response contract as the OpenRouter adapter;
+ * the trust decision keys on `providerId`, never on the model id.
+ */
+export function createOpenAICompatibleProvider(
+  options: OpenAICompatibleAdapterOptions,
+): ProviderPort {
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const base = options.baseUrl.replace(/\/+$/, '');
+  return {
+    async executeSingleAttempt(request): Promise<SingleAttemptResponse> {
+      assertModelPolicy({ providerId: options.providerId, dataClass: request.dataClass });
+      assertSingleAttemptInputCeiling(request);
+      const result = await requestJson(
+        fetchImpl,
+        `${base}/chat/completions`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${options.apiKey}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: request.requestedModelId,
+            max_tokens: request.maxOutputTokens,
+            messages: [
+              { role: 'system', content: request.systemPrompt },
+              { role: 'user', content: request.userPrompt },
+            ],
+            ...(request.structuredOutput ? { response_format: { type: 'json_object' } } : {}),
+          }),
+        },
+        request.timeoutMs,
+      );
+      const body = result.json as {
+        id?: unknown;
+        choices?: Array<{ message?: { content?: unknown } }>;
+        usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; cost?: unknown };
+      };
+      const rawBody = body.choices?.[0]?.message?.content;
+      if (typeof rawBody !== 'string') throw new ProviderRefusalError(null);
+      return {
+        providerRequestId:
+          typeof body.id === 'string'
+            ? body.id
+            : (result.response.headers.get('x-request-id') ?? `${options.providerId}-unreported`),
+        rawBody,
+        usage: {
+          inputTokens: numberOrZero(body.usage?.prompt_tokens),
+          outputTokens: numberOrZero(body.usage?.completion_tokens),
+          providerReportedCostMicroIdr: null,
+        },
+      };
+    },
+  };
+}
+
 export function createGeminiProvider(options: HttpAdapterOptions): ProviderPort {
   const fetchImpl = options.fetch ?? globalThis.fetch;
   return {

@@ -25,6 +25,8 @@ export const workerEnvSchema = z
 
     OPENROUTER_API_KEY: z.string().min(1).optional(),
     GEMINI_API_KEY: z.string().min(1).optional(),
+    NINE_ROUTER_API_KEY: z.string().min(1).optional(),
+    NINE_ROUTER_BASE_URL: z.string().min(1).optional(),
     AI_ENABLE_MOCK: boolFromEnv,
     JOB_PROCESSOR_ENABLED: strictBoolFromEnv,
 
@@ -81,7 +83,8 @@ export function loadWorkerEnv(source: EnvSource = process.env): WorkerEnv {
     env.NODE_ENV === 'production' &&
     env.JOB_PROCESSOR_ENABLED &&
     !env.OPENROUTER_API_KEY &&
-    !env.GEMINI_API_KEY
+    !env.GEMINI_API_KEY &&
+    !env.NINE_ROUTER_API_KEY
   ) {
     throw new Error('Invalid worker env: production requires at least one AI provider key');
   }
