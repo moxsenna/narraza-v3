@@ -13,11 +13,10 @@ import { getCurrentUser } from '../auth/session';
 import {
   computeDependencyHash,
   dependencyEntries,
-  freezeBundleAndPlan,
   packetMetadata,
-  readVerticalContext,
   recoveryPacket,
-} from './m4-vertical-actions';
+} from './intake-packet';
+import { freezeBundleAndPlan, readVerticalContext } from './m4-vertical-actions';
 import { getUnitOfWork } from './uow';
 
 export type IntakeReplyRequest = 'queued' | 'fair_use_limited' | 'unavailable';

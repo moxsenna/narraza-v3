@@ -88,7 +88,7 @@ export async function appendIntakeMessageAction(
   // Product intake reply (R1 sell-ready): best-effort job trigger. The user
   // message is already persisted — intake outcomes (queued, fair-use cap,
   // unavailable) never fail the save, and surface via the optional field.
-  let intake: 'queued' | 'fair_use_limited' | 'unavailable' = 'unavailable';
+  let intake: 'queued' | 'fair_use_limited' | 'unavailable';
   try {
     intake = await requestIntakeReplyAction(projectId, auth.value.id);
   } catch {
