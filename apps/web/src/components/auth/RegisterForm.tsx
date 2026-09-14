@@ -4,13 +4,17 @@ import { useActionState } from 'react';
 import { registerAction } from '../../server/auth/actions';
 import { initialFormState } from '../../server/auth/form-state';
 import { FormError, FormNotice, SubmitButton, TextField } from './fields';
+import { ResendVerificationForm } from './ResendVerificationForm';
 
 export function RegisterForm() {
   const [state, action] = useActionState(registerAction, initialFormState);
 
   if (state.status === 'success') {
     return (
-      <FormNotice message="Cek emailmu — kami sudah mengirim tautan verifikasi. Buka tautannya untuk mengaktifkan akunmu." />
+      <div className="flex flex-col gap-4">
+        <FormNotice message="Cek emailmu — kami sudah mengirim tautan verifikasi. Buka tautannya untuk mengaktifkan akunmu." />
+        <ResendVerificationForm />
+      </div>
     );
   }
 
@@ -24,6 +28,7 @@ export function RegisterForm() {
         autoComplete="new-password"
         required
       />
+      <p className="-mt-2 text-xs text-muted">Minimal 10 karakter.</p>
       <TextField
         label="Ulangi kata sandi"
         name="passwordConfirm"

@@ -96,6 +96,16 @@ export default async function KreditPage() {
           )}
 
           <section className="mt-8 border-t border-border-default pt-6">
+            <h2 className="text-base font-bold text-text-primary">Untuk apa kredit dipakai?</h2>
+            <p className="mt-2 text-sm leading-6 text-text-secondary">
+              Kredit dipakai untuk aksi berbayar: membuat konsep, melengkapi fondasi, menyusun
+              outline, menulis adegan, dan membuat Paket Publish. Ngobrol dengan Narra, menyimpan
+              draft, dan pemeriksaan deterministik selalu gratis. Setiap aksi berbayar menampilkan
+              perkiraan biaya dan meminta konfirmasimu dulu.
+            </p>
+          </section>
+
+          <section className="mt-8 border-t border-border-default pt-6">
             <h2 className="text-base font-bold text-text-primary">Riwayat penggunaan</h2>
             <p className="mt-2 text-sm leading-6 text-text-secondary">
               Riwayat pemakaian akan tersedia setelah ada proses berbayar yang selesai di akunmu.
