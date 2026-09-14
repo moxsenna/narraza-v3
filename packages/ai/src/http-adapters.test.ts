@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ProviderRefusalError } from './classify-error.js';
 import { ModelPolicyViolation } from './model-policy.js';
 import {
   createGeminiProvider,
@@ -125,5 +126,39 @@ describe('real provider adapters (no-network contract)', () => {
       rawBody: '{"ok":true}',
       usage: { inputTokens: 5, outputTokens: 2, providerReportedCostMicroIdr: null },
     });
+  });
+
+  it('tolerates one trailing SSE data:[DONE] trailer (nine-router wire quirk)', async () => {
+    const body =
+      '{"id":"nr-sse","choices":[{"message":{"content":"PONG"}}],' +
+      '"usage":{"prompt_tokens":20,"completion_tokens":1}}data: [DONE]\n';
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(body, { status: 200 }));
+    const result = await createOpenAICompatibleProvider({
+      apiKey: 'test-key',
+      baseUrl: 'https://nine.example/v1',
+      providerId: 'nine-router',
+      fetch,
+    }).executeSingleAttempt({ ...base, requestedModelId: 'gweb/gemini-3.8-flash' });
+    expect(result).toMatchObject({
+      providerRequestId: 'nr-sse',
+      rawBody: 'PONG',
+      usage: { inputTokens: 20, outputTokens: 1 },
+    });
+  });
+
+  it('refuses garbage bodies instead of guessing', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response('not json at all', { status: 200 }));
+    await expect(
+      createOpenAICompatibleProvider({
+        apiKey: 'test-key',
+        baseUrl: 'https://nine.example/v1',
+        providerId: 'nine-router',
+        fetch,
+      }).executeSingleAttempt(base),
+    ).rejects.toBeInstanceOf(ProviderRefusalError);
   });
 });
