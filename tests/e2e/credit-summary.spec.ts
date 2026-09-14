@@ -4,7 +4,11 @@
  * is reserved, and the low-balance state renders from real balances only.
  */
 import { expect, test } from '@playwright/test';
-import { createM3JobDriver, seedM3ChapterForCurrentUser } from './support/m3-fixture';
+import {
+  createM3JobDriver,
+  seedM3ChapterForCurrentUser,
+  spendBookCredit,
+} from './support/m3-fixture';
 
 const MICRO_IDR_PER_CREDIT = 10_000_000n;
 
@@ -16,7 +20,8 @@ const harnessUrl = (projectId: string, chapterId: string) =>
 test.describe.configure({ timeout: 180_000 });
 
 test('header chip and credit page show the same server snapshot', async ({ page }, testInfo) => {
-  // 123 credits plus a fractional remainder that must floor away.
+  // 123 seeded credits plus the +100 new-user grant, plus a fractional
+  // remainder that must floor away: displayed total is 223.
   await seedM3ChapterForCurrentUser({
     page,
     testInfo,
@@ -25,10 +30,10 @@ test('header chip and credit page show the same server snapshot', async ({ page 
   });
 
   await page.goto('/app');
-  await expect(page.getByTestId('header-credit-chip')).toContainText('123');
+  await expect(page.getByTestId('header-credit-chip')).toContainText('223');
 
   await page.goto('/app/kredit');
-  await expect(page.getByTestId('credit-available')).toContainText('123');
+  await expect(page.getByTestId('credit-available')).toContainText('223');
   await expect(page.getByTestId('credit-held')).toContainText('0');
   await expect(page.getByTestId('credit-reconciling')).toContainText('0');
   await expect(page.getByTestId('credit-low-balance')).toHaveCount(0);
@@ -54,13 +59,14 @@ test('held credits appear while a job is reserved and release after completion',
     await expect(page.getByTestId('job-phase-panel')).toContainText('Menunggu diproses');
 
     // Reservation open: the 35-credit hold is subtracted from available in the
-    // single CreditSummaryView snapshot, so the page and the header chip agree.
+    // single CreditSummaryView snapshot (200-credit book = 100 seed + 100
+    // new-user grant), so the page and the header chip agree on 165.
     await page.goto('/app/kredit');
-    await expect(page.getByTestId('credit-available')).toContainText('65');
+    await expect(page.getByTestId('credit-available')).toContainText('165');
     await expect(page.getByTestId('credit-held')).toContainText('35');
     await expect(page.getByTestId('credit-held-context')).toBeVisible();
     await page.goto('/app');
-    await expect(page.getByTestId('header-credit-chip')).toContainText('65');
+    await expect(page.getByTestId('header-credit-chip')).toContainText('165');
 
     // Release through the real fenced publish path (no usable output).
     expect(await driver.claimOnce()).toBe(true);
@@ -68,9 +74,9 @@ test('held credits appear while a job is reserved and release after completion',
 
     await page.goto('/app/kredit');
     await expect(page.getByTestId('credit-held')).toContainText('0');
-    await expect(page.getByTestId('credit-available')).toContainText('100');
+    await expect(page.getByTestId('credit-available')).toContainText('200');
     await page.goto('/app');
-    await expect(page.getByTestId('header-credit-chip')).toContainText('100');
+    await expect(page.getByTestId('header-credit-chip')).toContainText('200');
   } finally {
     await driver.disconnect();
   }
@@ -85,6 +91,9 @@ test('low balance blocks confirmation and renders the low-balance state', async 
     label: 'credit-low',
     grantMicroIdr: 5n * MICRO_IDR_PER_CREDIT,
   });
+  // Fresh users carry the +100 new-user grant (105 total here); spend 100
+  // back down so the sub-10 low-balance state stays reachable.
+  await spendBookCredit(fixture.userId, 100n * MICRO_IDR_PER_CREDIT);
 
   await page.goto('/app');
   await expect(page.getByTestId('header-credit-chip')).toContainText('5');

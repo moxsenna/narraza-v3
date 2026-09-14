@@ -85,6 +85,8 @@ export type {
   ReservationSettlementAppendResult,
   AppendReservationReleaseInput,
   ReservationReleaseAppendResult,
+  AppendGrantInput,
+  GrantAppendResult,
   LedgerPort,
   JobInsertInput,
   JobInsertResult,
@@ -211,6 +213,12 @@ export {
 } from './credits/credit-summary-service.js';
 
 export { computeCreditSummaryView } from './credits/credit-summary.js';
+export {
+  NEW_USER_GRANT_CREDITS,
+  createNewUserGrantService,
+  type GrantNewUserCreditInput,
+  type GrantNewUserCreditResult,
+} from './credits/grant-new-user-credit.js';
 export {
   MICRO_IDR_PER_CREDIT,
   microIdrToCreditsFloor,

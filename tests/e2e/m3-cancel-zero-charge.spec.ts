@@ -43,11 +43,11 @@ test('queued cancel releases held credits with zero charge', async ({ page }, te
   await expect(panel).toContainText('Kreditmu tidak dipotong');
   // The harness page stands outside the app shell; read the chip on /app.
   await page.goto('/app');
-  await expect(page.getByTestId('header-credit-chip')).toContainText('100');
+  await expect(page.getByTestId('header-credit-chip')).toContainText('200');
 
   await page.goto('/app/kredit');
   await expect(page.getByTestId('credit-held')).toContainText('0');
-  await expect(page.getByTestId('credit-available')).toContainText('100');
+  await expect(page.getByTestId('credit-available')).toContainText('200');
 });
 
 test('failed job without usable output charges zero and stays recoverable-free', async ({
@@ -78,11 +78,11 @@ test('failed job without usable output charges zero and stays recoverable-free',
     await expect(panel).toContainText('Kreditmu tidak dipotong');
     // The harness page stands outside the app shell; read the chip on /app.
     await page.goto('/app');
-    await expect(page.getByTestId('header-credit-chip')).toContainText('100');
+    await expect(page.getByTestId('header-credit-chip')).toContainText('200');
 
     await page.goto('/app/kredit');
     await expect(page.getByTestId('credit-held')).toContainText('0');
-    await expect(page.getByTestId('credit-available')).toContainText('100');
+    await expect(page.getByTestId('credit-available')).toContainText('200');
   } finally {
     await driver.disconnect();
   }

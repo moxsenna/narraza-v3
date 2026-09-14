@@ -127,6 +127,8 @@ export type {
   ReservationSettlementAppendResult,
   AppendReservationReleaseInput,
   ReservationReleaseAppendResult,
+  AppendGrantInput,
+  GrantAppendResult,
   LedgerPort,
 } from './ledger-port.js';
 export type {

@@ -43,7 +43,8 @@ test('M4 dev/mock vertical runs the full product chain end to end', async ({ pag
   const driver = await createM4Driver();
   try {
     const microPerCredit = BigInt(process.env.MICRO_IDR_PER_CREDIT ?? '10000000');
-    const expectedCredits = (1_000_000_000n / microPerCredit).toString();
+    // Fixture seeds 1e9 micro-IDR on top of the +100-credit new-user grant.
+    const expectedCredits = ((1_000_000_000n + 100n * microPerCredit) / microPerCredit).toString();
 
     await page.goto(harnessUrl(fixture.projectId));
     await expect(page.getByTestId('m4-step-intake')).toBeVisible();
