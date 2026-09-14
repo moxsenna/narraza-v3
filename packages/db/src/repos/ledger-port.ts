@@ -6,6 +6,8 @@ import type {
   ReservationSettlementAppendResult,
   AppendReservationReleaseInput,
   ReservationReleaseAppendResult,
+  AppendGrantInput,
+  GrantAppendResult,
 } from '@narraza/application';
 import type { TxClient } from './tx-client.js';
 
@@ -465,6 +467,56 @@ export function createLedgerPort(tx: TxClient): LedgerPort {
       return (await findExactRelease(tx, input, reservation))
         ? { kind: 'already_released' }
         : { kind: 'binding_invalid' };
+    },
+
+    async appendGrant(input: AppendGrantInput): Promise<GrantAppendResult> {
+      if (input.amountMicroIdr <= 0n) {
+        return { kind: 'binding_invalid' };
+      }
+      const expectedDedupeKey = `grant:new-user:${input.userId}`;
+      if (input.dedupeKey !== expectedDedupeKey) {
+        return { kind: 'binding_invalid' };
+      }
+
+      const existingRows = (await tx.$queryRawUnsafe(
+        `SELECT id,user_id,project_id,amount_micro_idr,entry_type,direction,dedupe_key
+           FROM credit_ledger
+          WHERE dedupe_key = $1`,
+        input.dedupeKey,
+      )) as LedgerRow[];
+      const existing = existingRows[0];
+      // Grant identity is the dedupe key + semantic tuple (callers allocate a
+      // fresh row id per attempt, so the id itself is not compared).
+      if (existing) {
+        return existing.user_id === input.userId &&
+          existing.project_id === input.projectId &&
+          existing.entry_type === 'grant' &&
+          existing.direction === 'credit' &&
+          existing.amount_micro_idr === input.amountMicroIdr &&
+          existing.dedupe_key === input.dedupeKey
+          ? { kind: 'already_granted' }
+          : { kind: 'binding_invalid' };
+      }
+
+      const inserted = (await tx.$queryRawUnsafe(
+        `INSERT INTO credit_ledger
+           (id,user_id,project_id,reservation_id,attempt_id,entry_type,direction,
+            amount_micro_idr,dedupe_key,created_at)
+         VALUES ($1,$2,$3,NULL,NULL,'grant','credit',
+            $4,$5,now())
+         ON CONFLICT (dedupe_key) DO NOTHING
+         RETURNING id`,
+        input.ledgerEntryId,
+        input.userId,
+        input.projectId,
+        input.amountMicroIdr,
+        input.dedupeKey,
+      )) as Array<{ id: string }>;
+
+      if (inserted.length > 0) {
+        return { kind: 'granted' };
+      }
+      return { kind: 'already_granted' };
     },
   };
 }

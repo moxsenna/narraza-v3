@@ -59,6 +59,21 @@ export type ReservationReleaseAppendResult =
   | { readonly kind: 'binding_invalid' }
   | { readonly kind: 'dedupe_rejected' };
 
+// Grant append input - narrow semantic contract (sell-unlock: exactly-once
+// new-user grant, idempotent by dedupe key).
+export interface AppendGrantInput {
+  readonly userId: string;
+  readonly projectId: string | null;
+  readonly ledgerEntryId: string;
+  readonly amountMicroIdr: bigint;
+  readonly dedupeKey: `grant:${string}`;
+}
+
+export type GrantAppendResult =
+  | { readonly kind: 'granted' }
+  | { readonly kind: 'already_granted' }
+  | { readonly kind: 'binding_invalid' };
+
 export interface LedgerPort {
   releaseQueuedCancellation(
     input: ReleaseQueuedCancellationInput,
@@ -71,4 +86,6 @@ export interface LedgerPort {
   appendReservationRelease(
     input: AppendReservationReleaseInput,
   ): Promise<ReservationReleaseAppendResult>;
+
+  appendGrant(input: AppendGrantInput): Promise<GrantAppendResult>;
 }

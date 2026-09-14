@@ -1,7 +1,11 @@
 'use server';
 import { redirect } from 'next/navigation';
+import { randomUUID } from 'node:crypto';
+import { createNewUserGrantService } from '@narraza/application';
+import { loadWebEnv } from '@narraza/shared/env/web';
 import { authMessage } from '../../messages/auth-id';
 import { getAuth } from './service';
+import { getUnitOfWork } from '../domain/uow';
 import { type FormState } from './form-state';
 import {
   PENDING_RESET_COOKIE,
@@ -18,6 +22,24 @@ const genericError: FormState = { status: 'error', message: authMessage('') };
 function str(formData: FormData, key: string): string {
   const v = formData.get(key);
   return typeof v === 'string' ? v : '';
+}
+
+/**
+ * Sell-unlock grant convergence (R1). Best-effort by design: auth must never
+ * fail because the grant failed — the next login retries via the same
+ * idempotent path, so every verified user converges on exactly one grant.
+ */
+async function ensureNewUserGrant(userId: string): Promise<void> {
+  try {
+    const env = loadWebEnv();
+    await createNewUserGrantService({ unitOfWork: getUnitOfWork() }).ensureGrant({
+      userId,
+      ledgerEntryId: randomUUID(),
+      microIdrPerCredit: BigInt(env.MICRO_IDR_PER_CREDIT),
+    });
+  } catch {
+    // Convergence deferred to the next login; never fail auth.
+  }
 }
 
 export async function registerAction(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -89,6 +111,7 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
       code: res.error.code,
     };
   }
+  await ensureNewUserGrant(res.value.userId);
   await setSessionCookie(res.value.sessionToken, res.value.expiresAt);
   redirect('/app'); // redirect() throws a control-flow signal, so it is last
 }
@@ -108,6 +131,7 @@ export async function completeVerificationAction(
     };
   }
   await setSessionCookie(res.value.sessionToken, res.value.expiresAt);
+  await ensureNewUserGrant(res.value.userId);
   redirect('/app');
 }
 
