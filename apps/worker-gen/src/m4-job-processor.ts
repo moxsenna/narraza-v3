@@ -4,6 +4,7 @@ import {
   createAttemptRecoveryService,
   createIntakeReplyProjector,
   createJobService,
+  createWorkflowInvocationService,
   type GenerationJobRecord,
   type JsonObject,
   type UnitOfWork,
