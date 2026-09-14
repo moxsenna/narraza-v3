@@ -25,6 +25,7 @@ export const LEAK_PATTERNS: readonly RegExp[] = [
   /\bTODO\b|\bFIXME\b|\bHACK\b/,
   /Sprint \d/i,
   /proposalgroup|workingdraft|proseversion|canonicalchangeset|generationjob/i,
+  /msg\.[a-z0-9_.]+/i,
 ];
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;

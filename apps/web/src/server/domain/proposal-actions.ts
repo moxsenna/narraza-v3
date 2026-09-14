@@ -9,6 +9,7 @@ import {
   type AppError,
 } from '@narraza/application';
 import { getCurrentUser } from '../auth/session';
+import { domainMessage } from '../../messages/domain-id';
 import { getUnitOfWork } from './uow';
 
 /**
@@ -24,7 +25,7 @@ export type ProposalActionState = {
 };
 
 function publicError(error: AppError): string {
-  return error.publicMessageCode;
+  return domainMessage(error.publicMessageCode);
 }
 
 const HIGH_RISK_CONFIRM_PHRASE = 'jadikan resmi';
