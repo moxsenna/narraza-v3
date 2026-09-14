@@ -388,6 +388,17 @@ export {
   MOCK_JUDGE_MODEL_ID,
   MOCK_PRICE_EFFECTIVE_AT,
 } from './ai/mock-price-fixtures.js';
+export {
+  NINE_ROUTER_INPUT_RATE_MICRO_IDR,
+  NINE_ROUTER_OUTPUT_RATE_MICRO_IDR,
+  NINE_ROUTER_PRICE_EFFECTIVE_AT,
+  NINE_ROUTER_PRICE_SNAPSHOT_FIXTURE,
+  NINE_ROUTER_PRICE_SNAPSHOT_ID,
+  NINE_ROUTER_PROVIDER_ID,
+  NINE_ROUTER_WRITER_MODEL_ID,
+  seedNineRouterPriceSnapshots,
+} from './ai/nine-router-price-fixtures.js';
+export { NINE_ROUTER_PRODUCTION_PROFILE } from './ai/nine-router-profile.js';
 export { type AuthError, type AuthErrorCode } from './auth/errors.js';
 // M4 Block D: exact system-funded intake admission and reservation/job binding.
 export {
@@ -401,6 +412,11 @@ export {
   type CreateSystemFundedIntakeInput,
   type CreateSystemFundedIntakeResult,
 } from './ai/system-funded-intake-service.js';
+export {
+  createIntakeReplyProjector,
+  type PublishIntakeReplyInput,
+  type PublishIntakeReplyResult,
+} from './ai/intake-reply-projector.js';
 
 // Task 6: Credit quote confirmation service
 export { createCreditQuoteConfirmationService } from './credits/credit-quote-confirmation-service.js';

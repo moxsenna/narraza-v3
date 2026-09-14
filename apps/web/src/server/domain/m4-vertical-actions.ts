@@ -16,6 +16,7 @@ import {
   createSystemFundedIntakeService,
   createWorkflowPlanFreezeService,
   seedMockPriceSnapshots,
+  type BuildWorkflowPlanInput,
   type ContextPacketLike,
   type JsonObject,
 } from '@narraza/application';
@@ -89,7 +90,7 @@ function done(projectId: string): never {
   redirect(verticalPath(projectId));
 }
 
-function packetMetadata(projectId: string, dependencyHash: string): context.PacketMetadata {
+export function packetMetadata(projectId: string, dependencyHash: string): context.PacketMetadata {
   return {
     schemaVersion: context.PACKET_SCHEMA_VERSION,
     projectId,
@@ -98,7 +99,7 @@ function packetMetadata(projectId: string, dependencyHash: string): context.Pack
   };
 }
 
-function dependencyEntries(
+export function dependencyEntries(
   outline: readonly { entityType: string; id: string; revision: number; deletedAt: Date | null }[],
 ): dependency.DependencyEntry[] {
   return outline
@@ -111,7 +112,7 @@ function dependencyEntries(
     }));
 }
 
-function computeDependencyHash(entries: readonly dependency.DependencyEntry[]): string {
+export function computeDependencyHash(entries: readonly dependency.DependencyEntry[]): string {
   return dependency.dependencyManifestHash(dependency.buildDependencyManifest(entries));
 }
 
@@ -123,7 +124,7 @@ function computeDependencyHash(entries: readonly dependency.DependencyEntry[]): 
  * marker, not product data (the safe_repair PRODUCT workflow builds its own
  * real repair packet through the core builder instead).
  */
-function recoveryPacket(
+export function recoveryPacket(
   projectId: string,
   dependencyHash: string,
   workflowKind: string,
@@ -170,7 +171,7 @@ function plannerFoundation(payload: JsonObject): context.FoundationPlanningConte
   };
 }
 
-async function readVerticalContext(projectId: string) {
+export async function readVerticalContext(projectId: string) {
   return getUnitOfWork().execute(async (ports) => {
     const foundation = await ports.foundation.findByProjectId(projectId);
     const outline = await ports.outline.listByProject(projectId);
@@ -182,11 +183,14 @@ async function readVerticalContext(projectId: string) {
   });
 }
 
-async function freezeBundleAndPlan(
+export type PlanProfileOverride = Pick<BuildWorkflowPlanInput, 'profile' | 'priceSnapshots'>;
+
+export async function freezeBundleAndPlan(
   projectId: string,
   workflowKind: string,
   entries: readonly dependency.DependencyEntry[],
   packets: readonly ContextPacketLike[],
+  overrides?: PlanProfileOverride,
 ): Promise<
   | {
       kind: 'ok';
@@ -214,8 +218,8 @@ async function freezeBundleAndPlan(
   const built = buildWorkflowPlan({
     projectId,
     workflowKind,
-    profile: M4_HARNESS_PROFILE,
-    priceSnapshots: M4_HARNESS_PRICE_SNAPSHOTS,
+    profile: overrides?.profile ?? M4_HARNESS_PROFILE,
+    priceSnapshots: overrides?.priceSnapshots ?? M4_HARNESS_PRICE_SNAPSHOTS,
   });
   if (built.kind !== 'built') return { kind: 'error', error: 'invalid' };
 
