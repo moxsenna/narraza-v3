@@ -412,11 +412,6 @@ export {
   type CreateSystemFundedIntakeInput,
   type CreateSystemFundedIntakeResult,
 } from './ai/system-funded-intake-service.js';
-export {
-  createIntakeReplyProjector,
-  type PublishIntakeReplyInput,
-  type PublishIntakeReplyResult,
-} from './ai/intake-reply-projector.js';
 
 // Task 6: Credit quote confirmation service
 export { createCreditQuoteConfirmationService } from './credits/credit-quote-confirmation-service.js';

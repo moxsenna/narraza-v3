@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import {
   createAttemptOrchestrator,
   createAttemptRecoveryService,
-  createIntakeReplyProjector,
   createJobService,
   createWorkflowInvocationService,
   type GenerationJobRecord,
@@ -318,32 +317,19 @@ export function createM4JobProcessor(deps: ProcessorDeps): JobProcessor {
         };
       },
       publish: async ({ appendSentinel, publishM4ProductOutput, stageOutputs }) => {
-        if (job.kind === 'chat_intake_reply') {
-          const intakeSessionId = promptValue(job.payload, 'intakeSessionId');
-          if (!intakeSessionId) {
-            throw new Error('M4 processor intake publish missing intakeSessionId binding');
-          }
-          await createIntakeReplyProjector({ unitOfWork: deps.unitOfWork }).publish({
-            projectId: job.projectId,
-            intakeSessionId,
-            jobId: job.id,
-            stageOutputs: stageOutputs as Record<string, JsonObject>,
-          });
-        } else {
-          if (!publishM4ProductOutput) {
-            throw new Error('M4 product projection port is not configured');
-          }
-          const dependencyHash = promptValue(job.payload, 'dependencyHash');
-          if (!dependencyHash) throw new Error('M4 processor exact dependency binding missing');
-          await publishM4ProductOutput({
-            projectId: job.projectId,
-            jobId: job.id,
-            workflowKind: job.kind,
-            dependencyHash,
-            jobPayload: job.payload,
-            stageOutputs,
-          });
+        if (!publishM4ProductOutput) {
+          throw new Error('M4 product projection port is not configured');
         }
+        const dependencyHash = promptValue(job.payload, 'dependencyHash');
+        if (!dependencyHash) throw new Error('M4 processor exact dependency binding missing');
+        await publishM4ProductOutput({
+          projectId: job.projectId,
+          jobId: job.id,
+          workflowKind: job.kind,
+          dependencyHash,
+          jobPayload: job.payload,
+          stageOutputs,
+        });
         await appendSentinel({
           aggregateType: 'generation_job',
           aggregateId: job.id,
