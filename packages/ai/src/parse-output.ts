@@ -41,9 +41,9 @@ export function parseOutput<T>(schema: ZodType<T>, rawBody: string): ParseOutcom
 
 function extractFencedDocument(trimmed: string): string | null {
   const lines = trimmed.split('\n');
-  const first = lines[0].trim().toLowerCase();
+  const first = lines[0]?.trim().toLowerCase();
   if (first !== '```json' && first !== '```') return null;
-  const last = lines[lines.length - 1].trim();
+  const last = lines[lines.length - 1]?.trim();
   if (last !== '```' || lines.length < 3) return null;
   return lines.slice(1, -1).join('\n');
 }
