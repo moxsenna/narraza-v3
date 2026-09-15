@@ -70,8 +70,10 @@ export function DashboardView({
       ? foundationReadiness.recommendation
       : 'Semua 7 indikator fondasi terpenuhi. Alur aman dari lubang cerita.';
 
-  const activeChapterOrdinal = current?.activeChapterOrdinal ?? 3;
-  const activeChapterTitle = current?.activeChapterTitle ?? 'Kotak di Gudang';
+  const hasActiveChapter =
+    current?.activeChapterOrdinal !== undefined && current?.activeChapterTitle !== undefined;
+  const activeChapterOrdinal = current?.activeChapterOrdinal ?? 0;
+  const activeChapterTitle = current?.activeChapterTitle ?? '';
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-8 px-4 py-8 sm:px-6 lg:px-8">
@@ -87,14 +89,18 @@ export function DashboardView({
                 <span>LANGKAH PRODUKSI BERIKUTNYA</span>
                 <span>•</span>
                 <span className="rounded-full bg-[#BE123C] px-2 py-0.5 text-[10px] text-white">
-                  Bab {activeChapterOrdinal} Aktif
+                  {hasActiveChapter ? `Bab ${activeChapterOrdinal} Aktif` : 'Proyek Aktif'}
                 </span>
               </div>
               <h1 className="font-heading text-2xl font-extrabold tracking-tight sm:text-3xl">
-                Lanjutkan Bab {activeChapterOrdinal} — “{activeChapterTitle}” ({current.title})
+                {hasActiveChapter
+                  ? `Lanjutkan Bab ${activeChapterOrdinal} — “${activeChapterTitle}” (${current.title})`
+                  : `Lanjutkan ${current.title}`}
               </h1>
               <p className="font-body text-sm text-[#FFE4E6]">
-                Adegan siap ditulis • Target ritme: 1.200 kata • Konsistensi alur {continuityScore}%
+                {hasActiveChapter
+                  ? `Adegan siap ditulis • Target ritme: 1.200 kata • Konsistensi alur ${continuityScore}%`
+                  : 'Susun fondasi, rencana bab, lalu tulis adegan pertama bersama Narra.'}
               </p>
             </div>
 
@@ -146,8 +152,8 @@ export function DashboardView({
             <p className="mt-1 font-heading text-xl font-extrabold text-[#0F172A] sm:text-2xl">
               {weeklyWordCount.toLocaleString('id-ID')} kata
             </p>
-            <p className="mt-1 font-body text-xs font-medium text-[#059669]">
-              +18% dari pekan lalu
+            <p className="mt-1 font-body text-xs font-medium text-[#64748B]">
+              {weeklyWordCount > 0 ? 'Produksi berjalan' : 'Belum ada kata tercatat'}
             </p>
           </div>
 
@@ -158,8 +164,8 @@ export function DashboardView({
             <p className="mt-1 font-heading text-xl font-extrabold text-[#0F172A] sm:text-2xl">
               {averageTempo} kata / hari
             </p>
-            <p className="mt-1 font-body text-xs font-medium text-[#059669]">
-              Ritme serial optimal
+            <p className="mt-1 font-body text-xs font-medium text-[#64748B]">
+              {averageTempo > 0 ? 'Ritme serial optimal' : 'Mulai menulis untuk melihat ritme'}
             </p>
           </div>
 
@@ -281,9 +287,13 @@ export function DashboardView({
 
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => {
-            const total = project.totalChapters ?? 60;
-            const completed = project.completedChapters ?? 2;
-            const words = project.wordCount ?? 3100;
+            const hasProgress =
+              project.totalChapters !== undefined ||
+              project.completedChapters !== undefined ||
+              project.wordCount !== undefined;
+            const total = project.totalChapters ?? 0;
+            const completed = project.completedChapters ?? 0;
+            const words = project.wordCount ?? 0;
             const pct = Math.round((completed / Math.max(1, total)) * 100);
 
             return (
@@ -304,11 +314,14 @@ export function DashboardView({
                         {project.title}
                       </h3>
                       <p className="font-body text-xs text-[#64748B]">
-                        {project.genre ?? 'Drama Serial'} • {project.season ?? 'Musim 1'}
+                        {project.genre ?? 'Serial'} • {project.season ?? 'Musim 1'}
                       </p>
                       <div className="mt-1.5">
                         <span className="inline-flex rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[10px] font-bold text-[#047857]">
-                          {project.statusLabel ?? 'Fondasi 100% Terkunci'}
+                          {project.statusLabel ??
+                            (project.foundationPercent !== undefined
+                              ? `Fondasi ${project.foundationPercent}%`
+                              : 'Proyek aktif')}
                         </span>
                       </div>
                     </div>
@@ -318,9 +331,11 @@ export function DashboardView({
                   <div className="mt-4">
                     <div className="flex justify-between text-[11px] text-[#64748B]">
                       <span>
-                        Bab {completed} dari {total}
+                        {hasProgress ? `Bab ${completed} dari ${total}` : 'Rencana bab menyusul'}
                       </span>
-                      <span>{words.toLocaleString('id-ID')} kata</span>
+                      <span>
+                        {hasProgress ? `${words.toLocaleString('id-ID')} kata` : '0 kata'}
+                      </span>
                     </div>
                     <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#F1F5F9] overflow-hidden">
                       <div

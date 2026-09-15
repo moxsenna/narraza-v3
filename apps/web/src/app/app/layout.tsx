@@ -1,11 +1,24 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { AppHeader } from '../../components/composites/AppHeader';
+import { TopNav, type TopNavMoreItem, type TopNavProject } from '../../components/nav/TopNav';
+import { CAPABILITIES, CAPABILITY_REASON_MESSAGES } from '../../lib/frontend/capabilities';
 import { makeShellAccountViewModel } from '../../lib/frontend/view-model';
 import { APP_MESSAGES_ID } from '../../messages/app-id';
 import { logoutAction } from '../../server/auth/actions';
 import { getCurrentUser } from '../../server/auth/session';
 import { getCreditSummaryViewForUser } from '../../server/domain/generation';
+import { listMyProjects } from '../../server/domain/queries';
+
+function globalMoreItems(): readonly TopNavMoreItem[] {
+  const settingsReason = CAPABILITY_REASON_MESSAGES[CAPABILITIES['app.settings.view'].reasonCode];
+  return [
+    {
+      label: 'Kredit & Penggunaan',
+      href: '/app/kredit',
+    },
+    { label: 'Pengaturan', reason: settingsReason },
+  ];
+}
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
@@ -15,6 +28,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // for the header chip and the credit page. The session above is the single
   // shell auth authority; the loader only takes the authenticated userId.
   const credit = await getCreditSummaryViewForUser(user.userId);
+  const projects = await listMyProjects();
+
+  const allProjects: readonly TopNavProject[] = projects.map((project) => ({
+    id: project.id,
+    title: project.title,
+  }));
 
   return (
     <div className="min-h-screen overflow-x-clip bg-canvas text-primary">
@@ -24,10 +43,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       >
         {APP_MESSAGES_ID.common.skipToContent}
       </a>
-      <AppHeader
+      <TopNav
         account={makeShellAccountViewModel(user.email)}
         logoutAction={logoutAction}
         credit={credit}
+        allProjects={allProjects}
+        moreItems={globalMoreItems()}
       />
       <div id="app-main-content">{children}</div>
     </div>
