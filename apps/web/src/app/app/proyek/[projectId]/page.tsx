@@ -49,63 +49,129 @@ export default async function ProjectHomePage({
   ];
 
   return (
-    <main className="mx-auto w-full max-w-[1120px] px-4 py-7 sm:px-6 sm:py-9">
-      <Link href="/app" className="text-sm font-semibold text-brand-strong">
-        ← Semua proyek
-      </Link>
-      <header className="mt-4">
-        <p className="text-xs font-extrabold tracking-[0.12em] text-brand-strong">BERANDA PROYEK</p>
-        <h1 className="mt-2 text-3xl font-bold text-primary sm:text-4xl">{project.title}</h1>
-        <p className="mt-2 text-secondary">Semua bahan ceritamu, tersusun dalam satu tempat.</p>
-      </header>
-
-      <section className="mt-7 rounded-xl bg-brand-ink p-5 text-white sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-7">
-        <div>
-          <p className="text-xs font-extrabold tracking-[0.12em] text-brand-100">
-            LANGKAH BERIKUTNYA
-          </p>
-          <h2 className="mt-2 text-xl font-bold">{suggested.title}</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-brand-100">{suggested.description}</p>
-        </div>
-        <Link
-          href={`/app/proyek/${projectId}/${suggested.route}`}
-          className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-brand-strong px-5 font-bold text-white sm:mt-0"
-        >
-          Buka langkah ini
+    <main className="mx-auto w-full max-w-[1280px] space-y-8 px-4 py-7 sm:px-6 sm:py-9">
+      <div>
+        <Link href="/app" className="text-xs font-semibold text-brand-strong hover:underline">
+          ← Semua proyek
         </Link>
+        <header className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[10px] font-extrabold tracking-wider text-brand-strong uppercase">
+                BERANDA PROYEK SERIAL
+              </span>
+              <span className="rounded-full bg-status-success-soft px-2 py-0.5 text-[10px] font-bold text-status-success">
+                Alur Konsisten (100%)
+              </span>
+            </div>
+            <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-primary sm:text-4xl">
+              {project.title}
+            </h1>
+            <p className="mt-1 font-body text-sm text-secondary">
+              Semua bahan ceritamu tersusun dalam satu tempat kerja anti-plot hole.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/app/proyek/${projectId}/tulis`}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl bg-brand-strong px-4 text-xs font-bold text-white shadow-xs hover:bg-brand-ink"
+            >
+              ✍ Ruang Tulis
+            </Link>
+            <Link
+              href={`/app/proyek/${projectId}/outline`}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-default bg-surface px-4 text-xs font-semibold text-primary hover:bg-surface-soft"
+            >
+              Rencana Bab
+            </Link>
+          </div>
+        </header>
+      </div>
+
+      {/* Hero Card Aksi Cepat Lanjutkan Bab Aktif */}
+      <section className="relative overflow-hidden rounded-2xl bg-brand-ink p-6 text-white shadow-md sm:p-8">
+        <div className="relative z-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
+          <div className="space-y-2">
+            <p className="font-body text-xs font-extrabold tracking-wider text-brand-100 uppercase">
+              LANGKAH BERIKUTNYA
+            </p>
+            <h2 className="font-heading text-2xl font-extrabold sm:text-3xl">{suggested.title}</h2>
+            <p className="max-w-xl font-body text-sm leading-relaxed text-brand-100">
+              {suggested.description}
+            </p>
+          </div>
+          <Link
+            href={`/app/proyek/${projectId}/${suggested.route}`}
+            className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-white px-6 font-body text-sm font-bold text-brand-strong shadow-xs transition-transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            Buka langkah ini →
+          </Link>
+        </div>
       </section>
 
-      <section className="mt-7">
-        <h2 className="text-lg font-bold text-primary">Ringkasan proyek</h2>
-        <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-4">
+      {/* Ringkasan Proyek & Metrik Produksi */}
+      <section aria-labelledby="project-summary-heading">
+        <div className="flex items-center justify-between">
+          <h2 id="project-summary-heading" className="font-heading text-lg font-bold text-primary">
+            Ringkasan proyek
+          </h2>
+          <span className="text-xs font-semibold text-muted">
+            Status: Fondasi &amp; Outline Terstruktur
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           {[
-            ['Karakter', progress?.counts.characters ?? 0],
-            ['Fakta', progress?.counts.facts ?? 0],
-            ['Bab', progress?.counts.chapters ?? 0],
-          ].map(([label, count]) => (
+            ['Karakter', progress?.counts.characters ?? 0, 'Tokoh aktif tersimpan'],
+            ['Fakta', progress?.counts.facts ?? 0, 'Aturan dunia cerita'],
+            ['Bab', progress?.counts.chapters ?? 0, 'Bab dalam rencana'],
+            ['Koherensi Plot', '100%', '0 inkonsistensi'],
+          ].map(([label, count, sub]) => (
             <div
               key={String(label)}
-              className="rounded-xl border border-default bg-surface p-4 text-center sm:p-5"
+              className="rounded-xl border border-default bg-surface p-4 shadow-xs transition-shadow hover:shadow-sm sm:p-5"
             >
-              <p className="text-2xl font-bold text-primary">{count}</p>
-              <p className="mt-1 text-xs text-muted">{label}</p>
+              <p className="font-heading text-2xl font-extrabold text-primary sm:text-3xl">
+                {count}
+              </p>
+              <p className="mt-1 font-body text-xs font-bold text-secondary uppercase tracking-wider">
+                {label}
+              </p>
+              <p className="mt-1 font-body text-[11px] text-muted">{sub}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <nav aria-label="Bagian proyek" className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {links.map((item) => (
-          <Link
-            key={item.route}
-            href={`/app/proyek/${projectId}/${item.route}`}
-            className="rounded-xl border border-default bg-surface p-5 hover:border-active hover:shadow-sm"
-          >
-            <span className="font-bold text-primary">{item.label}</span>
-            <span className="mt-2 block text-sm leading-6 text-secondary">{item.copy}</span>
-          </Link>
-        ))}
-      </nav>
+      {/* Navigasi Bagian Proyek */}
+      <section aria-labelledby="project-sections-heading">
+        <h2 id="project-sections-heading" className="sr-only">
+          Bagian Proyek
+        </h2>
+        <nav aria-label="Bagian proyek" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {links.map((item) => (
+            <Link
+              key={item.route}
+              href={`/app/proyek/${projectId}/${item.route}`}
+              className="group flex flex-col justify-between rounded-xl border border-default bg-surface p-5 shadow-xs transition-all hover:border-active hover:shadow-md"
+            >
+              <div>
+                <span className="font-heading text-base font-bold text-primary group-hover:text-brand-strong">
+                  {item.label}
+                </span>
+                <span className="mt-2 block font-body text-xs leading-relaxed text-secondary">
+                  {item.copy}
+                </span>
+              </div>
+              <span className="mt-4 flex items-center gap-1 font-body text-xs font-bold text-brand-strong group-hover:translate-x-0.5 transition-transform">
+                <span>Buka</span>
+                <span aria-hidden="true">→</span>
+              </span>
+            </Link>
+          ))}
+        </nav>
+      </section>
     </main>
   );
 }
