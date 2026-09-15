@@ -6,7 +6,9 @@ import {
   getProjectIntakeMessages,
   getProjectIntakeSignalCount,
 } from '../../../../../server/domain/queries';
+import { ChatAwaitingPoller } from './chat-awaiting';
 import { ChatForm } from './chat-form';
+import { chatThreadStatus } from './chat-status';
 import { SignalPanel, StorySignalsSheet } from './story-signals';
 
 export default async function ChatPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -18,6 +20,7 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
     getProjectIntakeSignalCount(projectId),
   ]);
   const signalCount = Math.min(6, Math.max(0, storedSignalCount));
+  const thread = chatThreadStatus(messages);
 
   return (
     <main className="flex h-[calc(100dvh-204px)] min-h-0 min-w-0 overflow-hidden bg-canvas lg:h-[calc(100dvh-136px)]">
@@ -66,13 +69,19 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
               )}
             </div>
 
-            <div className="mt-5 rounded-lg border border-default bg-surface px-4 py-3 text-sm text-secondary">
-              <p className="font-bold text-primary">Balasan Narra belum tersedia</p>
-              <p className="mt-1 leading-6">
-                Pesanmu tetap tersimpan. Kamu bisa menambah catatan sekarang, tetapi Narra belum
-                dapat membalas atau merangkum sinyal otomatis.
-              </p>
-            </div>
+            {thread.awaitingReply && thread.awaitingKey !== null ? (
+              <div className="mt-5 rounded-lg border border-default bg-surface px-4 py-3 text-sm text-secondary">
+                <ChatAwaitingPoller key={thread.awaitingKey} />
+              </div>
+            ) : thread.showFallbackNotice ? (
+              <div className="mt-5 rounded-lg border border-default bg-surface px-4 py-3 text-sm text-secondary">
+                <p className="font-bold text-primary">Balasan Narra belum tersedia</p>
+                <p className="mt-1 leading-6">
+                  Pesanmu tetap tersimpan. Kamu bisa menambah catatan sekarang, tetapi Narra belum
+                  dapat membalas atau merangkum sinyal otomatis.
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
 
