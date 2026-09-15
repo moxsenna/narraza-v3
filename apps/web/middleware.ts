@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   // Clickjacking: aplikasi tidak boleh di-frame pihak lain.
@@ -10,8 +10,10 @@ const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-export function middleware() {
-  const response = NextResponse.next();
+export function middleware(request: NextRequest) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', request.nextUrl.pathname);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(name, value);
   }

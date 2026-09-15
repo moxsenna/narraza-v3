@@ -54,7 +54,7 @@ export function TopNav({
             <div className="flex size-7 items-center justify-center rounded-[7px] bg-[#881337] shadow-sm transition-transform group-hover:scale-105">
               <span className="font-heading text-base font-extrabold text-white">N</span>
             </div>
-            <span className="font-heading text-lg font-extrabold tracking-tight text-[#881337]">
+            <span className="hidden font-heading text-lg font-extrabold tracking-tight text-[#881337] min-[420px]:inline">
               Narraza
             </span>
             <span className="rounded-full bg-[#FFE4E6] px-1.5 py-0.5 font-body text-[10px] font-bold text-[#9F1239]">
@@ -102,15 +102,16 @@ export function TopNav({
 
           <Link
             href="/app/kredit"
-            data-testid="top-nav-credit-pill"
+            data-testid="header-credit-chip"
             aria-label={`Saldo kredit: ${availableCredits} kredit (Rp${creditIdr}). Buka halaman kredit.`}
-            className="flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-3 py-1.5 text-xs font-bold text-[#0F172A] shadow-xs transition-colors hover:border-[#BE123C] hover:bg-[#FFF5F8]"
+            className="flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1.5 text-xs font-bold text-[#0F172A] shadow-xs transition-colors hover:border-[#BE123C] hover:bg-[#FFF5F8] sm:px-3"
           >
             <span className="text-[#BE123C]" aria-hidden="true">
               ✦
             </span>
-            <span className="tabular-nums">{availableCredits.toLocaleString('id-ID')} Kredit</span>
-            <span className="hidden text-[11px] font-normal text-[#64748B] sm:inline">
+            <span className="tabular-nums">{availableCredits.toLocaleString('id-ID')}</span>
+            <span className="hidden sm:inline">Kredit</span>
+            <span className="hidden text-[11px] font-normal text-[#64748B] md:inline">
               (Rp{creditIdr})
             </span>
           </Link>
@@ -119,12 +120,12 @@ export function TopNav({
             <div className="flex items-center gap-2">
               <span
                 title={account.email}
-                className="flex size-8 items-center justify-center rounded-full bg-[#881337] font-body text-xs font-bold text-white shadow-xs"
+                className="hidden size-8 items-center justify-center rounded-full bg-[#881337] font-body text-xs font-bold text-white shadow-xs sm:flex"
               >
                 {account.initial}
               </span>
               {logoutAction && (
-                <form action={logoutAction} className="hidden sm:block">
+                <form action={logoutAction}>
                   <button
                     type="submit"
                     className="rounded-lg border border-[#E2E8F0] px-2.5 py-1 text-xs font-semibold text-[#64748B] hover:bg-[#F8F9FA] hover:text-[#0F172A]"
