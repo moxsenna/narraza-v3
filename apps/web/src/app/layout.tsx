@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Lora, Plus_Jakarta_Sans } from 'next/font/google';
+import { Inter, Lora, Newsreader, Plus_Jakarta_Sans } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { APP_MESSAGES_ID } from '../messages/app-id';
 import './globals.css';
@@ -8,6 +8,19 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
   variable: '--font-plus-jakarta-sans',
   weight: 'variable',
+  display: 'swap',
+});
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  weight: 'variable',
+  display: 'swap',
+});
+const newsreader = Newsreader({
+  subsets: ['latin'],
+  variable: '--font-newsreader',
+  weight: 'variable',
+  style: ['normal', 'italic'],
   display: 'swap',
 });
 const lora = Lora({
@@ -28,7 +41,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="id">
-      <body className={`${plusJakartaSans.variable} ${lora.variable} font-sans antialiased`}>
+      <body
+        className={`${plusJakartaSans.variable} ${inter.variable} ${newsreader.variable} ${lora.variable} font-sans antialiased`}
+      >
         {children}
       </body>
     </html>

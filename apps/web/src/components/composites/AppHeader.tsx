@@ -16,7 +16,18 @@ export function AppHeader({
   return (
     <header className="sticky top-0 z-[var(--z-header)] border-b border-default bg-surface">
       <div className="flex min-h-[68px] items-center gap-3 px-3 sm:px-6">
-        <BrandMark href="/app" />
+        <div className="flex items-center gap-2">
+          <BrandMark href="/app" />
+          <span className="rounded-pill bg-brand-soft px-2 py-0.5 text-[10px] font-bold text-brand-strong">
+            v3 OS
+          </span>
+        </div>
+
+        <div className="hidden items-center gap-1.5 rounded-pill border border-status-success-soft bg-status-success-soft px-3 py-1 text-xs font-bold text-status-success lg:flex">
+          <span className="size-1.5 rounded-pill bg-status-success" aria-hidden="true" />
+          <span>Alur Konsisten (100%)</span>
+        </div>
+
         {credit ? (
           <CreditChip credit={credit} />
         ) : (
@@ -27,7 +38,7 @@ export function AppHeader({
         <span
           aria-label={`Akun: ${account.email}`}
           title={account.email}
-          className="flex size-11 items-center justify-center rounded-pill bg-brand-ink text-sm font-bold text-white"
+          className="flex size-10 items-center justify-center rounded-pill bg-brand-ink text-sm font-bold text-white shadow-xs"
         >
           {account.initial}
         </span>
