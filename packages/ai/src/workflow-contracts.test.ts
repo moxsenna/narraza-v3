@@ -92,4 +92,38 @@ describe('M4 workflow contracts', () => {
       "projector missing for stage 'unknown'",
     );
   });
+
+  it('intake instruction demands raw JSON matching the named shape', () => {
+    const projected = projectWorkflowPrompt({ stageKey: 'intake_reply', userContent: 'halo' });
+    expect(projected.systemPrompt).toContain('ONLY a raw JSON object');
+    expect(projected.systemPrompt).toContain('"reply"');
+    expect(projected.systemPrompt).toContain('"sufficiency"');
+  });
+
+  it.each([['```json'], ['```']])('parses %s-fenced valid intake output', (fence) => {
+    const raw = `${fence}\n${JSON.stringify(validByStage.intake_reply)}\n\`\`\``;
+    expect(parseOutput(workflowOutputSchema('intake_reply'), raw)).toEqual({
+      kind: 'parsed',
+      value: validByStage.intake_reply,
+    });
+  });
+
+  it('still fails closed on fenced garbage and fenced wrong-shape output', () => {
+    expect(parseOutput(workflowOutputSchema('intake_reply'), '```json\nnot json\n```')).toEqual({
+      kind: 'parse_failed',
+      errorCode: 'malformed_json',
+    });
+    expect(
+      parseOutput(
+        workflowOutputSchema('intake_reply'),
+        '```json\n{"stageKey":"intake_reply","strict":true}\n```',
+      ),
+    ).toEqual({ kind: 'parse_failed', errorCode: 'schema_violation' });
+    expect(
+      parseOutput(
+        workflowOutputSchema('intake_reply'),
+        `Here you go:\n${JSON.stringify(validByStage.intake_reply)}\nHope this helps`,
+      ),
+    ).toEqual({ kind: 'parse_failed', errorCode: 'malformed_json' });
+  });
 });
