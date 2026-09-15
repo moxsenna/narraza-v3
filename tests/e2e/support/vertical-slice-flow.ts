@@ -137,7 +137,7 @@ export async function runSliceUpToChapter(
   await page.getByLabel('Pesan untuk Narra').fill(chatMessage);
   await page.getByRole('button', { name: 'Kirim pesan' }).click();
   await expect(page.getByText(chatMessage).first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('Balasan Narra belum tersedia')).toBeVisible();
+  await expect(page.getByTestId('chat-awaiting')).toBeVisible();
 
   const ownerId = await findUserIdByEmail(email);
   await seedLockedFoundation(ownerId, projectId);
