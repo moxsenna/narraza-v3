@@ -81,14 +81,14 @@ export function DashboardView({
       {current ? (
         <section
           aria-label="Aksi Cepat Produksi"
-          className="relative overflow-hidden rounded-2xl bg-[#881337] p-6 text-white shadow-md sm:p-8"
+          className="relative overflow-hidden rounded-2xl bg-brand-600 p-6 text-white shadow-md sm:p-8"
         >
           <div className="relative z-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
             <div className="max-w-2xl space-y-2">
-              <div className="inline-flex items-center gap-2 font-body text-xs font-extrabold tracking-wider text-[#FECDD3] uppercase">
+              <div className="inline-flex items-center gap-2 font-body text-xs font-extrabold tracking-wider text-brand-200 uppercase">
                 <span>LANGKAH PRODUKSI BERIKUTNYA</span>
                 <span>•</span>
-                <span className="rounded-full bg-[#BE123C] px-2 py-0.5 text-[10px] text-white">
+                <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[10px] text-white">
                   {hasActiveChapter ? `Bab ${activeChapterOrdinal} Aktif` : 'Proyek Aktif'}
                 </span>
               </div>
@@ -97,7 +97,7 @@ export function DashboardView({
                   ? `Lanjutkan Bab ${activeChapterOrdinal} — “${activeChapterTitle}” (${current.title})`
                   : `Lanjutkan ${current.title}`}
               </h1>
-              <p className="font-body text-sm text-[#FFE4E6]">
+              <p className="font-body text-sm text-brand-50">
                 {hasActiveChapter
                   ? `Adegan siap ditulis • Target ritme: 1.200 kata • Konsistensi alur ${continuityScore}%`
                   : 'Susun fondasi, rencana bab, lalu tulis adegan pertama bersama Narra.'}
@@ -107,13 +107,13 @@ export function DashboardView({
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 href={`/app/proyek/${current.id}/tulis`}
-                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-6 font-body text-sm font-bold text-[#881337] shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-6 font-body text-sm font-bold text-brand-600 shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
               >
                 ✍ Tulis Adegan Ini Sekarang
               </Link>
               <Link
                 href={`/app/proyek/${current.id}/outline`}
-                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#FDA4AF] bg-transparent px-5 font-body text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-active bg-transparent px-5 font-body text-sm font-semibold text-white transition-colors hover:bg-white/10"
               >
                 Lihat Rencana Bab
               </Link>
@@ -121,17 +121,17 @@ export function DashboardView({
           </div>
         </section>
       ) : (
-        <section className="rounded-2xl border border-dashed border-[#CBD5E1] bg-white p-8 text-center">
-          <h2 className="font-heading text-xl font-bold text-[#0F172A]">
+        <section className="rounded-2xl border border-dashed border-default bg-white p-8 text-center">
+          <h2 className="font-heading text-xl font-bold text-primary">
             Belum ada proyek novel aktif
           </h2>
-          <p className="mt-2 text-sm text-[#64748B]">
+          <p className="mt-2 text-sm text-muted">
             Mulai proyek baru bersama asisten Narra AI untuk merancang premis dan alur serialmu.
           </p>
           <div className="mt-6">
             <Link
               href="/app/proyek/baru"
-              className="inline-flex items-center rounded-xl bg-[#881337] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#9F1239]"
+              className="inline-flex items-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-700"
             >
               + Mulai Proyek Baru
             </Link>
@@ -145,50 +145,50 @@ export function DashboardView({
           Metrik Produksi Cerita
         </h2>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 sm:p-5 shadow-xs">
-            <p className="font-body text-[11px] font-bold tracking-wider text-[#64748B] uppercase">
+          <div className="rounded-xl border border-default bg-white p-4 sm:p-5 shadow-xs">
+            <p className="font-body text-[11px] font-bold tracking-wider text-muted uppercase">
               KATA PEKAN INI
             </p>
-            <p className="mt-1 font-heading text-xl font-extrabold text-[#0F172A] sm:text-2xl">
+            <p className="mt-1 font-heading text-xl font-extrabold text-primary sm:text-2xl">
               {weeklyWordCount.toLocaleString('id-ID')} kata
             </p>
-            <p className="mt-1 font-body text-xs font-medium text-[#64748B]">
+            <p className="mt-1 font-body text-xs font-medium text-muted">
               {weeklyWordCount > 0 ? 'Produksi berjalan' : 'Belum ada kata tercatat'}
             </p>
           </div>
 
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 sm:p-5 shadow-xs">
-            <p className="font-body text-[11px] font-bold tracking-wider text-[#64748B] uppercase">
+          <div className="rounded-xl border border-default bg-white p-4 sm:p-5 shadow-xs">
+            <p className="font-body text-[11px] font-bold tracking-wider text-muted uppercase">
               RATA-RATA TEMPO
             </p>
-            <p className="mt-1 font-heading text-xl font-extrabold text-[#0F172A] sm:text-2xl">
+            <p className="mt-1 font-heading text-xl font-extrabold text-primary sm:text-2xl">
               {averageTempo} kata / hari
             </p>
-            <p className="mt-1 font-body text-xs font-medium text-[#64748B]">
+            <p className="mt-1 font-body text-xs font-medium text-muted">
               {averageTempo > 0 ? 'Ritme serial optimal' : 'Mulai menulis untuk melihat ritme'}
             </p>
           </div>
 
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 sm:p-5 shadow-xs">
-            <p className="font-body text-[11px] font-bold tracking-wider text-[#64748B] uppercase">
+          <div className="rounded-xl border border-default bg-white p-4 sm:p-5 shadow-xs">
+            <p className="font-body text-[11px] font-bold tracking-wider text-muted uppercase">
               KOHERENSI PLOT
             </p>
-            <p className="mt-1 font-heading text-xl font-extrabold text-[#0F172A] sm:text-2xl">
+            <p className="mt-1 font-heading text-xl font-extrabold text-primary sm:text-2xl">
               {continuityScore}% Bebas Cacat
             </p>
-            <p className="mt-1 font-body text-xs font-medium text-[#059669]">
+            <p className="mt-1 font-body text-xs font-medium text-status-success">
               0 inkonsistensi unresolved
             </p>
           </div>
 
-          <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 sm:p-5 shadow-xs">
-            <p className="font-body text-[11px] font-bold tracking-wider text-[#64748B] uppercase">
+          <div className="rounded-xl border border-default bg-white p-4 sm:p-5 shadow-xs">
+            <p className="font-body text-[11px] font-bold tracking-wider text-muted uppercase">
               SISA SALDO KREDIT
             </p>
-            <p className="mt-1 font-heading text-xl font-extrabold text-[#0F172A] sm:text-2xl">
+            <p className="mt-1 font-heading text-xl font-extrabold text-primary sm:text-2xl">
               {availableCredits.toLocaleString('id-ID')} Kredit
             </p>
-            <p className="mt-1 font-body text-xs text-[#64748B]">
+            <p className="mt-1 font-body text-xs text-muted">
               Setara Rp{creditIdr} (D6 transparan)
             </p>
           </div>
@@ -199,27 +199,27 @@ export function DashboardView({
       {current && (
         <section
           aria-labelledby="foundation-readiness-heading"
-          className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-xs"
+          className="rounded-2xl border border-default bg-white p-6 shadow-xs"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <h2
                   id="foundation-readiness-heading"
-                  className="font-heading text-lg font-bold text-[#0F172A]"
+                  className="font-heading text-lg font-bold text-primary"
                 >
                   Kesiapan Fondasi Cerita (D5 Checklist)
                 </h2>
-                <span className="rounded-full bg-[#ECFDF5] px-2.5 py-0.5 font-body text-xs font-bold text-[#047857]">
+                <span className="rounded-full bg-status-success-soft px-2.5 py-0.5 font-body text-xs font-bold text-status-success">
                   {foundationPercent}% Siap
                 </span>
               </div>
-              <p className="mt-1 text-sm text-[#64748B]">{recommendation}</p>
+              <p className="mt-1 text-sm text-muted">{recommendation}</p>
             </div>
 
             <Link
               href={`/app/proyek/${current.id}/fondasi`}
-              className="inline-flex items-center gap-1 font-body text-sm font-bold text-[#881337] hover:text-[#9F1239]"
+              className="inline-flex items-center gap-1 font-body text-sm font-bold text-brand-600 hover:text-brand-700"
             >
               <span>Kelola Fondasi</span>
               <span aria-hidden="true">→</span>
@@ -227,9 +227,9 @@ export function DashboardView({
           </div>
 
           {/* Progress bar */}
-          <div className="mt-4 h-2.5 w-full rounded-full bg-[#F1F5F9] overflow-hidden">
+          <div className="mt-4 h-2.5 w-full rounded-full bg-surface-soft overflow-hidden">
             <div
-              className="h-full rounded-full bg-[#881337] transition-all"
+              className="h-full rounded-full bg-brand-600 transition-all"
               style={{ width: `${Math.min(100, Math.max(0, foundationPercent))}%` }}
             />
           </div>
@@ -239,21 +239,21 @@ export function DashboardView({
             {checklistItems.map((item) => (
               <div
                 key={item.key}
-                className="flex items-center justify-between rounded-xl border border-[#F1F5F9] bg-[#F8F9FA] p-3 transition-colors hover:border-[#E2E8F0] hover:bg-white"
+                className="flex items-center justify-between rounded-xl border border-line-100 bg-canvas p-3 transition-colors hover:border-default hover:bg-white"
               >
                 <div className="flex items-center gap-2.5">
                   <span
                     className={`flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      item.complete ? 'bg-[#ECFDF5] text-[#059669]' : 'bg-[#FFFBEB] text-[#B45309]'
+                      item.complete
+                        ? 'bg-status-success-soft text-status-success'
+                        : 'bg-status-warning-soft text-status-warning'
                     }`}
                   >
                     {item.complete ? '✓' : '○'}
                   </span>
-                  <span className="font-body text-xs font-semibold text-[#1E293B]">
-                    {item.label}
-                  </span>
+                  <span className="font-body text-xs font-semibold text-ink-800">{item.label}</span>
                 </div>
-                <span className="font-body text-[10px] font-bold text-[#64748B]">
+                <span className="font-body text-[10px] font-bold text-muted">
                   Bobot {item.weight}%
                 </span>
               </div>
@@ -266,19 +266,14 @@ export function DashboardView({
       <section aria-labelledby="novel-projects-heading">
         <div className="flex items-center justify-between">
           <div>
-            <h2
-              id="novel-projects-heading"
-              className="font-heading text-lg font-bold text-[#0F172A]"
-            >
+            <h2 id="novel-projects-heading" className="font-heading text-lg font-bold text-primary">
               Proyek Novel Serial Anda
             </h2>
-            <p className="text-xs text-[#64748B]">
-              Menampilkan {projects.length} novel dalam sistem
-            </p>
+            <p className="text-xs text-muted">Menampilkan {projects.length} novel dalam sistem</p>
           </div>
           <Link
             href="/app/proyek/baru"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-xs font-bold text-[#881337] shadow-xs hover:border-[#FDA4AF] hover:bg-[#FFF1F2]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-default bg-white px-3 py-1.5 text-xs font-bold text-brand-600 shadow-xs hover:border-active hover:bg-brand-soft"
           >
             <span>+</span>
             <span>Mulai Novel Baru</span>
@@ -299,25 +294,25 @@ export function DashboardView({
             return (
               <div
                 key={project.id}
-                className="flex flex-col justify-between rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-xs transition-shadow hover:shadow-md"
+                className="flex flex-col justify-between rounded-xl border border-default bg-white p-5 shadow-xs transition-shadow hover:shadow-md"
               >
                 <div>
                   <div className="flex items-start gap-3.5">
                     <div
                       className="flex h-14 w-10 shrink-0 items-center justify-center rounded-md font-heading text-lg font-bold text-white shadow-xs"
-                      style={{ backgroundColor: project.coverColor ?? '#881337' }}
+                      style={{ backgroundColor: project.coverColor ?? 'var(--color-brand-600)' }}
                     >
                       {project.title.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-heading text-base font-bold text-[#0F172A]">
+                      <h3 className="truncate font-heading text-base font-bold text-primary">
                         {project.title}
                       </h3>
-                      <p className="font-body text-xs text-[#64748B]">
+                      <p className="font-body text-xs text-muted">
                         {project.genre ?? 'Serial'} • {project.season ?? 'Musim 1'}
                       </p>
                       <div className="mt-1.5">
-                        <span className="inline-flex rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[10px] font-bold text-[#047857]">
+                        <span className="inline-flex rounded-full bg-status-success-soft px-2 py-0.5 text-[10px] font-bold text-status-success">
                           {project.statusLabel ??
                             (project.foundationPercent !== undefined
                               ? `Fondasi ${project.foundationPercent}%`
@@ -329,7 +324,7 @@ export function DashboardView({
 
                   {/* Progress bar */}
                   <div className="mt-4">
-                    <div className="flex justify-between text-[11px] text-[#64748B]">
+                    <div className="flex justify-between text-[11px] text-muted">
                       <span>
                         {hasProgress ? `Bab ${completed} dari ${total}` : 'Rencana bab menyusul'}
                       </span>
@@ -337,22 +332,22 @@ export function DashboardView({
                         {hasProgress ? `${words.toLocaleString('id-ID')} kata` : '0 kata'}
                       </span>
                     </div>
-                    <div className="mt-1.5 h-1.5 w-full rounded-full bg-[#F1F5F9] overflow-hidden">
+                    <div className="mt-1.5 h-1.5 w-full rounded-full bg-surface-soft overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-[#881337]"
+                        className="h-full rounded-full bg-brand-600"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-5 border-t border-[#F1F5F9] pt-3 flex items-center justify-between">
-                  <span className="text-xs text-[#94A3B8]">
+                <div className="mt-5 border-t border-line-100 pt-3 flex items-center justify-between">
+                  <span className="text-xs text-muted">
                     {project.intakePath ? `Jalur: ${project.intakePath}` : 'Aktif diproduksi'}
                   </span>
                   <Link
                     href={`/app/proyek/${project.id}`}
-                    className="font-body text-xs font-bold text-[#881337] hover:text-[#9F1239]"
+                    className="font-body text-xs font-bold text-brand-600 hover:text-brand-700"
                   >
                     Buka Proyek →
                   </Link>
@@ -364,15 +359,15 @@ export function DashboardView({
           {/* New Project Trigger Card */}
           <Link
             href="/app/proyek/baru"
-            className="group flex min-h-[190px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#CBD5E1] bg-[#F8F9FA] p-6 text-center transition-colors hover:border-[#881337] hover:bg-[#FFF5F8]"
+            className="group flex min-h-[190px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-default bg-canvas p-6 text-center transition-colors hover:border-brand-600 hover:bg-brand-soft"
           >
-            <div className="flex size-10 items-center justify-center rounded-full bg-white text-xl font-bold text-[#881337] shadow-xs group-hover:scale-110 transition-transform">
+            <div className="flex size-10 items-center justify-center rounded-full bg-white text-xl font-bold text-brand-600 shadow-xs group-hover:scale-110 transition-transform">
               +
             </div>
-            <p className="mt-3 font-heading text-sm font-bold text-[#0F172A] group-hover:text-[#881337]">
+            <p className="mt-3 font-heading text-sm font-bold text-primary group-hover:text-brand-600">
               Mulai Proyek Serial Baru
             </p>
-            <p className="mt-1 max-w-xs text-xs text-[#64748B]">
+            <p className="mt-1 max-w-xs text-xs text-muted">
               Bangun fondasi alur cerita anti-plot hole bersama Narra AI dalam 5 langkah mudah.
             </p>
           </Link>
