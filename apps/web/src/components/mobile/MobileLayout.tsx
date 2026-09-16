@@ -144,29 +144,29 @@ export function MobileLayout({
   ];
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F8F9FA] text-[#0F172A]">
+    <div className="flex min-h-screen flex-col bg-canvas text-primary">
       {/* Mobile Top Header */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#E2E8F0] bg-white px-4">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-default bg-white px-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-full bg-[#FFE4E6] text-xs font-bold text-[#881337] ring-1 ring-[#BE123C]/30">
+          <div className="flex size-8 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand-600 ring-1 ring-brand-700/30">
             {authorInitials}
           </div>
           <div>
-            <p className="text-[10px] font-bold text-[#BE123C] uppercase tracking-wide">
+            <p className="text-[10px] font-bold text-brand-700 uppercase tracking-wide">
               {projectTitle}
             </p>
-            <p className="font-heading text-xs font-bold text-[#0F172A]">Ruang Penulisan</p>
+            <p className="font-heading text-xs font-bold text-primary">Ruang Penulisan</p>
           </div>
         </div>
 
         <Link
           href="/app/kredit"
           aria-label={`Saldo kredit: ${availableCredits} kredit (Rp${creditIdr})`}
-          className="flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-[#F8F9FA] px-2.5 py-1 text-xs font-bold text-[#0F172A] shadow-2xs hover:border-[#BE123C]"
+          className="flex items-center gap-1.5 rounded-full border border-default bg-canvas px-2.5 py-1 text-xs font-bold text-primary shadow-2xs hover:border-brand-700"
         >
-          <span className="text-[#BE123C]">✦</span>
+          <span className="text-brand-700">✦</span>
           <span>{availableCredits}</span>
-          <span className="text-[10px] text-[#64748B] font-normal">Kredit</span>
+          <span className="text-[10px] text-muted font-normal">Kredit</span>
         </Link>
       </header>
 
@@ -176,11 +176,11 @@ export function MobileLayout({
       {/* Sticky Primary Action Bar (if specified) */}
       {stickyAction && (
         <div className="fixed inset-x-0 bottom-20 z-40 px-4">
-          <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-[#FDA4AF] bg-[#881337] p-2 text-white shadow-lg">
+          <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-active bg-brand-600 p-2 text-white shadow-lg">
             {stickyAction.href ? (
               <Link
                 href={stickyAction.href}
-                className="flex flex-1 items-center justify-center rounded-xl bg-white py-2.5 text-xs font-bold text-[#881337] shadow-xs active:scale-[0.98]"
+                className="flex flex-1 items-center justify-center rounded-xl bg-white py-2.5 text-xs font-bold text-brand-600 shadow-xs active:scale-[0.98]"
               >
                 {stickyAction.label}
               </Link>
@@ -188,7 +188,7 @@ export function MobileLayout({
               <button
                 type="button"
                 onClick={stickyAction.onClick}
-                className="flex flex-1 items-center justify-center rounded-xl bg-white py-2.5 text-xs font-bold text-[#881337] shadow-xs active:scale-[0.98]"
+                className="flex flex-1 items-center justify-center rounded-xl bg-white py-2.5 text-xs font-bold text-brand-600 shadow-xs active:scale-[0.98]"
               >
                 {stickyAction.label}
               </button>
@@ -198,7 +198,7 @@ export function MobileLayout({
               <button
                 type="button"
                 onClick={stickyAction.onSecondaryClick ?? (() => setInspectorOpen(true))}
-                className="rounded-xl border border-[#FDA4AF] px-3 py-2.5 text-xs font-semibold text-white hover:bg-white/10"
+                className="rounded-xl border border-active px-3 py-2.5 text-xs font-semibold text-white hover:bg-white/10"
               >
                 {stickyAction.secondaryLabel}
               </button>
@@ -211,7 +211,7 @@ export function MobileLayout({
       <div className="fixed inset-x-0 bottom-2 z-50 px-3 pb-[env(safe-area-inset-bottom)]">
         <nav
           aria-label="Navigasi ponsel"
-          className="mx-auto flex h-[58px] max-w-sm items-center justify-around rounded-[29px] border border-[#E2E8F0] bg-white/95 px-1.5 py-1 shadow-[0_8px_24px_rgba(15,23,42,0.1)] backdrop-blur-md"
+          className="mx-auto flex h-[58px] max-w-sm items-center justify-around rounded-[29px] border border-default bg-white/95 px-1.5 py-1 shadow-md backdrop-blur-md"
         >
           {navItems.map((item) => {
             const isActive =
@@ -221,7 +221,7 @@ export function MobileLayout({
             const content = (
               <div
                 className={`flex flex-col items-center justify-center gap-0.5 rounded-[20px] px-3 py-1 transition-colors ${
-                  isActive ? 'bg-[#FFE4E6] text-[#881337]' : 'text-[#64748B] hover:text-[#0F172A]'
+                  isActive ? 'bg-brand-soft text-brand-600' : 'text-muted hover:text-primary'
                 }`}
               >
                 {item.icon(Boolean(isActive))}
@@ -268,28 +268,28 @@ export function MobileLayout({
         ) : (
           <div className="space-y-4">
             {/* Continuity Health */}
-            <div className="rounded-xl border border-[#A7F3D0] bg-[#ECFDF5] p-3 text-xs">
-              <div className="flex items-center justify-between font-bold text-[#047857]">
+            <div className="rounded-xl border border-status-success-soft bg-status-success-soft p-3 text-xs">
+              <div className="flex items-center justify-between font-bold text-status-success">
                 <span>Status Kontinuitas Alur</span>
-                <span className="rounded-full bg-white px-2 py-0.5 text-[#059669]">100% Lolos</span>
+                <span className="rounded-full bg-white px-2 py-0.5 text-status-success">
+                  100% Lolos
+                </span>
               </div>
-              <p className="mt-1 text-[11px] text-[#065F46]">
+              <p className="mt-1 text-[11px] text-status-success">
                 Semua beat dan rahasia cerita aman pada posisinya tanpa deteksi plot hole.
               </p>
             </div>
 
             {/* Quick Character Guidance */}
             <div className="space-y-2">
-              <p className="text-[10px] font-bold text-[#64748B] uppercase">
-                Fakta Tokoh di Adegan
-              </p>
-              <div className="rounded-lg border border-[#E2E8F0] p-2.5 text-xs">
-                <p className="font-bold text-[#0F172A]">Maya</p>
-                <p className="text-[#64748B]">Sopan, tertekan, waspada • Menjaga rahasia peti</p>
+              <p className="text-[10px] font-bold text-muted uppercase">Fakta Tokoh di Adegan</p>
+              <div className="rounded-lg border border-default p-2.5 text-xs">
+                <p className="font-bold text-primary">Maya</p>
+                <p className="text-muted">Sopan, tertekan, waspada • Menjaga rahasia peti</p>
               </div>
-              <div className="rounded-lg border border-[#E2E8F0] p-2.5 text-xs">
-                <p className="font-bold text-[#0F172A]">Bu Ratna</p>
-                <p className="text-[#64748B]">
+              <div className="rounded-lg border border-default p-2.5 text-xs">
+                <p className="font-bold text-primary">Bu Ratna</p>
+                <p className="text-muted">
                   Dingin, cermat, penuh selidik • Mencurigai gerak-gerik Maya
                 </p>
               </div>
@@ -298,7 +298,7 @@ export function MobileLayout({
             <button
               type="button"
               onClick={() => setInspectorOpen(false)}
-              className="w-full rounded-xl bg-[#881337] py-2.5 text-xs font-bold text-white shadow-xs"
+              className="w-full rounded-xl bg-brand-600 py-2.5 text-xs font-bold text-white shadow-xs"
             >
               Tutup Panel
             </button>

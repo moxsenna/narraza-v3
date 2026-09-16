@@ -61,8 +61,9 @@
   --font-serif: var(--font-lora), Georgia, 'Times New Roman', serif;
   --font-heading:
     var(--font-plus-jakarta-sans), 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-inter), 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-editor: var(--font-newsreader), 'Newsreader', Georgia, serif;
+  --font-body:
+    var(--font-plus-jakarta-sans), 'Plus Jakarta Sans', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-editor: var(--font-lora), Lora, Georgia, 'Times New Roman', serif;
   --color-brand-soft: var(--color-brand-50);
   --color-brand-strong: var(--color-brand-800);
   --color-brand-ink: var(--color-brand-900);

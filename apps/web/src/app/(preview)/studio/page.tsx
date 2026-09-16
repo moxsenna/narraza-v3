@@ -8,7 +8,7 @@ export default function StudioPreviewPage() {
   if (process.env.NODE_ENV === 'production') notFound();
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
+    <div className="flex min-h-screen flex-col bg-canvas">
       <TopNav
         account={{ initial: 'B', email: 'penulis@narraza.com' }}
         currentProject={{
