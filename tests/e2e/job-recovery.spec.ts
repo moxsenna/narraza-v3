@@ -6,8 +6,9 @@
  *
  * Covered here: refresh recovery, the already-active job path, REAL
  * confirmation exact replay (confirm invoked twice), chapter-scoped terminal
- * recovery, and production truthfulness (the product chapter workspace never
- * offers the not-yet-existing generation capability).
+ * recovery, and production truthfulness (the product chapter workspace runs
+ * the tenant-gated generation loop: quote visible, nothing created until
+ * explicit confirm).
  */
 import { expect, test } from '@playwright/test';
 import {
@@ -26,7 +27,9 @@ const harnessUrl = (projectId: string, chapterId: string) =>
 
 test.describe.configure({ timeout: 180_000 });
 
-test('production chapter workspace keeps generation fail-closed', async ({ page }, testInfo) => {
+test('production chapter workspace runs the tenant-gated generation loop', async ({
+  page,
+}, testInfo) => {
   const fixture = await seedM3ChapterForCurrentUser({
     page,
     testInfo,
@@ -34,13 +37,22 @@ test('production chapter workspace keeps generation fail-closed', async ({ page 
     grantMicroIdr: 100n * MICRO_IDR_PER_CREDIT,
   });
 
-  // The product route presents the honest unavailable state: no quote, no
-  // reservation, no job can be created from the placeholder plan path.
+  // The product route mounts the live panel behind real tenant auth: quote
+  // issuance is visible, but no reservation and no job exist until the user
+  // confirms explicitly.
   await page.goto(`/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/tulis`);
-  await expect(page.getByTestId('scene-generation-unavailable')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Buat adegan' })).toHaveCount(0);
-  await expect(page.getByTestId('scene-generation-start')).toHaveCount(0);
+  await expect(page.getByTestId('scene-generation-unavailable')).toHaveCount(0);
+  await expect(page.getByTestId('scene-generation-start')).toBeVisible();
   expect(await countProjectJobs(fixture.projectId)).toBe(0);
+  expect(await countProjectReservations(fixture.projectId)).toBe(0);
+
+  await page.getByRole('button', { name: 'Buat adegan' }).click();
+  const card = page.getByTestId('credit-quote-card');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('35');
+  // Quote alone creates nothing.
+  expect(await countProjectJobs(fixture.projectId)).toBe(0);
+  expect(await countProjectReservations(fixture.projectId)).toBe(0);
 
   // The same W3.5 mechanics live behind the fail-closed harness surface.
   await page.goto(harnessUrl(fixture.projectId, fixture.chapterId));

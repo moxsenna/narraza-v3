@@ -2,20 +2,23 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getMyProject } from '../../../../../server/domain/queries';
 import { getUnitOfWork } from '../../../../../server/domain/uow';
+import { getCurrentUser } from '../../../../../server/auth/session';
+
+function payloadStrings(payload: Record<string, unknown>): { key: string; value: string }[] {
+  return Object.entries(payload).flatMap(([key, value]) =>
+    typeof value === 'string' && value.length > 0 ? [{ key, value }] : [],
+  );
+}
 
 export default async function RevealPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const project = await getMyProject(projectId);
   if (!project) notFound();
+  const session = await getCurrentUser();
+  const advanced = session?.uiMode === 'mahir';
   const { reveals, breadcrumbs } = await getUnitOfWork().execute((ports) =>
     ports.reveal.listByProject(projectId),
   );
-  const breadcrumbsByReveal = new Map<string, number>();
-  for (const breadcrumb of breadcrumbs)
-    breadcrumbsByReveal.set(
-      breadcrumb.revealId,
-      (breadcrumbsByReveal.get(breadcrumb.revealId) ?? 0) + 1,
-    );
 
   return (
     <main className="mx-auto w-full max-w-[1040px] px-4 py-7 sm:px-6 sm:py-9">
@@ -48,21 +51,64 @@ export default async function RevealPage({ params }: { params: Promise<{ project
           </div>
         ) : (
           <ol className="relative mt-4 space-y-4 border-l-2 border-brand-200 pl-5">
-            {reveals.map((reveal) => (
-              <li
-                key={reveal.id}
-                className="relative rounded-xl border border-default bg-surface p-5 before:absolute before:-left-[27px] before:top-6 before:size-3 before:rounded-full before:bg-brand-strong"
-              >
-                <p className="text-xs font-bold tracking-wide text-brand-strong">
-                  TARGET BAB {reveal.targetSequence}
-                </p>
-                <h3 className="mt-2 font-bold text-primary">Pengungkapan utama</h3>
-                <p className="mt-2 text-sm text-secondary">
-                  {breadcrumbsByReveal.get(reveal.id) ?? 0} petunjuk tersimpan sebelum jawaban
-                  dibuka.
-                </p>
-              </li>
-            ))}
+            {reveals.map((reveal) => {
+              const crumbs = breadcrumbs.filter((breadcrumb) => breadcrumb.revealId === reveal.id);
+              const truths = payloadStrings(reveal.payload as Record<string, unknown>);
+              return (
+                <li
+                  key={reveal.id}
+                  className="relative rounded-xl border border-default bg-surface p-5 before:absolute before:-left-[27px] before:top-6 before:size-3 before:rounded-full before:bg-brand-strong"
+                >
+                  <p className="text-xs font-bold tracking-wide text-brand-strong">
+                    TARGET BAB {reveal.targetSequence}
+                  </p>
+                  <h3 className="mt-2 font-bold text-primary">Pengungkapan utama</h3>
+                  <p className="mt-2 text-sm text-secondary">
+                    {crumbs.length} petunjuk tersimpan sebelum jawaban dibuka.
+                  </p>
+                  {advanced ? (
+                    <div className="mt-3 rounded-lg bg-surface-soft p-3">
+                      <p className="text-[11px] font-extrabold tracking-wider text-muted">
+                        DETAIL MAHIR — ISI RAHASIA
+                      </p>
+                      {truths.length === 0 && crumbs.length === 0 ? (
+                        <p className="mt-1 text-xs text-secondary">
+                          Belum ada detail tersimpan untuk rahasia ini.
+                        </p>
+                      ) : (
+                        <dl className="mt-2 space-y-1.5">
+                          {truths.map((entry) => (
+                            <div key={entry.key} className="text-xs leading-5">
+                              <dt className="font-bold text-primary">{entry.key}</dt>
+                              <dd className="text-secondary">{entry.value}</dd>
+                            </div>
+                          ))}
+                          {crumbs.map((crumb) => (
+                            <div key={crumb.id} className="text-xs leading-5">
+                              <dt className="font-bold text-primary">
+                                Petunjuk urutan {crumb.sequence}
+                              </dt>
+                              {payloadStrings(crumb.payload as Record<string, unknown>).map(
+                                (hint) => (
+                                  <dd key={hint.key} className="text-secondary">
+                                    {hint.key}: {hint.value}
+                                  </dd>
+                                ),
+                              )}
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-3 rounded-lg bg-surface-soft p-3 text-xs leading-5 text-secondary">
+                      Detail rahasia dijaga otomatis. Beralih ke mode Mahir di Pengaturan untuk
+                      melihat isi lengkap.
+                    </p>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         )}
       </section>

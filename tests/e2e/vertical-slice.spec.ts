@@ -33,11 +33,11 @@ test('vertical slice desktop: register to publish-shell with honest states', asy
   leak(body, 'outline');
 
   const chapterRoutes = [
-    ['tulis', 'Penulisan dari halaman ini belum tersedia'],
-    ['cek', 'Pemeriksaan otomatis untuk bab ini belum tersedia'],
+    ['tulis', 'Buat adegan'],
+    ['cek', 'Belum ada versi beku'],
     ['selesaikan', 'Belum ada usulan yang menunggu keputusan.'],
     ['naskah', 'Tidak ada naskah yang tersedia'],
-    ['publish', 'Paket terbit belum tersedia'],
+    ['publish', 'Belum ada usulan paket'],
   ] as const;
   for (const [suffix, honestText] of chapterRoutes) {
     const url = `/app/proyek/${projectId}/bab/${chapterId}/${suffix}`;

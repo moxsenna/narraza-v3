@@ -23,6 +23,7 @@ import type { QuotePort } from './quote-port.js';
 import type { RevealRepo } from './reveal-repo.js';
 import type { SnapshotPort } from './snapshot-port.js';
 import type { UsableOutputClassifier } from './usable-output-classifier.js';
+import type { UserSettingsPort } from './user-settings-port.js';
 import type { ContextBundlePort } from '../ai/context-bundle-port.js';
 import type { ModelPriceSnapshotPort } from '../ai/model-price-port.js';
 import type { WorkflowPlanPort } from '../ai/workflow-plan-port.js';
@@ -79,6 +80,8 @@ export interface TxPorts {
   readonly creditRetention: CreditRetentionPort;
   /** W3.3 opt-in capability; optional for legacy UnitOfWork test doubles. */
   readonly usableOutputClassifier?: UsableOutputClassifier;
+  /** D3 experience mode; optional so legacy UnitOfWork doubles keep compiling. */
+  readonly userSettings?: UserSettingsPort;
   /** M4 Block A opt-in capability; optional for legacy UnitOfWork test doubles. */
   readonly contextBundle?: ContextBundlePort;
   /** M4 Block A opt-in capability; optional for legacy UnitOfWork test doubles. */

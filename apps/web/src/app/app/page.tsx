@@ -5,7 +5,11 @@ import { DashboardView } from '../../components/dashboard/DashboardView';
 import { LinkButton } from '../../components/primitives';
 import { makeFoundationReadinessViewModel } from '../../lib/server/foundation-readiness-view-model';
 import { getMyCreditSummaryView } from '../../server/domain/generation';
-import { getProjectFoundation, listMyProjects } from '../../server/domain/queries';
+import {
+  getProjectFoundation,
+  getProjectProgress,
+  listMyProjects,
+} from '../../server/domain/queries';
 
 const intakePathLabels: Readonly<Record<string, string>> = {
   no_idea: 'Mulai dari nol',
@@ -14,12 +18,61 @@ const intakePathLabels: Readonly<Record<string, string>> = {
   fix_story: 'Perbaiki cerita',
 };
 
+const journeyCopy: Record<string, { title: string; description: string; route: string }> = {
+  continue_intake: {
+    title: 'Lanjutkan ceritamu',
+    description: 'Tambahkan ide, tokoh, atau konflik lewat Chat Narra.',
+    route: 'chat',
+  },
+  fill_foundation: {
+    title: 'Rapikan fondasi cerita',
+    description: 'Tinjau dasar cerita sebelum menyusun rencana bab.',
+    route: 'fondasi',
+  },
+  lock_foundation: {
+    title: 'Kunci fondasi cerita',
+    description: 'Fondasi terkonfirmasi. Kunci agar menjadi acuan resmi.',
+    route: 'fondasi',
+  },
+  build_outline: {
+    title: 'Susun rencana bab',
+    description: 'Buat Roadmap Cerita, Bagian Cerita, lalu urutan bab.',
+    route: 'outline',
+  },
+  write_beat: {
+    title: 'Tulis adegan pertama',
+    description: 'Minta Narra menulis adegan dari beat yang direncanakan.',
+    route: 'tulis',
+  },
+  continue_writing: {
+    title: 'Lanjutkan menulis adegan',
+    description: 'Lanjutkan ke Ruang Tulis untuk adegan berikutnya.',
+    route: 'tulis',
+  },
+  close_chapter: {
+    title: 'Tinjau usulan bab',
+    description: 'Ada usulan menunggu keputusan di Naskah.',
+    route: 'naskah',
+  },
+  publish_artifact: {
+    title: 'Siapkan paket publish',
+    description: 'Ubah bab resmi menjadi materi siap terbit.',
+    route: 'publish',
+  },
+};
+
 export default async function AppHome() {
   const projects = await listMyProjects();
   const credit = await getMyCreditSummaryView();
   const firstProject = projects[0];
   const foundation = firstProject ? await getProjectFoundation(firstProject.id) : null;
   const readiness = makeFoundationReadinessViewModel(foundation ? foundation.payload : null);
+  const firstProgress = firstProject ? await getProjectProgress(firstProject.id) : null;
+  const heroActionCode = firstProgress?.nextAction.code ?? 'continue_intake';
+  const heroCopy = journeyCopy[heroActionCode] ?? journeyCopy.continue_intake!;
+  const heroHref = firstProject
+    ? `/app/proyek/${firstProject.id}/${heroCopy.route}`
+    : '/app/proyek/baru';
   const dashboardProjects = projects.map((project) => ({
     id: project.id,
     title: project.title,
@@ -193,6 +246,11 @@ export default async function AppHome() {
               weeklyWordCount={0}
               averageTempo={0}
               continuityScore={100}
+              nextAction={
+                firstProject
+                  ? { title: heroCopy.title, description: heroCopy.description, href: heroHref }
+                  : null
+              }
             />
           </div>
         )}

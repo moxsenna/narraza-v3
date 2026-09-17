@@ -199,6 +199,8 @@ export type {
   M4ProductReadPort,
 } from './ports/m4-product-read-port.js';
 
+export type { UiMode, UserSettingsPort } from './ports/user-settings-port.js';
+
 export {
   createCreditQuoteService,
   type IssueQuoteInput,
@@ -520,6 +522,11 @@ export {
   type PublicValidationView,
   type OverrideFindingInput,
 } from './use-cases/prose-validation.js';
+export {
+  createUpdateUiMode,
+  type UpdateUiModeInput,
+  type UpdateUiModeOutput,
+} from './use-cases/update-ui-mode.js';
 export {
   createRequestSafeRepair,
   repairInstructionFor,

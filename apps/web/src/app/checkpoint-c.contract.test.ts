@@ -17,7 +17,7 @@ describe('Checkpoint C presentation contracts', () => {
     }
   });
 
-  test('workspaces expose real UI anatomy with honest unavailable states', () => {
+  test('workspaces expose real UI anatomy with honest states', () => {
     const write = source('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx');
     const check = source('app/app/proyek/[projectId]/bab/[chapterId]/cek/page.tsx');
     const complete = source('app/app/proyek/[projectId]/bab/[chapterId]/selesaikan/page.tsx');
@@ -27,11 +27,18 @@ describe('Checkpoint C presentation contracts', () => {
     const manuscript = source('app/app/proyek/[projectId]/bab/[chapterId]/naskah/page.tsx');
     const publish = source('app/app/proyek/[projectId]/bab/[chapterId]/publish/page.tsx');
 
+    // Write room runs the tenant-gated generation loop (no dead-end block).
     expect(write).toContain('Buat adegan');
+    expect(write).toContain('<SceneGenerationPanel');
+    expect(write).toContain('requestProdSceneQuoteAction');
     expect(write).toContain('Naskah Bab');
-    expect(write).toContain('Penulisan dari halaman ini belum tersedia');
+    expect(write).not.toContain('scene-generation-unavailable');
+    expect(write).not.toContain('Penulisan dari halaman ini belum tersedia');
+    // Check runs deterministic validation with allowlist override.
     expect(check).toContain('Temuan Cek Cerita');
-    expect(check).toContain('Perbaiki dengan aman');
+    expect(check).toContain('runValidationAction');
+    expect(check).toContain('overrideFindingAction');
+    expect(check).not.toContain('belum tersedia');
     expect(complete).toContain('Tutup Bab');
     expect(complete).toContain('proposal-list');
     expect(completeCards).toContain('Terapkan &amp; jadikan resmi');
@@ -41,18 +48,19 @@ describe('Checkpoint C presentation contracts', () => {
       'Judul & teaser',
       'Caption & ajakan komentar',
       'Pratinjau ponsel',
-      'Salin atau ekspor',
+      'Terima paket',
     ]) {
       expect(publish).toContain(copy);
     }
 
+    // Server actions are the only mutation path: no client fetch handlers,
+    // no fixtures, no localStorage. Debounce/polling timers live in tested
+    // client islands, never in page markup.
     for (const page of [write, check, complete, manuscript, publish]) {
-      expect(page).not.toMatch(/onClick=|action=|formAction=|setTimeout|fetch\(/);
+      expect(page).not.toMatch(/fixture|localStorage|fetch\(|onClick=/);
     }
     // selesaikan/page.tsx renders no controls itself (decision forms live in
-    // proposal-cards.tsx behind availableActions); the rest keep native
-    // disabled controls while their flows are unavailable.
-    for (const page of [write, check, publish]) expect(page).toContain('disabled');
+    // proposal-cards.tsx behind availableActions).
   });
 
   test('concept, credit, settings, and import surfaces stay honest', () => {
@@ -61,9 +69,11 @@ describe('Checkpoint C presentation contracts', () => {
     const settings = source('app/app/pengaturan/page.tsx');
     const importPage = source('app/app/proyek/impor/page.tsx');
 
-    expect(concept).toContain("CAPABILITIES['project.concept.choose']");
+    // Concept runs the real quote/confirm/choose chain (no placeholder cards).
+    expect(concept).toContain('<ConceptGenerationPanel');
+    expect(concept).toContain('chooseConceptAction');
     expect(concept).toContain('Tiga arah cerita');
-    expect(concept).toContain('disabled');
+    expect(concept).not.toContain('BACKEND_NOT_AVAILABLE');
     // Credit renders the real M3 summary (single D6 conversion); values are
     // bare numbers from the ledger, never "N kredit" fabrications.
     expect(credit).toContain('getMyCreditSummaryView');
@@ -90,22 +100,21 @@ describe('Checkpoint C presentation contracts', () => {
     expect(page).not.toMatch(/choices\[[0]\]|chapterId=/);
   });
 
-  test('project manuscript and publish routes are owner scoped and presentation-only', () => {
+  test('project manuscript and publish routes are owner scoped with real read models', () => {
     const manuscript = source('app/app/proyek/[projectId]/naskah/page.tsx');
     const publish = source('app/app/proyek/[projectId]/publish/page.tsx');
 
     for (const page of [manuscript, publish]) {
       expect(page).toContain('getMyProject(projectId)');
       expect(page).toContain('if (!project) notFound()');
-      expect(page).not.toMatch(
-        /fixture|localStorage|setTimeout|fetch\(|action=|formAction=|onClick=/,
-      );
+      expect(page).not.toMatch(/fixture|localStorage|fetch\(|onClick=/);
     }
-    expect(manuscript).toContain("CAPABILITIES['project.manuscript.view']");
+    // Manuscript reads accepted prose; publish lists per-chapter readiness.
+    // Empty states stay honest without placeholder examples.
+    expect(manuscript).toContain('getNaskahEntries');
     expect(manuscript).toContain('Belum ada naskah proyek yang dapat ditampilkan');
-    expect(publish).toContain("CAPABILITIES['project.publish.view']");
+    expect(publish).toContain('getProjectOutline(projectId)');
     expect(publish).toContain('Belum ada artifact publish');
-    expect(publish).toContain('disabled');
   });
 
   test('mobile bottom navigation uses coherent icons and prototype active treatment', () => {

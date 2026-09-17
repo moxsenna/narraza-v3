@@ -1,23 +1,58 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getMyProject, getProjectProgress } from '../../../../server/domain/queries';
+import { getCurrentUser } from '../../../../server/auth/session';
 
-const nextActionCopy: Record<string, { title: string; description: string; route: string }> = {
-  intake: {
+// Copy selaras ProjectProgressView.nextAction.code dari reducer
+// (sumber tunggal; duplikat kecil ini dicerminkan di app/page.tsx).
+const journeyCopy: Record<string, { title: string; description: string; route: string }> = {
+  continue_intake: {
     title: 'Lanjutkan ceritamu',
     description: 'Tambahkan ide, tokoh, atau konflik lewat Chat Narra.',
     route: 'chat',
   },
-  foundation: {
+  fill_foundation: {
     title: 'Rapikan fondasi cerita',
     description: 'Tinjau dasar cerita sebelum menyusun rencana bab.',
     route: 'fondasi',
   },
-  outline: {
+  lock_foundation: {
+    title: 'Kunci fondasi cerita',
+    description: 'Fondasi terkonfirmasi. Kunci agar menjadi acuan resmi.',
+    route: 'fondasi',
+  },
+  build_outline: {
     title: 'Susun rencana bab',
     description: 'Buat Roadmap Cerita, Bagian Cerita, lalu urutan bab.',
     route: 'outline',
   },
+  write_beat: {
+    title: 'Tulis adegan pertama',
+    description: 'Minta Narra menulis adegan dari beat yang direncanakan.',
+    route: 'tulis',
+  },
+  continue_writing: {
+    title: 'Lanjutkan menulis adegan',
+    description: 'Lanjutkan ke Ruang Tulis untuk adegan berikutnya.',
+    route: 'tulis',
+  },
+  close_chapter: {
+    title: 'Tinjau usulan bab',
+    description: 'Ada usulan menunggu keputusan di Naskah.',
+    route: 'naskah',
+  },
+  publish_artifact: {
+    title: 'Siapkan paket publish',
+    description: 'Ubah bab resmi menjadi materi siap terbit.',
+    route: 'publish',
+  },
+};
+
+const blockerCopy: Record<string, string> = {
+  intake_empty: 'Mulai dengan satu pesan di Chat Narra.',
+  foundation_unlocked: 'Fondasi masih draft.',
+  foundation_not_locked: 'Fondasi terkonfirmasi, belum dikunci.',
+  outline_empty: 'Belum ada bab dalam rencana.',
 };
 
 export default async function ProjectHomePage({
@@ -29,7 +64,12 @@ export default async function ProjectHomePage({
   const project = await getMyProject(projectId);
   if (!project) notFound();
   const progress = await getProjectProgress(projectId);
-  const suggested = nextActionCopy[progress?.stage ?? 'intake'] ?? nextActionCopy.intake!;
+  const session = await getCurrentUser();
+  const isAdvanced = session?.uiMode === 'mahir';
+  const actionCode = progress?.nextAction.code ?? 'continue_intake';
+  const suggested = journeyCopy[actionCode] ?? journeyCopy.continue_intake!;
+  const firstBlocker = progress?.blockers?.[0];
+  const blockerHint = firstBlocker ? (blockerCopy[firstBlocker] ?? null) : null;
 
   const links = [
     { route: 'chat', label: 'Chat Narra', copy: 'Kumpulkan ide dan catatan awal.' },
@@ -100,6 +140,11 @@ export default async function ProjectHomePage({
             <p className="max-w-xl font-body text-sm leading-relaxed text-brand-100">
               {suggested.description}
             </p>
+            {blockerHint && (
+              <p className="max-w-xl font-body text-xs leading-relaxed text-brand-100/80">
+                {isAdvanced ? `Penghalang: ${blockerHint}` : blockerHint}
+              </p>
+            )}
           </div>
           <Link
             href={`/app/proyek/${projectId}/${suggested.route}`}

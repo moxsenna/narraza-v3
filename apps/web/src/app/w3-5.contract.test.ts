@@ -82,18 +82,24 @@ describe('W3.5 credit quote and job phase contracts', () => {
     expect(source('components/composites/HeaderCreditChip.tsx')).toContain('/app/kredit');
   });
 
-  test('production chapter workspace stays fail-closed; the harness owns the mock vertical', () => {
+  test('production chapter workspace runs the tenant-gated generation loop; the harness keeps its own boundary', () => {
     const page = source('app/app/proyek/[projectId]/bab/[chapterId]/tulis/page.tsx');
     const harness = source(
       'app/(preview)/app/%5F_preview/m3-generation/[projectId]/[chapterId]/page.tsx',
     );
     const boundary = source('lib/server/preview/generation-harness.ts');
 
-    // Product truthfulness: the production route never mounts the generation
-    // panel and never derives a plan hash until M4 owns real generation.
-    expect(page).not.toContain('<SceneGenerationPanel');
-    expect(page).toContain('scene-generation-unavailable');
-    expect(page).toContain('Pembuatan adegan otomatis belum dapat dilakukan di sini');
+    // Product truthfulness: the production route mounts the generation
+    // panel with tenant-gated prod actions (real chapter access, D4 quote +
+    // explicit confirm). No harness gate and no dead-end block remain.
+    expect(page).toContain('<SceneGenerationPanel');
+    expect(page).toContain('requestProdSceneQuoteAction');
+    expect(page).toContain('confirmProdSceneQuoteAction');
+    expect(page).toContain('getProdSceneJobStateAction');
+    expect(page).toContain('cancelProdSceneJobAction');
+    expect(page).toContain('assertSceneChapterAccess(projectId, chapterId)');
+    expect(page).not.toContain('scene-generation-unavailable');
+    expect(page).not.toContain('Pembuatan adegan otomatis belum dapat dilakukan di sini');
     expect(page).toContain('resolveChapterContext(projectId, chapterId)');
     expect(page).toContain("context.kind !== 'resolved'");
 
