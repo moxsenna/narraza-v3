@@ -15,6 +15,7 @@ import {
   assertNoLeaks,
   collectBody,
   findUserIdByEmail,
+  seedLockedFoundation,
   seedOutlineChapter,
 } from './support/vertical-slice-flow';
 
@@ -70,7 +71,9 @@ test('journey honest states: reducer hero to paid loop honesty', async ({ page }
   leak(body, 'kredit');
 
   // Seed outline + beat, then tulis shows the live panel (no dead-end block).
+  // Outline requires a locked foundation (downstream guard).
   const ownerId = await findUserIdByEmail(email);
+  await seedLockedFoundation(ownerId, projectId);
   const { chapterId } = await seedOutlineChapter(ownerId, projectId, 'journey');
   await page.goto(`/app/proyek/${projectId}/bab/${chapterId}/tulis`);
   await expect(page.getByTestId('scene-generation-start')).toBeVisible({ timeout: 30_000 });
