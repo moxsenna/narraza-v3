@@ -10,9 +10,13 @@ import {
   confirmSceneGenerationQuoteAction,
   getChapterJobStateAction,
   requestSceneGenerationQuoteAction,
-  type QuoteConfirmState,
-  type QuoteRequestState,
 } from '../../server/domain/generation-actions';
+import type {
+  cancelProdSceneJobAction,
+  confirmProdSceneQuoteAction,
+  getProdSceneJobStateAction,
+  requestProdSceneQuoteAction,
+} from '../../server/domain/scene-generation-prod-actions';
 import { Button } from '../primitives';
 import { CreditQuoteCard, type CreditQuoteCardState } from './CreditQuoteCard';
 import { JobPhasePanel } from './JobPhasePanel';
@@ -90,20 +94,22 @@ export function SceneGenerationPanel({
   chapterId,
   initialJobRef,
   initialJob,
+  requestQuote = requestSceneGenerationQuoteAction,
+  confirmQuote = confirmSceneGenerationQuoteAction,
+  getJobState = getChapterJobStateAction,
+  cancelJob = cancelSceneGenerationJobAction,
 }: {
   projectId: string;
   chapterId: string;
   initialJobRef: string | null;
   initialJob: JobPublicView | null;
+  requestQuote?: typeof requestSceneGenerationQuoteAction | typeof requestProdSceneQuoteAction;
+  confirmQuote?: typeof confirmSceneGenerationQuoteAction | typeof confirmProdSceneQuoteAction;
+  getJobState?: typeof getChapterJobStateAction | typeof getProdSceneJobStateAction;
+  cancelJob?: typeof cancelSceneGenerationJobAction | typeof cancelProdSceneJobAction;
 }) {
-  const [quoteState, requestQuoteAction] = useActionState<QuoteRequestState | null, FormData>(
-    requestSceneGenerationQuoteAction,
-    null,
-  );
-  const [confirmState, confirmAction] = useActionState<QuoteConfirmState | null, FormData>(
-    confirmSceneGenerationQuoteAction,
-    null,
-  );
+  const [quoteState, requestQuoteAction] = useActionState(requestQuote, null);
+  const [confirmState, confirmAction] = useActionState(confirmQuote, null);
 
   if (initialJobRef && initialJob) {
     const panel = (
@@ -113,8 +119,8 @@ export function SceneGenerationPanel({
         initialJobRef={initialJobRef}
         initialJob={initialJob}
         recovered={initialJob.recovered}
-        stateAction={getChapterJobStateAction}
-        cancelAction={cancelSceneGenerationJobAction}
+        stateAction={getJobState}
+        cancelAction={cancelJob}
       />
     );
     // A finished job is immutable: keep its truthful outcome visible and still
@@ -143,8 +149,8 @@ export function SceneGenerationPanel({
         initialJobRef={quoteState.jobRef}
         initialJob={quoteState.job}
         recovered
-        stateAction={getChapterJobStateAction}
-        cancelAction={cancelSceneGenerationJobAction}
+        stateAction={getJobState}
+        cancelAction={cancelJob}
       />
     );
   }
@@ -157,8 +163,8 @@ export function SceneGenerationPanel({
         initialJobRef={confirmState.jobRef}
         initialJob={confirmState.job}
         recovered={false}
-        stateAction={getChapterJobStateAction}
-        cancelAction={cancelSceneGenerationJobAction}
+        stateAction={getJobState}
+        cancelAction={cancelJob}
       />
     );
   }

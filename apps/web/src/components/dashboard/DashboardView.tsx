@@ -26,6 +26,7 @@ export interface DashboardViewProps {
   weeklyWordCount?: number;
   averageTempo?: number;
   continuityScore?: number;
+  nextAction?: { title: string; description: string; href: string } | null;
 }
 
 const DEFAULT_FOUNDATION_CHECKLIST = [
@@ -48,6 +49,7 @@ export function DashboardView({
   weeklyWordCount = 4820,
   averageTempo = 680,
   continuityScore = 100,
+  nextAction = null,
 }: DashboardViewProps) {
   const current = activeProject ?? projects[0] ?? null;
 
@@ -93,23 +95,25 @@ export function DashboardView({
                 </span>
               </div>
               <h1 className="font-heading text-2xl font-extrabold tracking-tight sm:text-3xl">
-                {hasActiveChapter
-                  ? `Lanjutkan Bab ${activeChapterOrdinal} — “${activeChapterTitle}” (${current.title})`
-                  : `Lanjutkan ${current.title}`}
+                {nextAction?.title ??
+                  (hasActiveChapter
+                    ? `Lanjutkan Bab ${activeChapterOrdinal} — “${activeChapterTitle}” (${current.title})`
+                    : `Lanjutkan ${current.title}`)}
               </h1>
               <p className="font-body text-sm text-brand-50">
-                {hasActiveChapter
-                  ? `Adegan siap ditulis • Target ritme: 1.200 kata • Konsistensi alur ${continuityScore}%`
-                  : 'Susun fondasi, rencana bab, lalu tulis adegan pertama bersama Narra.'}
+                {nextAction?.description ??
+                  (hasActiveChapter
+                    ? `Adegan siap ditulis • Target ritme: 1.200 kata • Konsistensi alur ${continuityScore}%`
+                    : 'Susun fondasi, rencana bab, lalu tulis adegan pertama bersama Narra.')}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <Link
-                href={`/app/proyek/${current.id}/tulis`}
+                href={nextAction?.href ?? `/app/proyek/${current.id}/tulis`}
                 className="inline-flex min-h-12 items-center justify-center rounded-xl bg-white px-6 font-body text-sm font-bold text-brand-600 shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
               >
-                ✍ Tulis Adegan Ini Sekarang
+                {nextAction ? 'Buka langkah ini →' : '✍ Tulis Adegan Ini Sekarang'}
               </Link>
               <Link
                 href={`/app/proyek/${current.id}/outline`}

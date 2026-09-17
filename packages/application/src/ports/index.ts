@@ -92,6 +92,7 @@ export type {
   ConceptRepo,
 } from './concept-repo.js';
 export type { AuditAppendInput, AuditPort } from './audit-port.js';
+export type { UiMode, UserSettingsPort } from './user-settings-port.js';
 export type {
   OutboxAppendInput,
   CreditOverageIncidentInput,

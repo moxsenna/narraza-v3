@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { intakeSufficiencyView } from '@narraza/application';
 import { ChatBubble } from '../../../../../components/composites/ChatBubble';
 import {
   getMyProject,
@@ -20,6 +21,7 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
     getProjectIntakeSignalCount(projectId),
   ]);
   const signalCount = Math.min(6, Math.max(0, storedSignalCount));
+  const sufficiency = intakeSufficiencyView({ collectedSignalCount: storedSignalCount });
   const thread = chatThreadStatus(messages);
 
   return (
@@ -45,6 +47,21 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
             <p className="mx-auto mb-5 w-fit rounded-pill bg-surface-soft px-3 py-1.5 text-center text-xs font-semibold text-secondary">
               Semua hasil ngobrol masih berupa draft — belum jadi cerita resmi
             </p>
+
+            {sufficiency.sufficient && (
+              <div className="mx-auto mb-5 flex w-fit max-w-full flex-col items-center gap-2 rounded-2xl border border-active bg-brand-soft px-5 py-4 text-center">
+                <p className="text-sm font-bold text-primary">
+                  Sinyal cerita cukup ({sufficiency.collected}/{sufficiency.required}) — siap
+                  disusun jadi konsep
+                </p>
+                <Link
+                  href={`/app/proyek/${projectId}/konsep`}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand-600 px-5 text-sm font-bold text-white shadow-xs hover:bg-brand-700"
+                >
+                  Susun 3 Konsep →
+                </Link>
+              </div>
+            )}
 
             <div className="space-y-3" aria-label="Percakapan">
               {messages.length === 0 ? (

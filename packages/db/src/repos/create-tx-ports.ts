@@ -30,6 +30,7 @@ import { createRevealRepo } from './reveal-repo.js';
 import { createSnapshotPort } from './snapshot-port.js';
 import type { TxClient } from './tx-client.js';
 import { createUsableOutputClassifier } from './usable-output-classifier.js';
+import { createUserSettingsPort } from './user-settings-port.js';
 import { createWorkflowPlanPort } from './workflow-plan-port.js';
 import { createAttemptRecoveryPort } from './attempt-recovery-port.js';
 import { createSystemFundedIntakePort } from './system-funded-intake-port.js';
@@ -71,6 +72,7 @@ export function createTxPorts(tx: TxClient): TxPorts {
     creditReservation: createCreditReservationRepo(tx),
     creditRetention: createCreditRetentionPort(tx),
     usableOutputClassifier: createUsableOutputClassifier(tx),
+    userSettings: createUserSettingsPort(tx),
     job: createJobRepo(tx),
     workflowInvocation,
     generationAttempt: workflowInvocation,

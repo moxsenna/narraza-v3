@@ -4,6 +4,7 @@ import { PageHeader } from '../../../components/composites/PageHeader';
 import { Badge, Button, Card } from '../../../components/primitives';
 import { CAPABILITIES } from '../../../lib/frontend/capabilities';
 import { getCurrentUser } from '../../../server/auth/session';
+import { setUiModeAction } from '../../../server/settings/ui-mode';
 
 export default async function PengaturanPage() {
   const user = await getCurrentUser();
@@ -43,33 +44,52 @@ export default async function PengaturanPage() {
               <div>
                 <h2 className="text-lg font-bold text-primary">Cara menggunakan Narraza</h2>
                 <p className="mt-1 text-sm leading-6 text-secondary">
-                  Pemula memberi panduan lebih ringkas. Mahir membuka penjelasan lebih rinci saat
-                  sudah didukung.
+                  Pemula memberi panduan lebih ringkas. Mahir membuka penjelasan lebih rinci.
                 </p>
               </div>
-              <Badge tone="warning">Belum dapat diubah</Badge>
+              <Badge tone={user?.uiMode === 'mahir' ? 'brand' : 'neutral'}>
+                {user?.uiMode === 'mahir' ? 'Mahir aktif' : 'Pemula aktif'}
+              </Badge>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                disabled
-                className="min-h-20 rounded-lg border border-active bg-brand-soft p-4 text-left disabled:cursor-not-allowed"
-              >
-                <span className="block font-bold text-primary">Pemula</span>
-                <span className="mt-1 block text-sm leading-5 text-secondary">
-                  Langkah terarah dan bahasa sederhana.
-                </span>
-              </button>
-              <button
-                type="button"
-                disabled
-                className="min-h-20 rounded-lg border border-default bg-surface-soft p-4 text-left disabled:cursor-not-allowed"
-              >
-                <span className="block font-bold text-primary">Mahir</span>
-                <span className="mt-1 block text-sm leading-5 text-secondary">
-                  Kontrol dan detail cerita lebih dalam.
-                </span>
-              </button>
+              {(
+                [
+                  {
+                    mode: 'pemula',
+                    title: 'Pemula',
+                    copy: 'Langkah terarah dan bahasa sederhana.',
+                  },
+                  {
+                    mode: 'mahir',
+                    title: 'Mahir',
+                    copy: 'Kontrol dan detail cerita lebih dalam.',
+                  },
+                ] as const
+              ).map((option) => {
+                const selected = user?.uiMode === option.mode;
+                return (
+                  <form key={option.mode} action={setUiModeAction}>
+                    <input type="hidden" name="mode" value={option.mode} />
+                    <button
+                      type="submit"
+                      aria-pressed={selected}
+                      className={`min-h-20 w-full rounded-lg border p-4 text-left ${
+                        selected
+                          ? 'border-active bg-brand-soft'
+                          : 'border-default bg-surface-soft hover:border-active'
+                      }`}
+                    >
+                      <span className="block font-bold text-primary">
+                        {option.title}
+                        {selected ? ' ✓' : ''}
+                      </span>
+                      <span className="mt-1 block text-sm leading-5 text-secondary">
+                        {option.copy}
+                      </span>
+                    </button>
+                  </form>
+                );
+              })}
             </div>
           </Card>
 

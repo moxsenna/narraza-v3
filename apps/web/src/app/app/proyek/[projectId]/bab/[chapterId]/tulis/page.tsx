@@ -1,6 +1,23 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { SceneGenerationPanel } from '../../../../../../../components/credits/SceneGenerationPanel';
+import { CandidatePicker } from '../../../../../../../components/editor/CandidatePicker';
+import { DraftEditor } from '../../../../../../../components/editor/DraftEditor';
+import {
+  cancelProdSceneJobAction,
+  confirmProdSceneQuoteAction,
+  getProdSceneJobStateAction,
+  requestProdSceneQuoteAction,
+} from '../../../../../../../server/domain/scene-generation-prod-actions';
+import {
+  findSceneJobState,
+  assertSceneChapterAccess,
+} from '../../../../../../../server/domain/generation';
+import {
+  getWriteRoomState,
+  snapshotProseVersionAction,
+} from '../../../../../../../server/domain/draft-actions';
 import { getProjectOutline } from '../../../../../../../server/domain/queries';
 import { resolveChapterContext } from '../../../../../../../lib/server/capability-resolvers/chapter-context';
 
@@ -15,6 +32,8 @@ export default async function ChapterTulisPage({
 
   const context = await resolveChapterContext(projectId, chapterId);
   if (context.kind !== 'resolved') notFound();
+  const access = await assertSceneChapterAccess(projectId, chapterId);
+  if (access.kind !== 'allowed') notFound();
 
   const { projectTitle, chapterTitle, chapterOrdinal } = context;
   const outline = await getProjectOutline(projectId);
@@ -24,6 +43,19 @@ export default async function ChapterTulisPage({
   const beats = outline
     .filter((node) => node.entityType === 'beat' && node.parentId === chapterId)
     .sort((a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0));
+
+  const jobLookup = await findSceneJobState(projectId, chapterId, null);
+  const jobRef = jobLookup.kind === 'found' ? jobLookup.jobRef : null;
+  const job = jobLookup.kind === 'found' ? jobLookup.view : null;
+  const writeRoom = await getWriteRoomState(
+    projectId,
+    chapterId,
+    beats.map((beat) => ({
+      id: beat.id,
+      title: beat.title,
+      accepted: !!beat.acceptedProseVersionId,
+    })),
+  );
 
   const chapterHref = (id: string) =>
     `/app/proyek/${encodeURIComponent(projectId)}/bab/${encodeURIComponent(id)}/tulis`;
@@ -112,22 +144,11 @@ export default async function ChapterTulisPage({
               className="flex items-center gap-1 rounded-lg bg-surface-soft p-0.5"
               aria-label="Kandidat naskah"
             >
-              <button
-                type="button"
-                disabled
-                title="Kandidat tersedia setelah adegan dibuat"
-                className="rounded-md border border-border-default bg-surface px-2.5 py-1 text-[11px] font-bold text-text-muted"
-              >
-                Kandidat A
-              </button>
-              <button
-                type="button"
-                disabled
-                title="Kandidat tersedia setelah adegan dibuat"
-                className="rounded-md px-2.5 py-1 text-[11px] font-semibold text-text-muted"
-              >
-                Kandidat B
-              </button>
+              <span className="rounded-md px-2.5 py-1 text-[11px] font-bold text-text-secondary">
+                {writeRoom && writeRoom.candidates.length > 0
+                  ? `${writeRoom.candidates.length} kandidat tersedia di bawah`
+                  : 'Kandidat muncul setelah adegan dibuat'}
+              </span>
             </div>
           </div>
 
@@ -135,44 +156,83 @@ export default async function ChapterTulisPage({
             {chapterOrdinal === null ? chapterTitle : `Bab ${chapterOrdinal} — ${chapterTitle}`}
           </h1>
 
-          <section
-            aria-label="Buat adegan"
-            className="mt-6 rounded-2xl border border-border-default bg-surface-soft p-5"
-            data-testid="scene-generation-unavailable"
-          >
-            <h2 className="text-base font-bold text-text-primary">Buat adegan</h2>
-            <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Pembuatan adegan otomatis belum dapat dilakukan di sini. Kamu akan bisa memulai proses
-              terjadwal dengan perkiraan biaya ketika fitur ini dirilis.
-            </p>
+          <section aria-label="Buat adegan" className="mt-6">
+            <SceneGenerationPanel
+              projectId={projectId}
+              chapterId={chapterId}
+              initialJobRef={jobRef}
+              initialJob={job}
+              requestQuote={requestProdSceneQuoteAction}
+              confirmQuote={confirmProdSceneQuoteAction}
+              getJobState={getProdSceneJobStateAction}
+              cancelJob={cancelProdSceneJobAction}
+            />
           </section>
 
           <div className="mt-6 rounded-2xl border border-border-default bg-surface p-4">
-            <label htmlFor="prose-editor" className="block text-sm font-semibold text-text-primary">
-              Naskah Bab
-            </label>
-            <textarea
-              id="prose-editor"
-              name="prose"
-              rows={12}
-              placeholder="Belum ada naskah yang tersedia."
-              disabled
-              className="font-editor mt-2 w-full resize-none rounded-xl border border-border-default bg-surface-soft p-4 text-base leading-[1.85] text-text-primary placeholder:text-text-muted focus:border-active focus:outline-none focus:ring-2 focus:ring-active disabled:cursor-not-allowed disabled:bg-surface-soft disabled:text-text-muted"
-            />
+            <h2 className="text-sm font-bold text-text-primary">Kandidat naskah</h2>
+            <div className="mt-3">
+              <CandidatePicker
+                projectId={projectId}
+                chapterId={chapterId}
+                beatIdsJson={JSON.stringify(beats.map((beat) => ({ id: beat.id })))}
+                acceptedBeatIdsJson={JSON.stringify(
+                  beats.filter((beat) => beat.acceptedProseVersionId).map((beat) => beat.id),
+                )}
+                candidates={writeRoom?.candidates ?? []}
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-border-default bg-surface p-4">
+            {writeRoom?.draft && writeRoom.targetBeatId ? (
+              <>
+                <DraftEditor
+                  projectId={projectId}
+                  chapterId={chapterId}
+                  beatId={writeRoom.targetBeatId}
+                  beatTitle={writeRoom.targetBeatTitle ?? 'adegan'}
+                  initialContent={writeRoom.draft.content}
+                  initialRevision={writeRoom.draft.revision}
+                />
+                <form action={snapshotProseVersionAction} className="mt-3">
+                  <input type="hidden" name="projectId" value={projectId} />
+                  <input type="hidden" name="chapterId" value={chapterId} />
+                  <input type="hidden" name="beatId" value={writeRoom.targetBeatId} />
+                  <button
+                    type="submit"
+                    className="inline-flex min-h-11 items-center rounded-xl border border-border-default bg-surface px-4 text-xs font-semibold text-text-secondary hover:bg-surface-soft"
+                  >
+                    Bekukan versi untuk dicek
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <label
+                  htmlFor="prose-editor"
+                  className="block text-sm font-semibold text-text-primary"
+                >
+                  Naskah Bab
+                </label>
+                <p className="mt-2 text-sm leading-6 text-text-secondary">
+                  Belum ada draft. Terapkan salah satu kandidat di atas untuk mulai menyunting.
+                </p>
+              </>
+            )}
           </div>
 
           <section className="mt-4" data-testid="capability-notice">
             <p className="text-sm font-semibold text-text-primary">
-              Penulisan dari halaman ini belum tersedia
+              Langkah berikutnya: Cek Cerita
             </p>
             <p className="mt-1 text-sm leading-6 text-text-secondary">
-              Menulis dan menyunting naskah secara manual belum dapat dilakukan di sini. Pembuatan
-              adegan otomatis juga belum tersedia pada tahap ini.
+              Setelah versi dibekukan, jalankan pemeriksaan otomatis sebelum menjadikannya resmi.
             </p>
           </section>
 
           <footer className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-default pt-4">
-            <p className="text-xs text-text-muted">Belum ada kata • Siap setelah adegan dibuat</p>
+            <p className="text-xs text-text-muted">Tulis • pilih kandidat • bekukan • cek</p>
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href={checkHref}
@@ -180,14 +240,12 @@ export default async function ChapterTulisPage({
               >
                 🔍 Cek Kontinuitas Cerita
               </Link>
-              <button
-                type="button"
-                disabled
-                title="Terima versi tersedia setelah adegan dibuat"
-                className="inline-flex min-h-11 items-center rounded-xl bg-action-primary px-4 text-xs font-bold text-white disabled:cursor-not-allowed"
+              <Link
+                href={completeHref}
+                className="inline-flex min-h-11 items-center rounded-xl bg-action-primary px-4 text-xs font-bold text-white"
               >
                 ✓ Terima Versi Adegan Ini
-              </button>
+              </Link>
             </div>
           </footer>
         </section>
