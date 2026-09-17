@@ -28,7 +28,8 @@ test('journey honest states: reducer hero to paid loop honesty', async ({ page }
   // Dashboard hero is reducer-driven for a fresh project (continue_intake).
   let body = await collectBody(page, '/app');
   expect(body).toContain(projectTitle);
-  expect(body).toContain('LANGKAH BERIKUTNYA');
+  expect(body).toContain('LANGKAH PRODUKSI BERIKUTNYA');
+  expect(body).toContain('Lanjutkan ceritamu');
   leak(body, 'dashboard');
 
   // Project home hero uses the same reducer action.

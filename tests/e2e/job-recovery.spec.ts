@@ -27,7 +27,9 @@ const harnessUrl = (projectId: string, chapterId: string) =>
 
 test.describe.configure({ timeout: 180_000 });
 
-test('production chapter workspace runs the tenant-gated generation loop', async ({ page }, testInfo) => {
+test('production chapter workspace runs the tenant-gated generation loop', async ({
+  page,
+}, testInfo) => {
   const fixture = await seedM3ChapterForCurrentUser({
     page,
     testInfo,
