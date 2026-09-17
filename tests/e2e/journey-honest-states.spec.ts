@@ -51,7 +51,7 @@ test('journey honest states: reducer hero to paid loop honesty', async ({ page }
   await page.goto(`/app/proyek/${projectId}/konsep`);
   await page.getByRole('button', { name: 'Susun 3 konsep' }).click();
   await expect(page.getByTestId('credit-quote-card')).toBeVisible({ timeout: 30_000 });
-  body = await collectBody(page, `/app/proyek/${projectId}/konsep`);
+  body = await page.locator('body').innerText();
   expect(body).toContain('BIAYA MAKSIMAL');
   leak(body, 'konsep-quote');
 
