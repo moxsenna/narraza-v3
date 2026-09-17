@@ -18,11 +18,11 @@ const VIEWPORTS = [
 const routeExpectations = [
   {
     suffix: 'tulis',
-    unavailableText: 'Penulisan dari halaman ini belum tersedia',
+    unavailableText: 'Tulis • pilih kandidat • bekukan • cek',
   },
   {
     suffix: 'cek',
-    unavailableText: 'Pemeriksaan otomatis untuk bab ini belum tersedia',
+    unavailableText: 'Belum ada versi beku',
   },
   {
     // W5.4: selesaikan is the functional Tutup Bab view; with no pending
@@ -36,19 +36,21 @@ const routeExpectations = [
   },
   {
     suffix: 'publish',
-    unavailableText: 'Paket terbit belum tersedia',
+    unavailableText: 'Belum ada usulan paket',
   },
 ] as const;
 
 const disabledControls = {
-  // tulis exposes only a disabled editor (handled separately below).
+  // tulis runs the live generation loop (no disabled editor anymore).
   tulis: [] as const,
-  cek: ['Cek cerita sekarang', 'Minta perkiraan biaya'],
+  // cek runs validation when a snapshot exists; the empty state links onward.
+  cek: [] as const,
   // selesaikan renders the real M5 proposal list; with zero proposals there
   // are no decision buttons (asserted via proposals-empty below).
   selesaikan: [] as const,
   naskah: [],
-  publish: ['Salin', 'Salin semua', 'Ekspor paket', 'Buat Paket Publish'],
+  // publish offers accept + copy only for real proposals; empty states link.
+  publish: [] as const,
 } as const;
 
 async function activateNativeDisabledControl(locator: Locator): Promise<void> {
@@ -126,10 +128,6 @@ test('disabled presentation controls cause no network or database side effects',
       await page.goto(
         `/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/${routeExpectation.suffix}`,
       );
-
-      if (routeExpectation.suffix === 'tulis') {
-        await activateNativeDisabledControl(page.locator('textarea[name="prose"]'));
-      }
 
       if (routeExpectation.suffix === 'selesaikan') {
         await expect(page.getByTestId('proposals-empty')).toBeVisible();

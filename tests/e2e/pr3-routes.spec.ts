@@ -210,8 +210,7 @@ test('PR3 routes expose only honest owner-scoped presentation', async ({ page },
   await page.goto(`/app/proyek/${projectId}/publish`);
   await expect(page.getByRole('heading', { level: 1, name: 'Paket Publish Proyek' })).toBeVisible();
   await expect(page.getByRole('main').getByText(title)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Salin paket' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Ekspor paket' })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Buka paket bab' }).first()).toBeVisible();
   expect(await page.locator('main').innerText()).not.toContain(projectId);
 });
 

@@ -38,11 +38,11 @@ test('vertical slice mobile: core path with bottom nav', async ({ page }, testIn
 
   body = await collectBody(page, `/app/proyek/${projectId}/bab/${chapterId}/tulis`);
   expect(body).toContain(chapterTitle);
-  expect(body).toContain('Penulisan dari halaman ini belum tersedia');
+  expect(body).toContain('Buat adegan');
   leak(body, 'bab/tulis');
 
   body = await collectBody(page, `/app/proyek/${projectId}/bab/${chapterId}/publish`);
-  expect(body).toContain('Paket terbit belum tersedia');
+  expect(body).toContain('Belum ada usulan paket');
   leak(body, 'bab/publish');
 
   body = await collectBody(page, '/app/kredit');

@@ -22,7 +22,7 @@ test.describe.configure({ timeout: 300_000 });
 
 test('journey honest states: reducer hero to paid loop honesty', async ({ page }, testInfo) => {
   const { email } = await createVerifiedSession(page, testInfo);
-  const { projectId, projectTitle } = await createOwnedProject(page, 'Journey Jujur');
+  const { projectId, title: projectTitle } = await createOwnedProject(page, 'Journey Jujur');
   const leak = (body: string, where: string) => assertNoLeaks(body, `journey:${where}`, [email]);
 
   // Dashboard hero is reducer-driven for a fresh project (continue_intake).
