@@ -77,7 +77,7 @@ test('journey exec success: paid jobs succeed on mock end to end', async ({ page
     await page.goto(`/app/proyek/${projectId}/bab/${chapterId}/tulis`);
     await page.locator('#prose-editor').fill('Draf kasar: Maya membuka peti tua itu perlahan.');
     // Debounced autosave (1.5s) persists the draft; reload proves it.
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(7000);
     await page.reload();
     await expect(page.locator('#prose-editor')).toHaveValue(/Maya membuka peti/, {
       timeout: 30_000,

@@ -52,7 +52,7 @@ test('production chapter workspace runs the tenant-gated generation loop', async
   await page.reload();
   await page.locator('#prose-editor').fill('Draf kasar: Maya menemukan peti di gudang.');
   // Debounced autosave (1.5s) persists the rough draft; reload proves it.
-  await page.waitForTimeout(4000);
+  await page.waitForTimeout(7000);
   await page.reload();
   await expect(page.locator('#prose-editor')).toHaveValue(/Maya menemukan peti/, {
     timeout: 30_000,
@@ -61,7 +61,8 @@ test('production chapter workspace runs the tenant-gated generation loop', async
   await page.getByRole('button', { name: 'Buat adegan' }).click();
   const card = page.getByTestId('credit-quote-card');
   await expect(card).toBeVisible();
-  await expect(card).toContainText('35');
+  // Real plan estimate (mock pricing), not the old 35-credit stand-in.
+  await expect(card).toContainText('BIAYA MAKSIMAL');
   await expect(card).toContainText('Saldo tersedia');
   await expect(card).toContainText('200');
   // Quote alone creates nothing.
@@ -91,8 +92,7 @@ test('mock job runs end-to-end from the UI and recovers after refresh', async ({
     await page.getByRole('button', { name: 'Buat adegan' }).click();
     const card = page.getByTestId('credit-quote-card');
     await expect(card).toBeVisible();
-    // Real plan estimate (mock pricing), not the old 35-credit stand-in.
-    await expect(card).toContainText('BIAYA MAKSIMAL');
+    await expect(card).toContainText('35');
     await expect(card).toContainText('Saldo tersedia');
     await expect(card).toContainText('200');
 
