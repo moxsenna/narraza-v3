@@ -97,6 +97,7 @@ test('journey exec success: paid jobs succeed on mock end to end', async ({ page
       .getByRole('button', { name: /Terapkan kandidat/ })
       .first()
       .click();
+    await page.reload();
     await expect(page.locator('#prose-editor')).toHaveValue(/.+/, { timeout: 30_000 });
 
     // Snapshot, then cek runs deterministic validation over it.
