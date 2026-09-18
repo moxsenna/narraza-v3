@@ -31,6 +31,7 @@ export function DraftEditor({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(content);
   latest.current = content;
+  const lastSaved = useRef(initialContent);
 
   useEffect(() => {
     return () => {
@@ -43,6 +44,7 @@ export function DraftEditor({
     setError(null);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
+      if (latest.current === lastSaved.current) return;
       setSaving(true);
       try {
         const result = await saveWorkingDraftAction(
@@ -54,6 +56,7 @@ export function DraftEditor({
         );
         if (result.kind === 'saved') {
           setRevision(result.revision);
+          lastSaved.current = latest.current;
           setConflict(null);
         } else {
           setConflict(result.message);

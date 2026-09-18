@@ -9,12 +9,22 @@ import {
   jobOutcomeMessage,
   type JobPublicView,
 } from '../../lib/frontend/job-phase';
-import type {
-  ConceptJobCancelState,
-  ConceptJobStateResult,
-} from '../../server/domain/concept-generation-actions';
 import { ConfirmationDialog } from '../composites/ConfirmationDialog';
 import { Button } from '../primitives';
+
+/** Structural loop-state contract shared by concept/repair/publish panels. */
+export type PaidJobStateResult =
+  | { readonly kind: 'active'; readonly jobRef: string; readonly job: JobPublicView }
+  | { readonly kind: 'terminal'; readonly jobRef: string; readonly job: JobPublicView }
+  | { readonly kind: 'none' }
+  | { readonly kind: 'ambiguous' }
+  | { readonly kind: 'error'; readonly message: string };
+
+export type PaidJobCancelState =
+  | { readonly kind: 'cancelled'; readonly message: string }
+  | { readonly kind: 'cancel_requested'; readonly message: string }
+  | { readonly kind: 'not_active'; readonly message: string }
+  | { readonly kind: 'error'; readonly message: string };
 
 /** D12: initial UI poll 2,5s with backoff up to 10s while a nonterminal job exists. */
 const INITIAL_POLL_MS = 2500;
@@ -27,16 +37,22 @@ export function ConceptJobPanel({
   recovered,
   stateAction,
   cancelAction,
+  panelLabel = 'Status penyusunan konsep',
+  recoveredNote = 'Ada proses penyusunan konsep yang masih berjalan. Statusnya dipulihkan dari server.',
+  activeNote = 'Konsep disusun di server. Kamu bisa meninggalkan halaman ini dan kembali lagi; statusnya dipulihkan otomatis.',
 }: {
   projectId: string;
   initialJobRef: string;
   initialJob: JobPublicView;
   recovered: boolean;
-  stateAction: (projectId: string, jobRef: string | null) => Promise<ConceptJobStateResult>;
+  stateAction: (projectId: string, jobRef: string | null) => Promise<PaidJobStateResult>;
   cancelAction: (
-    prev: ConceptJobCancelState | null,
+    prev: PaidJobCancelState | null,
     formData: FormData,
-  ) => Promise<ConceptJobCancelState>;
+  ) => Promise<PaidJobCancelState>;
+  panelLabel?: string;
+  recoveredNote?: string;
+  activeNote?: string;
 }) {
   const router = useRouter();
   const [job, setJob] = useState<JobPublicView>(initialJob);
@@ -129,14 +145,14 @@ export function ConceptJobPanel({
 
   return (
     <section
-      aria-label="Status penyusunan konsep"
+      aria-label={panelLabel}
       className="rounded-2xl border border-border-default bg-surface p-5 sm:p-6"
       data-testid="job-phase-panel"
     >
       <div aria-live="polite">
         {recovered && nonterminal && (
           <p className="mb-3 rounded-xl bg-status-info-soft p-3 text-sm font-semibold text-status-info">
-            Ada proses penyusunan konsep yang masih berjalan. Statusnya dipulihkan dari server.
+            {recoveredNote}
           </p>
         )}
         <div className="flex items-center gap-3">
@@ -153,9 +169,7 @@ export function ConceptJobPanel({
           <p className="text-base font-bold text-text-primary">{JOB_PHASE_LABELS[job.phase]}</p>
         </div>
         <p className="mt-2 text-sm leading-6 text-text-secondary">
-          {nonterminal
-            ? 'Konsep disusun di server. Kamu bisa meninggalkan halaman ini dan kembali lagi; statusnya dipulihkan otomatis.'
-            : (outcome ?? '')}
+          {nonterminal ? activeNote : (outcome ?? '')}
         </p>
         {job.cancelRequested && nonterminal && (
           <p className="mt-2 text-sm font-semibold text-status-warning">

@@ -185,15 +185,15 @@ export default async function ChapterTulisPage({
           </div>
 
           <div className="mt-6 rounded-2xl border border-border-default bg-surface p-4">
-            {writeRoom?.draft && writeRoom.targetBeatId ? (
+            {writeRoom?.targetBeatId ? (
               <>
                 <DraftEditor
                   projectId={projectId}
                   chapterId={chapterId}
                   beatId={writeRoom.targetBeatId}
                   beatTitle={writeRoom.targetBeatTitle ?? 'adegan'}
-                  initialContent={writeRoom.draft.content}
-                  initialRevision={writeRoom.draft.revision}
+                  initialContent={writeRoom.draft?.content ?? ''}
+                  initialRevision={writeRoom.draft?.revision ?? 0}
                 />
                 <form action={snapshotProseVersionAction} className="mt-3">
                   <input type="hidden" name="projectId" value={projectId} />
@@ -215,8 +215,8 @@ export default async function ChapterTulisPage({
                 >
                   Naskah Bab
                 </label>
-                <p className="mt-2 text-sm leading-6 text-text-secondary">
-                  Belum ada draft. Terapkan salah satu kandidat di atas untuk mulai menyunting.
+                <p className="mt-2 text-sm leading-6 text-secondary">
+                  Belum ada adegan dalam rencana. Susun outline terlebih dahulu.
                 </p>
               </>
             )}

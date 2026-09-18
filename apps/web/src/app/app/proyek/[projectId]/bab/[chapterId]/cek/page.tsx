@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { FindingCard } from '../../../../../../../components/composites/FindingCard';
+import { RepairPanel } from '../../../../../../../components/credits/RepairPanel';
 import { Badge, Button, Card } from '../../../../../../../components/primitives';
 import { resolveChapterContext } from '../../../../../../../lib/server/capability-resolvers/chapter-context';
 import { getProjectOutline } from '../../../../../../../server/domain/queries';
@@ -10,6 +11,7 @@ import {
   overrideFindingAction,
   runValidationAction,
 } from '../../../../../../../server/domain/validation-actions';
+import { findRepairJobState } from '../../../../../../../server/domain/repair-generation';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,6 +121,9 @@ export default async function ChapterCekPage({
   const blocking = findings.filter(
     (finding) => finding.severity === 'blocking' || finding.severity === 'error',
   );
+  const repairLookup = await findRepairJobState(projectId, null);
+  const repairJobRef = repairLookup.kind === 'found' ? repairLookup.jobRef : null;
+  const repairJob = repairLookup.kind === 'found' ? repairLookup.view : null;
   const canOverride = view?.availableActions.includes('override') ?? false;
   const statusBadge = !view ? (
     <Badge tone="warning">Belum diperiksa</Badge>
@@ -226,6 +231,15 @@ export default async function ChapterCekPage({
               </p>
             )}
           </Card>
+
+          {blocking.length > 0 && state.proseVersionId && (
+            <RepairPanel
+              projectId={projectId}
+              proseVersionId={state.proseVersionId}
+              initialJobRef={repairJobRef}
+              initialJob={repairJob}
+            />
+          )}
 
           <Card>
             <h2 className="text-lg font-bold text-primary">Cara membaca temuan</h2>

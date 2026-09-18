@@ -10,13 +10,9 @@ import {
   confirmSceneGenerationQuoteAction,
   getChapterJobStateAction,
   requestSceneGenerationQuoteAction,
+  type QuoteConfirmState,
+  type QuoteRequestState,
 } from '../../server/domain/generation-actions';
-import type {
-  cancelProdSceneJobAction,
-  confirmProdSceneQuoteAction,
-  getProdSceneJobStateAction,
-  requestProdSceneQuoteAction,
-} from '../../server/domain/scene-generation-prod-actions';
 import { Button } from '../primitives';
 import { CreditQuoteCard, type CreditQuoteCardState } from './CreditQuoteCard';
 import { JobPhasePanel } from './JobPhasePanel';
@@ -103,13 +99,19 @@ export function SceneGenerationPanel({
   chapterId: string;
   initialJobRef: string | null;
   initialJob: JobPublicView | null;
-  requestQuote?: typeof requestSceneGenerationQuoteAction | typeof requestProdSceneQuoteAction;
-  confirmQuote?: typeof confirmSceneGenerationQuoteAction | typeof confirmProdSceneQuoteAction;
-  getJobState?: typeof getChapterJobStateAction | typeof getProdSceneJobStateAction;
-  cancelJob?: typeof cancelSceneGenerationJobAction | typeof cancelProdSceneJobAction;
+  requestQuote?: typeof requestSceneGenerationQuoteAction;
+  confirmQuote?: typeof confirmSceneGenerationQuoteAction;
+  getJobState?: typeof getChapterJobStateAction;
+  cancelJob?: typeof cancelSceneGenerationJobAction;
 }) {
-  const [quoteState, requestQuoteAction] = useActionState(requestQuote, null);
-  const [confirmState, confirmAction] = useActionState(confirmQuote, null);
+  const [quoteState, requestQuoteAction] = useActionState<QuoteRequestState | null, FormData>(
+    requestQuote,
+    null,
+  );
+  const [confirmState, confirmAction] = useActionState<QuoteConfirmState | null, FormData>(
+    confirmQuote,
+    null,
+  );
 
   if (initialJobRef && initialJob) {
     const panel = (

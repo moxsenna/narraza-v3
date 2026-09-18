@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { CopyButton } from '../../../../../../../components/composites/CopyButton';
+import { PublishGenerationPanel } from '../../../../../../../components/credits/PublishGenerationPanel';
 import { Badge, Card } from '../../../../../../../components/primitives';
 import { resolveChapterContext } from '../../../../../../../lib/server/capability-resolvers/chapter-context';
 import { getProjectOutline } from '../../../../../../../server/domain/queries';
@@ -9,6 +10,7 @@ import {
   acceptArtifactAction,
   getChapterPublishState,
 } from '../../../../../../../server/domain/publish-actions';
+import { findPublishJobState } from '../../../../../../../server/domain/publish-generation';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +44,11 @@ export default async function ChapterPublishPage({
     beatTitles,
   );
   if (!state) notFound();
+
+  const publishLookup = await findPublishJobState(projectId, null);
+  const publishJobRef = publishLookup.kind === 'found' ? publishLookup.jobRef : null;
+  const publishJob = publishLookup.kind === 'found' ? publishLookup.view : null;
+  const firstAcceptedBeat = beats.find((beat) => beat.acceptedProseVersionId) ?? null;
 
   const proposal = state.proposal;
   const payload =
@@ -84,17 +91,28 @@ export default async function ChapterPublishPage({
               <h2 className="text-lg font-bold text-primary">Belum ada usulan paket</h2>
               <p className="mt-3 text-sm leading-6 text-secondary">
                 {state.acceptedBeats > 0
-                  ? `Bab ini memiliki ${state.acceptedBeats} adegan resmi, tetapi belum ada usulan paket publish untuknya.`
+                  ? `Bab ini memiliki ${state.acceptedBeats} adegan resmi, tetapi belum ada usulan paket untuknya.`
                   : 'Usulan paket dibuat dari adegan yang sudah resmi. Tulis dan terima adegan terlebih dahulu.'}
               </p>
-              <div className="mt-5">
-                <Link
-                  href={`/app/proyek/${encodeURIComponent(projectId)}/bab/${encodeURIComponent(chapterId)}/tulis`}
-                  className="inline-flex min-h-11 items-center rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-xs hover:bg-brand-700"
-                >
-                  Ke Ruang Tulis
-                </Link>
-              </div>
+              {firstAcceptedBeat ? (
+                <div className="mt-5">
+                  <PublishGenerationPanel
+                    projectId={projectId}
+                    beatId={firstAcceptedBeat.id}
+                    initialJobRef={publishJobRef}
+                    initialJob={publishJob}
+                  />
+                </div>
+              ) : (
+                <div className="mt-5">
+                  <Link
+                    href={`/app/proyek/${encodeURIComponent(projectId)}/bab/${encodeURIComponent(chapterId)}/tulis`}
+                    className="inline-flex min-h-11 items-center rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-xs hover:bg-brand-700"
+                  >
+                    Ke Ruang Tulis
+                  </Link>
+                </div>
+              )}
             </Card>
           ) : proposal.status === 'pending' ? (
             <div className="space-y-5">
