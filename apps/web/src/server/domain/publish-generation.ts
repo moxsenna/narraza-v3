@@ -22,9 +22,8 @@ import { toJobPublicView } from '../../lib/server/generation-view-model';
 import { getCurrentUser } from '../auth/session';
 import { getMyProject } from './queries';
 import { getUnitOfWork } from './uow';
-import { MOCK_PAID_PROFILE, mockPriceSnapshots, mockProfileAllowed } from './concept-generation';
-
-export const PUBLISH_JOB_KIND = 'publish_package';
+import { MOCK_PAID_PROFILE, mockPriceSnapshots, mockProfileAllowed } from './paid-profile';
+import { PUBLISH_JOB_KIND } from './paid-profile';
 
 export type PublishProjectAccess =
   { readonly kind: 'allowed'; readonly userId: string } | { readonly kind: 'not_found' };

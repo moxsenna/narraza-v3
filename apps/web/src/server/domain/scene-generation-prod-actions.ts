@@ -19,7 +19,7 @@ import type { JobPublicView } from '../../lib/frontend/job-phase';
 import { isNonterminalPhase } from '../../lib/frontend/job-phase';
 import { deriveM4ConfirmationIdentity } from '../../lib/server/confirmation-identity';
 import { toJobPublicView } from '../../lib/server/generation-view-model';
-import { MOCK_PAID_PROFILE, mockPriceSnapshots, mockProfileAllowed } from './concept-generation';
+import { MOCK_PAID_PROFILE, mockPriceSnapshots, mockProfileAllowed } from './paid-profile';
 import { assertSceneChapterAccess } from './generation';
 import { getUnitOfWork } from './uow';
 
@@ -47,7 +47,7 @@ const AMBIGUOUS_MESSAGE =
  * tenant chapter access; D4 quote + explicit confirm; mock profile outside
  * production (production refuses until nine-router routing lands).
  */
-export const BEAT_WRITE_JOB_KIND = 'beat_write_judge';
+import { BEAT_WRITE_JOB_KIND } from './paid-profile';
 const BEAT_BILLING_ACTION_KIND = 'scene_generation';
 
 function resolveBeatTitle(beat: { title: string; payload: unknown }): string {

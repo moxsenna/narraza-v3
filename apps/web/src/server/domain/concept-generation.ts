@@ -14,12 +14,9 @@ import {
   prodDependencyHash,
   prodRecoveryPacket,
   seedMockPriceSnapshots,
-  MOCK_PRICE_SNAPSHOT_FIXTURES,
-  MOCK_PRICE_SNAPSHOT_ID,
-  MOCK_PROVIDER_ID,
-  MOCK_WRITER_MODEL_ID,
   type M4ConceptSetView,
 } from '@narraza/application';
+import { MOCK_PAID_PROFILE, mockPriceSnapshots, mockProfileAllowed } from './paid-profile';
 import type { JobPublicView } from '../../lib/frontend/job-phase';
 import { isNonterminalPhase } from '../../lib/frontend/job-phase';
 import { deriveM4ConfirmationIdentity } from '../../lib/server/confirmation-identity';
@@ -38,31 +35,7 @@ import { getUnitOfWork } from './uow';
  * Production refuses with `unsupported` until the nine-router routing path
  * lands (r1-sell) — users never pay for mock output.
  */
-export const CONCEPT_GENERATION_JOB_KIND = 'concept_generation';
-
-export const MOCK_PAID_PROFILE = {
-  providerId: MOCK_PROVIDER_ID,
-  requestedModelId: MOCK_WRITER_MODEL_ID,
-  resolvedModelId: MOCK_WRITER_MODEL_ID,
-  structuredOutput: true,
-  timeoutMs: 30_000,
-  maxInputTokens: 4_000,
-  maxOutputTokens: 1_000,
-  priceSnapshotId: `${MOCK_PRICE_SNAPSHOT_ID}-writer`,
-  maxInvocations: 2,
-} as const;
-
-export function mockPriceSnapshots() {
-  return MOCK_PRICE_SNAPSHOT_FIXTURES.map((fixture) => ({
-    id: fixture.id,
-    inputRateMicroIdr: fixture.inputRateMicroIdr,
-    outputRateMicroIdr: fixture.outputRateMicroIdr,
-  }));
-}
-
-export function mockProfileAllowed(): boolean {
-  return process.env.NODE_ENV !== 'production';
-}
+import { CONCEPT_GENERATION_JOB_KIND } from './paid-profile';
 
 export type ConceptProjectAccess =
   { readonly kind: 'allowed'; readonly userId: string } | { readonly kind: 'not_found' };

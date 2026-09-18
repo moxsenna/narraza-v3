@@ -19,8 +19,7 @@ import { toJobPublicView } from '../../lib/server/generation-view-model';
 import { getCurrentUser } from '../auth/session';
 import { getMyProject } from './queries';
 import { getUnitOfWork } from './uow';
-
-export const REPAIR_JOB_KIND = 'safe_repair';
+import { REPAIR_JOB_KIND } from './paid-profile';
 
 export type RepairProjectAccess =
   { readonly kind: 'allowed'; readonly userId: string } | { readonly kind: 'not_found' };
@@ -147,9 +146,9 @@ export async function issueRepairGenerationQuote(
     return prodDependencyEntries(outline);
   });
   const entries = prepared;
-  const dependencyHash = prodDependencyHash(entries);
 
   const prepare = createPaidGenerationPreparationService({ unitOfWork });
+  const bundlePackets = [requested.value.packet];
   const result = await prepare.prepare({
     projectId,
     workflowKind: REPAIR_JOB_KIND,
@@ -158,10 +157,7 @@ export async function issueRepairGenerationQuote(
     bundle: {
       workflowKind: REPAIR_JOB_KIND,
       dependencyEntries: entries,
-      packets: [
-        requested.value.packet,
-        prodRecoveryPacket(projectId, dependencyHash, REPAIR_JOB_KIND),
-      ],
+      packets: bundlePackets,
     },
     profile: MOCK_PAID_PROFILE,
     priceSnapshots: mockPriceSnapshots(),
@@ -290,9 +286,5 @@ export async function cancelRepairGenerationJob(projectId: string): Promise<Repa
       return { kind: 'conflict' };
   }
 }
-import { MOCK_PAID_PROFILE, mockPriceSnapshots, mockProfileAllowed } from './concept-generation';
-import {
-  prodDependencyEntries,
-  prodDependencyHash,
-  prodRecoveryPacket,
-} from '@narraza/application';
+import { MOCK_PAID_PROFILE, mockPriceSnapshots, mockProfileAllowed } from './paid-profile';
+import { prodDependencyEntries, prodDependencyHash } from '@narraza/application';
