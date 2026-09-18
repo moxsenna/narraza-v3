@@ -6,17 +6,36 @@ import { QuickReplies } from '../../../../../components/composites/QuickReplies'
 import { appendIntakeMessageAction, type ActionState } from '../../../../../server/domain/actions';
 
 const initial: ActionState = { ok: false };
-const suggestions = [
+const DEFAULT_SUGGESTIONS = [
   'Tokoh utamanya sudah ada',
   'Aku baru punya konfliknya',
   'Aku tahu suasana yang kuinginkan',
 ] as const;
+const SUGGESTIONS_BY_JALUR: Record<string, readonly string[]> = {
+  no_idea: [
+    'Aku ingin cerita tentang persahabatan',
+    'Aku suka misteri keluarga',
+    'Bantu aku menemukan ide',
+  ],
+  rough_idea: [...DEFAULT_SUGGESTIONS],
+  has_outline: ['Outline-ku ada 10 bab', 'Aku mulai dari Bab 1', 'Aku tempel outline di sini'],
+  fix_story: ['Alurnya terasa bocor di tengah', 'Tokohku terasa datar', 'Ending-nya lemah'],
+};
 
-export function ChatForm({ projectId, signalCount }: { projectId: string; signalCount: number }) {
+export function ChatForm({
+  projectId,
+  signalCount,
+  jalur,
+}: {
+  projectId: string;
+  signalCount: number;
+  jalur?: string;
+}) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState('');
   const [state, action, pending] = useActionState(appendIntakeMessageAction, initial);
+  const suggestions = (jalur ? SUGGESTIONS_BY_JALUR[jalur] : undefined) ?? DEFAULT_SUGGESTIONS;
 
   useEffect(() => {
     if (state.ok) {
