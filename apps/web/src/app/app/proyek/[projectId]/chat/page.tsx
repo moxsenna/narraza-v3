@@ -12,6 +12,17 @@ import { ChatForm } from './chat-form';
 import { chatThreadStatus } from './chat-status';
 import { SignalPanel, StorySignalsSheet } from './story-signals';
 
+const CHAT_GREETINGS: Record<string, string> = {
+  no_idea:
+    'Belum ada ide sama sekali? Santai. Ceritakan hal terakhir yang bikin kamu penasaran — orang, tempat, atau kejadian. Nanti kita susun bareng.',
+  rough_idea:
+    'Punya ide kasar? Bagus. Tulis satu-dua kalimat — siapa tokohnya, apa masalahnya. Nanti kita rapikan bareng.',
+  has_outline:
+    'Sudah punya outline? Ceritakan garis besarmu — bab per bab juga boleh, atau tempel langsung. Nanti kita susun jadi fondasi.',
+  fix_story:
+    'Mau perbaiki cerita? Ceritakan bagian yang terasa janggal — alur yang bocor, tokoh yang datar, atau ending yang lemah. Nanti kita bedah bareng.',
+};
+
 export default async function ChatPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const project = await getMyProject(projectId);
@@ -23,6 +34,9 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
   const signalCount = Math.min(6, Math.max(0, storedSignalCount));
   const sufficiency = intakeSufficiencyView({ collectedSignalCount: storedSignalCount });
   const thread = chatThreadStatus(messages);
+  const greeting =
+    CHAT_GREETINGS[project.intakePath] ??
+    'Ceritakan ide yang ada di kepalamu. Garis besar pun cukup; jawabanmu akan kusimpan sebagai draft.';
 
   return (
     <main className="flex h-[calc(100dvh-204px)] min-h-0 min-w-0 overflow-hidden bg-canvas lg:h-[calc(100dvh-136px)]">
@@ -44,10 +58,6 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 xl:px-7 xl:py-5">
           <div className="mx-auto max-w-[680px]">
-            <p className="mx-auto mb-5 w-fit rounded-pill bg-surface-soft px-3 py-1.5 text-center text-xs font-semibold text-secondary">
-              Semua hasil ngobrol masih berupa draft — belum jadi cerita resmi
-            </p>
-
             {sufficiency.sufficient && (
               <div className="mx-auto mb-5 flex w-fit max-w-full flex-col items-center gap-2 rounded-2xl border border-active bg-brand-soft px-5 py-4 text-center">
                 <p className="text-sm font-bold text-primary">
@@ -66,10 +76,7 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
             <div className="space-y-3" aria-label="Percakapan">
               {messages.length === 0 ? (
                 <ChatBubble from="narra">
-                  <p className="whitespace-pre-wrap">
-                    Ceritakan ide yang ada di kepalamu. Garis besar pun cukup; jawabanmu akan
-                    kusimpan sebagai draft.
-                  </p>
+                  <p className="whitespace-pre-wrap">{greeting}</p>
                 </ChatBubble>
               ) : (
                 messages.map((message) =>
@@ -102,7 +109,7 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
           </div>
         </div>
 
-        <ChatForm projectId={projectId} signalCount={signalCount} />
+        <ChatForm projectId={projectId} signalCount={signalCount} jalur={project.intakePath} />
       </section>
 
       <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l border-default bg-surface p-5 lg:block">
