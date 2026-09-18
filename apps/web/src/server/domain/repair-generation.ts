@@ -1,24 +1,16 @@
-import 'server-only';
+'use server';
 
 import { randomUUID } from 'node:crypto';
 import {
   authorizeActiveUser,
-  buildConceptPlannerPacket,
-  createAcceptConcept,
   createCreditQuoteConfirmationService,
   createCreditSummaryService,
   createJobService,
   createPaidGenerationPreparationService,
+  createRequestSafeRepair,
   microIdrToCreditsCeil,
-  prodDependencyEntries,
-  prodDependencyHash,
-  prodRecoveryPacket,
   seedMockPriceSnapshots,
-  MOCK_PRICE_SNAPSHOT_FIXTURES,
-  MOCK_PRICE_SNAPSHOT_ID,
-  MOCK_PROVIDER_ID,
-  MOCK_WRITER_MODEL_ID,
-  type M4ConceptSetView,
+  type GenerationJobRecord,
 } from '@narraza/application';
 import type { JobPublicView } from '../../lib/frontend/job-phase';
 import { isNonterminalPhase } from '../../lib/frontend/job-phase';
@@ -28,46 +20,12 @@ import { getCurrentUser } from '../auth/session';
 import { getMyProject } from './queries';
 import { getUnitOfWork } from './uow';
 
-/**
- * Concept generation adapter. Quote → confirmation → GenerationJob for the
- * D4 paid action `concept_generation`, routed through preparePaidGeneration
- * so every quote binds REAL frozen bundle/plan artifacts (no stand-in
- * hashes). The worst-case quote amount is the plan's own estimate.
- *
- * Provider profile: deterministic mock outside production (dev/CI/E2E).
- * Production refuses with `unsupported` until the nine-router routing path
- * lands (r1-sell) — users never pay for mock output.
- */
-export const CONCEPT_GENERATION_JOB_KIND = 'concept_generation';
+export const REPAIR_JOB_KIND = 'safe_repair';
 
-export const MOCK_PAID_PROFILE = {
-  providerId: MOCK_PROVIDER_ID,
-  requestedModelId: MOCK_WRITER_MODEL_ID,
-  resolvedModelId: MOCK_WRITER_MODEL_ID,
-  structuredOutput: true,
-  timeoutMs: 30_000,
-  maxInputTokens: 4_000,
-  maxOutputTokens: 1_000,
-  priceSnapshotId: `${MOCK_PRICE_SNAPSHOT_ID}-writer`,
-  maxInvocations: 2,
-} as const;
-
-export function mockPriceSnapshots() {
-  return MOCK_PRICE_SNAPSHOT_FIXTURES.map((fixture) => ({
-    id: fixture.id,
-    inputRateMicroIdr: fixture.inputRateMicroIdr,
-    outputRateMicroIdr: fixture.outputRateMicroIdr,
-  }));
-}
-
-export function mockProfileAllowed(): boolean {
-  return process.env.NODE_ENV !== 'production';
-}
-
-export type ConceptProjectAccess =
+export type RepairProjectAccess =
   { readonly kind: 'allowed'; readonly userId: string } | { readonly kind: 'not_found' };
 
-export type ConceptJobLookup =
+export type RepairJobLookup =
   | { readonly kind: 'found'; readonly jobRef: string; readonly view: JobPublicView }
   | { readonly kind: 'none' }
   | { readonly kind: 'ambiguous' };
@@ -81,47 +39,41 @@ async function requireActiveUserId(): Promise<string | null> {
   return result.ok ? result.value.id : null;
 }
 
-/** Owner-derived, tenant-scoped project access for the concept flow. */
-export async function assertConceptProjectAccess(projectId: string): Promise<ConceptProjectAccess> {
+export async function assertRepairProjectAccess(projectId: string): Promise<RepairProjectAccess> {
   const userId = await requireActiveUserId();
   if (!userId) return { kind: 'not_found' };
-
   const project = await getMyProject(projectId);
   if (!project) return { kind: 'not_found' };
-
   return { kind: 'allowed', userId };
 }
 
-/**
- * Resolves the concept generation job state for a project. Without a job
- * reference the server derives the active/recoverable job itself; more than
- * one active concept job fails closed.
- */
-export async function findConceptJobState(
+function jobInProject(job: GenerationJobRecord, projectId: string): boolean {
+  return job.projectId === projectId;
+}
+
+export async function findRepairJobState(
   projectId: string,
   jobRef: string | null,
-): Promise<ConceptJobLookup> {
+): Promise<RepairJobLookup> {
   const unitOfWork = getUnitOfWork();
-
   if (jobRef !== null) {
     return unitOfWork.execute(async (ports) => {
       const job = await ports.job.findById({ projectId, jobId: jobRef });
-      if (!job || job.kind !== CONCEPT_GENERATION_JOB_KIND) {
-        return { kind: 'none' };
-      }
+      if (!job || job.kind !== REPAIR_JOB_KIND) return { kind: 'none' };
       return { kind: 'found', jobRef: job.id, view: await toJobPublicView(ports, job) };
     });
   }
-
   const activeJobs = await unitOfWork.execute((ports) => ports.job.listActiveByProject(projectId));
-  const conceptJobs = activeJobs.filter((job) => job.kind === CONCEPT_GENERATION_JOB_KIND);
-  if (conceptJobs.length > 1) return { kind: 'ambiguous' };
-  const conceptJob = conceptJobs[0];
-  if (!conceptJob) {
+  const repairJobs = activeJobs.filter(
+    (job) => job.kind === REPAIR_JOB_KIND && jobInProject(job, projectId),
+  );
+  if (repairJobs.length > 1) return { kind: 'ambiguous' };
+  const repairJob = repairJobs[0];
+  if (!repairJob) {
     const latestTerminal = await unitOfWork.execute((ports) =>
       ports.job.findLatestTerminalByProject({
         projectId,
-        kind: CONCEPT_GENERATION_JOB_KIND,
+        kind: REPAIR_JOB_KIND,
         payloadFilter: {},
       }),
     );
@@ -131,12 +83,11 @@ export async function findConceptJobState(
     );
     return { kind: 'found', jobRef: latestTerminal.id, view: terminalView };
   }
-
-  const view = await unitOfWork.execute((ports) => toJobPublicView(ports, conceptJob));
-  return { kind: 'found', jobRef: conceptJob.id, view: { ...view, recovered: true } };
+  const view = await unitOfWork.execute((ports) => toJobPublicView(ports, repairJob));
+  return { kind: 'found', jobRef: repairJob.id, view: { ...view, recovered: true } };
 }
 
-export type ConceptQuoteIssuance =
+export type RepairQuoteIssuance =
   | {
       readonly kind: 'issued';
       readonly quoteId: string;
@@ -148,14 +99,16 @@ export type ConceptQuoteIssuance =
   | { readonly kind: 'ambiguous' }
   | { readonly kind: 'prerequisite'; readonly message: string }
   | { readonly kind: 'unsupported'; readonly message: string }
+  | { readonly kind: 'stopped'; readonly message: string }
   | { readonly kind: 'not_found' }
   | { readonly kind: 'conflict' };
 
-export async function issueConceptGenerationQuote(
+export async function issueRepairGenerationQuote(
   projectId: string,
   userId: string,
-): Promise<ConceptQuoteIssuance> {
-  const active = await findConceptJobState(projectId, null);
+  proseVersionId: string,
+): Promise<RepairQuoteIssuance> {
+  const active = await findRepairJobState(projectId, null);
   if (active.kind === 'found' && isNonterminalPhase(active.view.phase)) {
     return { kind: 'active_job', jobRef: active.jobRef, view: active.view };
   }
@@ -163,56 +116,57 @@ export async function issueConceptGenerationQuote(
   if (!mockProfileAllowed()) {
     return {
       kind: 'unsupported',
-      message: 'Penyusunan konsep berbayar belum tersedia di lingkungan ini.',
+      message: 'Perbaikan berbayar belum tersedia di lingkungan ini.',
     };
   }
 
   const unitOfWork = getUnitOfWork();
   await seedMockPriceSnapshots(unitOfWork);
-  const prepared = await unitOfWork.execute(async (ports) => {
-    const session = await ports.intake.findSessionByProject(projectId);
-    const messages = session ? await ports.intake.listMessages(projectId, session.id) : [];
-    const lastUser = [...messages].reverse().find((message) => message.role === 'user');
-    if (!lastUser) return null;
-    const outline = await ports.outline.listByProject(projectId);
-    const entries = prodDependencyEntries(outline);
-    return { lastUserContent: lastUser.content, entries };
-  });
-  if (!prepared) {
+  const request = createRequestSafeRepair(unitOfWork);
+  const requested = await request({ ownerUserId: userId, projectId, proseVersionId });
+  if (!requested.ok) {
+    const code = requested.error.code;
+    if (code === 'NOT_FOUND') return { kind: 'not_found' };
+    if (code === 'VALIDATION') {
+      return {
+        kind: 'prerequisite',
+        message: 'Tidak ada temuan penghambat yang perlu diperbaiki pada versi ini.',
+      };
+    }
+    return { kind: 'conflict' };
+  }
+  if (requested.value.stop.shouldStop) {
     return {
-      kind: 'prerequisite',
-      message: 'Ceritakan idemu di Chat Narra dulu sebelum menyusun konsep.',
+      kind: 'stopped',
+      message: `Perbaikan dihentikan: ${requested.value.stop.reason}.`,
     };
   }
 
-  const dependencyHash = prodDependencyHash(prepared.entries);
-  const packet = buildConceptPlannerPacket({
-    projectId,
-    dependencyHash,
-    lastUserContent: prepared.lastUserContent,
+  const prepared = await unitOfWork.execute(async (ports) => {
+    const outline = await ports.outline.listByProject(projectId);
+    return prodDependencyEntries(outline);
   });
-  if (packet.kind !== 'ok') {
-    return {
-      kind: 'prerequisite',
-      message: 'Ceritakan idemu di Chat Narra dulu sebelum menyusun konsep.',
-    };
-  }
+  const entries = prepared;
+  const dependencyHash = prodDependencyHash(entries);
 
   const prepare = createPaidGenerationPreparationService({ unitOfWork });
   const result = await prepare.prepare({
     projectId,
-    workflowKind: CONCEPT_GENERATION_JOB_KIND,
+    workflowKind: REPAIR_JOB_KIND,
     bundleId: randomUUID(),
     planId: randomUUID(),
     bundle: {
-      workflowKind: CONCEPT_GENERATION_JOB_KIND,
-      dependencyEntries: prepared.entries,
-      packets: [packet.packet, prodRecoveryPacket(projectId, dependencyHash, 'concept_generation')],
+      workflowKind: REPAIR_JOB_KIND,
+      dependencyEntries: entries,
+      packets: [
+        requested.value.packet,
+        prodRecoveryPacket(projectId, dependencyHash, REPAIR_JOB_KIND),
+      ],
     },
     profile: MOCK_PAID_PROFILE,
     priceSnapshots: mockPriceSnapshots(),
     userId,
-    actionKind: CONCEPT_GENERATION_JOB_KIND,
+    actionKind: REPAIR_JOB_KIND,
     issuanceRequestId: randomUUID(),
   });
 
@@ -234,7 +188,7 @@ export async function issueConceptGenerationQuote(
   }
 }
 
-export type ConceptConfirmation =
+export type RepairConfirmation =
   | { readonly kind: 'started'; readonly jobRef: string; readonly view: JobPublicView }
   | { readonly kind: 'expired' }
   | { readonly kind: 'insufficient_credit' }
@@ -243,18 +197,21 @@ export type ConceptConfirmation =
   | { readonly kind: 'not_found' }
   | { readonly kind: 'conflict' };
 
-export async function confirmConceptGenerationQuote(
+export async function confirmRepairGenerationQuote(
   projectId: string,
   userId: string,
   quoteId: string,
-): Promise<ConceptConfirmation> {
+): Promise<RepairConfirmation> {
   const unitOfWork = getUnitOfWork();
   const binding = await unitOfWork.execute(async (ports) => {
     const quote = await ports.quote.findById(quoteId);
     if (!quote || quote.userId !== userId || quote.projectId !== projectId) return null;
     if (!ports.workflowPlan) return null;
     const plan = await ports.workflowPlan.findPlanByHash(projectId, quote.workflowPlanHash);
-    if (!plan || plan.bundleId.length === 0) return null;
+    if (!plan || plan.bundleId.length === 0 || plan.workflowKind !== REPAIR_JOB_KIND) return null;
+    const outline = await ports.outline.listByProject(projectId);
+    const current = prodDependencyHash(prodDependencyEntries(outline));
+    if (current !== quote.dependencyHash) return 'stale' as const;
     return {
       workflowPlanHash: quote.workflowPlanHash,
       dependencyHash: quote.dependencyHash,
@@ -263,6 +220,7 @@ export async function confirmConceptGenerationQuote(
     };
   });
   if (!binding) return { kind: 'not_found' };
+  if (binding === 'stale') return { kind: 'stale_plan' };
 
   const confirmationService = createCreditQuoteConfirmationService(getUnitOfWork());
   const result = await confirmationService.confirmQuote({
@@ -272,7 +230,7 @@ export async function confirmConceptGenerationQuote(
     ...deriveM4ConfirmationIdentity(quoteId),
     expectedWorkflowPlanHash: binding.workflowPlanHash,
     expectedDependencyHash: binding.dependencyHash,
-    jobKind: CONCEPT_GENERATION_JOB_KIND,
+    jobKind: REPAIR_JOB_KIND,
     bundleId: binding.bundleId,
     workflowPlanId: binding.workflowPlanId,
     payload: {
@@ -283,18 +241,11 @@ export async function confirmConceptGenerationQuote(
 
   switch (result.kind) {
     case 'confirmed':
-    case 'exact_replay':
-      return {
-        kind: 'started',
-        jobRef: result.job.id,
-        view: {
-          phase: result.job.status,
-          cancelRequested: false,
-          zeroCharge: false,
-          chargedCredits: null,
-          recovered: false,
-        },
-      };
+    case 'exact_replay': {
+      const lookup = await findRepairJobState(projectId, result.job.id);
+      if (lookup.kind !== 'found') return { kind: 'conflict' };
+      return { kind: 'started', jobRef: lookup.jobRef, view: lookup.view };
+    }
     case 'expired':
       return { kind: 'expired' };
     case 'insufficient_credit':
@@ -310,7 +261,7 @@ export async function confirmConceptGenerationQuote(
   }
 }
 
-export type ConceptCancellation =
+export type RepairCancellation =
   | { readonly kind: 'cancelled' }
   | { readonly kind: 'cancel_requested' }
   | { readonly kind: 'not_active' }
@@ -318,8 +269,8 @@ export type ConceptCancellation =
   | { readonly kind: 'not_found' }
   | { readonly kind: 'conflict' };
 
-export async function cancelConceptGenerationJob(projectId: string): Promise<ConceptCancellation> {
-  const active = await findConceptJobState(projectId, null);
+export async function cancelRepairGenerationJob(projectId: string): Promise<RepairCancellation> {
+  const active = await findRepairJobState(projectId, null);
   if (active.kind === 'none') return { kind: 'not_active' };
   if (active.kind === 'ambiguous') return { kind: 'ambiguous' };
   if (!isNonterminalPhase(active.view.phase)) return { kind: 'not_active' };
@@ -333,45 +284,15 @@ export async function cancelConceptGenerationJob(projectId: string): Promise<Con
     case 'cancellation_already_requested':
       return { kind: 'cancel_requested' };
     case 'already_terminal':
-      return { kind: 'not_active' };
     case 'not_found':
-      return { kind: 'not_found' };
+      return { kind: 'not_active' };
     default:
       return { kind: 'conflict' };
   }
 }
-
-/** Latest published concept set for choosing (read-only product projection). */
-export async function getConceptSetView(projectId: string): Promise<M4ConceptSetView | null> {
-  return getUnitOfWork().execute(async (ports) => {
-    if (!ports.m4ProductRead) return null;
-    return ports.m4ProductRead.findLatestConceptSet(projectId);
-  });
-}
-
-export type ConceptChoice =
-  | { readonly kind: 'accepted'; readonly foundationLocked: false }
-  | { readonly kind: 'stale' }
-  | { readonly kind: 'not_found' }
-  | { readonly kind: 'conflict' };
-
-/** Choose one concept → foundation draft (never locked) via acceptConcept. */
-export async function acceptConceptChoice(
-  projectId: string,
-  userId: string,
-  conceptId: string,
-): Promise<ConceptChoice> {
-  const accept = createAcceptConcept(getUnitOfWork());
-  const result = await accept({ ownerUserId: userId, projectId, conceptId });
-  if (!result.ok) {
-    switch (result.error.code) {
-      case 'NOT_FOUND':
-        return { kind: 'not_found' };
-      case 'CAS_FAILED':
-        return { kind: 'stale' };
-      default:
-        return { kind: 'conflict' };
-    }
-  }
-  return { kind: 'accepted', foundationLocked: false };
-}
+import { MOCK_PAID_PROFILE, mockPriceSnapshots, mockProfileAllowed } from './concept-generation';
+import {
+  prodDependencyEntries,
+  prodDependencyHash,
+  prodRecoveryPacket,
+} from '@narraza/application';

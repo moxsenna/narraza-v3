@@ -528,6 +528,16 @@ export {
   type UpdateUiModeOutput,
 } from './use-cases/update-ui-mode.js';
 export {
+  prodPacketMetadata,
+  prodDependencyEntries,
+  prodDependencyHash,
+  prodRecoveryPacket,
+} from './ai/prod-packets/prod-packet-common.js';
+export { buildConceptPlannerPacket } from './ai/prod-packets/concept-packets.js';
+export { buildBeatWriterPacket, buildBeatValidatorPacket } from './ai/prod-packets/beat-packets.js';
+export { buildRepairPacket } from './ai/prod-packets/repair-packets.js';
+export { buildPublishPacket } from './ai/prod-packets/publish-packets.js';
+export {
   createRequestSafeRepair,
   repairInstructionFor,
   severityScoreFor,

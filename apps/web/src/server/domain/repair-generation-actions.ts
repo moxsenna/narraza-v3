@@ -1,18 +1,15 @@
 'use server';
 
-import { redirect } from 'next/navigation';
-
 import type { JobPublicView } from '../../lib/frontend/job-phase';
 import {
-  acceptConceptChoice,
-  assertConceptProjectAccess,
-  cancelConceptGenerationJob,
-  confirmConceptGenerationQuote,
-  findConceptJobState,
-  issueConceptGenerationQuote,
-} from './concept-generation';
+  assertRepairProjectAccess,
+  cancelRepairGenerationJob,
+  confirmRepairGenerationQuote,
+  findRepairJobState,
+  issueRepairGenerationQuote,
+} from './repair-generation';
 
-export type ConceptQuoteRequestState =
+export type RepairQuoteRequestState =
   | {
       readonly kind: 'quoted';
       readonly quote: Readonly<{
@@ -26,7 +23,7 @@ export type ConceptQuoteRequestState =
   | { readonly kind: 'ambiguous' }
   | { readonly kind: 'error'; readonly message: string };
 
-export type ConceptQuoteConfirmState =
+export type RepairQuoteConfirmState =
   | { readonly kind: 'job_started'; readonly jobRef: string; readonly job: JobPublicView }
   | { readonly kind: 'quote_expired'; readonly message: string }
   | { readonly kind: 'insufficient_credit'; readonly message: string }
@@ -35,41 +32,35 @@ export type ConceptQuoteConfirmState =
   | { readonly kind: 'active_job'; readonly jobRef: string; readonly job: JobPublicView }
   | { readonly kind: 'error'; readonly message: string };
 
-export type ConceptJobCancelState =
+export type RepairJobCancelState =
   | { readonly kind: 'cancelled'; readonly message: string }
   | { readonly kind: 'cancel_requested'; readonly message: string }
   | { readonly kind: 'not_active'; readonly message: string }
   | { readonly kind: 'error'; readonly message: string };
 
-export type ConceptJobStateResult =
+export type RepairJobStateResult =
   | { readonly kind: 'active'; readonly jobRef: string; readonly job: JobPublicView }
   | { readonly kind: 'terminal'; readonly jobRef: string; readonly job: JobPublicView }
   | { readonly kind: 'none' }
   | { readonly kind: 'ambiguous' }
   | { readonly kind: 'error'; readonly message: string };
 
-export type ConceptChooseState =
-  | { readonly kind: 'accepted' }
-  | { readonly kind: 'stale'; readonly message: string }
-  | { readonly kind: 'error'; readonly message: string };
-
 const NOT_FOUND_MESSAGE = 'Halaman tidak ditemukan.';
 const AMBIGUOUS_MESSAGE =
   'Terjadi ketidaksesuaian proses. Muat ulang halaman untuk memulihkan kondisi terbaru.';
 
-export async function requestConceptGenerationQuoteAction(
-  _prev: ConceptQuoteRequestState | null,
+export async function requestRepairGenerationQuoteAction(
+  _prev: RepairQuoteRequestState | null,
   formData: FormData,
-): Promise<ConceptQuoteRequestState> {
+): Promise<RepairQuoteRequestState> {
   const projectId = String(formData.get('projectId') ?? '');
-  if (!projectId) return { kind: 'error', message: NOT_FOUND_MESSAGE };
+  const proseVersionId = String(formData.get('proseVersionId') ?? '');
+  if (!projectId || !proseVersionId) return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
-  // Production gate: real tenant auth (no preview-harness gate). Paid action
-  // with D4 quote + explicit confirm; D14 model-policy enforced downstream.
-  const access = await assertConceptProjectAccess(projectId);
+  const access = await assertRepairProjectAccess(projectId);
   if (access.kind !== 'allowed') return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
-  const result = await issueConceptGenerationQuote(projectId, access.userId);
+  const result = await issueRepairGenerationQuote(projectId, access.userId, proseVersionId);
   switch (result.kind) {
     case 'issued':
       return {
@@ -87,26 +78,27 @@ export async function requestConceptGenerationQuoteAction(
       return { kind: 'ambiguous' };
     case 'prerequisite':
     case 'unsupported':
+    case 'stopped':
       return { kind: 'error', message: result.message };
     default:
       return { kind: 'error', message: NOT_FOUND_MESSAGE };
   }
 }
 
-export async function confirmConceptGenerationQuoteAction(
-  _prev: ConceptQuoteConfirmState | null,
+export async function confirmRepairGenerationQuoteAction(
+  _prev: RepairQuoteConfirmState | null,
   formData: FormData,
-): Promise<ConceptQuoteConfirmState> {
+): Promise<RepairQuoteConfirmState> {
   const projectId = String(formData.get('projectId') ?? '');
   const quoteId = String(formData.get('quoteId') ?? '');
   if (!projectId || !quoteId) {
     return { kind: 'error', message: NOT_FOUND_MESSAGE };
   }
 
-  const access = await assertConceptProjectAccess(projectId);
+  const access = await assertRepairProjectAccess(projectId);
   if (access.kind !== 'allowed') return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
-  const result = await confirmConceptGenerationQuote(projectId, access.userId, quoteId);
+  const result = await confirmRepairGenerationQuote(projectId, access.userId, quoteId);
   switch (result.kind) {
     case 'started':
       return { kind: 'job_started', jobRef: result.jobRef, job: result.view };
@@ -118,12 +110,12 @@ export async function confirmConceptGenerationQuoteAction(
     case 'insufficient_credit':
       return {
         kind: 'insufficient_credit',
-        message: 'Saldo kreditmu belum cukup untuk menyusun konsep.',
+        message: 'Saldo kreditmu belum cukup untuk perbaikan ini.',
       };
     case 'stale_plan':
       return {
         kind: 'stale_plan',
-        message: 'Kondisi proyek berubah sejak penawaran dibuat. Minta penawaran baru.',
+        message: 'Kondisi naskah berubah sejak penawaran dibuat. Minta penawaran baru.',
       };
     case 'already_consumed':
       return {
@@ -137,16 +129,16 @@ export async function confirmConceptGenerationQuoteAction(
 }
 
 /** Polled read: the server stays the sole authority over job state. */
-export async function getConceptJobStateAction(
+export async function getRepairJobStateAction(
   projectId: string,
   jobRef: string | null,
-): Promise<ConceptJobStateResult> {
+): Promise<RepairJobStateResult> {
   if (!projectId) return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
-  const access = await assertConceptProjectAccess(projectId);
+  const access = await assertRepairProjectAccess(projectId);
   if (access.kind !== 'allowed') return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
-  const lookup = await findConceptJobState(projectId, jobRef);
+  const lookup = await findRepairJobState(projectId, jobRef);
   switch (lookup.kind) {
     case 'found':
       return isTerminalJobView(lookup.view)
@@ -159,17 +151,17 @@ export async function getConceptJobStateAction(
   }
 }
 
-export async function cancelConceptGenerationJobAction(
-  _prev: ConceptJobCancelState | null,
+export async function cancelRepairGenerationJobAction(
+  _prev: RepairJobCancelState | null,
   formData: FormData,
-): Promise<ConceptJobCancelState> {
+): Promise<RepairJobCancelState> {
   const projectId = String(formData.get('projectId') ?? '');
   if (!projectId) return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
-  const access = await assertConceptProjectAccess(projectId);
+  const access = await assertRepairProjectAccess(projectId);
   if (access.kind !== 'allowed') return { kind: 'error', message: NOT_FOUND_MESSAGE };
 
-  const result = await cancelConceptGenerationJob(projectId);
+  const result = await cancelRepairGenerationJob(projectId);
   switch (result.kind) {
     case 'cancelled':
       return { kind: 'cancelled', message: 'Proses dibatalkan. Kreditmu tidak dipotong.' };
@@ -185,19 +177,6 @@ export async function cancelConceptGenerationJobAction(
     default:
       return { kind: 'error', message: 'Pembatalan tidak dapat diproses. Coba lagi sebentar.' };
   }
-}
-
-export async function chooseConceptAction(formData: FormData): Promise<void> {
-  const projectId = String(formData.get('projectId') ?? '');
-  const conceptId = String(formData.get('conceptId') ?? '');
-  if (!projectId || !conceptId) return;
-
-  const access = await assertConceptProjectAccess(projectId);
-  if (access.kind !== 'allowed') return;
-
-  const result = await acceptConceptChoice(projectId, access.userId, conceptId);
-  if (result.kind !== 'accepted') return;
-  redirect(`/app/proyek/${encodeURIComponent(projectId)}/fondasi`);
 }
 
 function isTerminalJobView(view: JobPublicView): boolean {
