@@ -86,12 +86,13 @@ test('mock job runs end-to-end from the UI and recovers after refresh', async ({
     await page.goto(harnessUrl(fixture.projectId, fixture.chapterId));
 
     // Quote phase: the generic card shows the server-derived cost.
-    await page.getByRole('button', { name: 'Buat adegan' }).click();
-    const card = page.getByTestId('credit-quote-card');
-    await expect(card).toBeVisible();
-    await expect(card).toContainText('35');
-    await expect(card).toContainText('Saldo tersedia');
-    await expect(card).toContainText('200');
+  await page.getByRole('button', { name: 'Buat adegan' }).click();
+  const card = page.getByTestId('credit-quote-card');
+  await expect(card).toBeVisible();
+  // Real plan estimate (mock pricing), not the old 35-credit stand-in.
+  await expect(card).toContainText('BIAYA MAKSIMAL');
+  await expect(card).toContainText('Saldo tersedia');
+  await expect(card).toContainText('200');
 
     const quotedBody = (await page.locator('body').innerText()).toLowerCase();
     expect(quotedBody).not.toContain('workflowplanhash');

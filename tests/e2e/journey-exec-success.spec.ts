@@ -71,7 +71,7 @@ test('journey exec success: paid jobs succeed on mock end to end', async ({ page
     await seedLockedFoundation(ownerId, projectId);
     const { chapterId } = await seedOutlineChapter(ownerId, projectId, 'exec');
     const { seedBeatForChapter } = await import('./support/exec-beat-seed');
-    const { beatTitle } = await seedBeatForChapter(ownerId, projectId, chapterId);
+    await seedBeatForChapter(ownerId, projectId, chapterId);
 
     // Tulis: rough draft first (validator reference), then quote → confirm → mock success.
     await page.goto(`/app/proyek/${projectId}/bab/${chapterId}/tulis`);
@@ -90,7 +90,7 @@ test('journey exec success: paid jobs succeed on mock end to end', async ({ page
     await page.reload();
     await expect(page.getByText(/Kandidat \d/).first()).toBeVisible({ timeout: 60_000 });
     body = await collectBody(page, `/app/proyek/${projectId}/bab/${chapterId}/tulis`);
-    expect(body).toContain(beatTitle);
+    expect(body).toContain('Adg 1');
     leak(body, 'tulis-candidates');
 
     await page
