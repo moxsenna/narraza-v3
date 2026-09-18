@@ -51,7 +51,12 @@ test('production chapter workspace runs the tenant-gated generation loop', async
   await seedBeatForChapter(fixture.userId, fixture.projectId, fixture.chapterId);
   await page.reload();
   await page.locator('#prose-editor').fill('Draf kasar: Maya menemukan peti di gudang.');
-  await expect(page.getByText(/Tersimpan otomatis/)).toBeVisible({ timeout: 30_000 });
+  // Debounced autosave (1.5s) persists the rough draft; reload proves it.
+  await page.waitForTimeout(4000);
+  await page.reload();
+  await expect(page.locator('#prose-editor')).toHaveValue(/Maya menemukan peti/, {
+    timeout: 30_000,
+  });
 
   await page.getByRole('button', { name: 'Buat adegan' }).click();
   const card = page.getByTestId('credit-quote-card');
