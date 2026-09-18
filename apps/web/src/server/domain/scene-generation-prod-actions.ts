@@ -147,14 +147,15 @@ export async function requestProdSceneQuoteAction(
     const open = openBeats[0];
     if (!open) return null;
     let draftContent = '';
-    let draftVersionId = `draft:pending:${open.id}`;
+    let draftVersionId = '';
     if (ports.proseDraft) {
       const draft = await ports.proseDraft.findActive(projectId, access.userId, open.id);
-      if (draft) {
+      if (draft && draft.content.trim()) {
         draftContent = draft.content;
         draftVersionId = draft.id;
       }
     }
+    if (!draftContent) return 'no-draft' as const;
     return {
       entries,
       beatId: open.id,
@@ -167,6 +168,12 @@ export async function requestProdSceneQuoteAction(
     return {
       kind: 'error',
       message: 'Semua adegan bab ini sudah memiliki naskah resmi.',
+    };
+  }
+  if (prepared === 'no-draft') {
+    return {
+      kind: 'error',
+      message: 'Tulis draf kasar adegan ini dulu di editor — AI mengembangkannya dari drafmu.',
     };
   }
 

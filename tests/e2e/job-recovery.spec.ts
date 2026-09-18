@@ -39,12 +39,19 @@ test('production chapter workspace runs the tenant-gated generation loop', async
 
   // The product route mounts the live panel behind real tenant auth: quote
   // issuance is visible, but no reservation and no job exist until the user
-  // confirms explicitly.
+  // confirms explicitly. A rough draft is the validator reference, so the
+  // seeded beat gets one typed in before quoting.
   await page.goto(`/app/proyek/${fixture.projectId}/bab/${fixture.chapterId}/tulis`);
   await expect(page.getByTestId('scene-generation-unavailable')).toHaveCount(0);
   await expect(page.getByTestId('scene-generation-start')).toBeVisible();
   expect(await countProjectJobs(fixture.projectId)).toBe(0);
   expect(await countProjectReservations(fixture.projectId)).toBe(0);
+
+  const { seedBeatForChapter } = await import('./support/exec-beat-seed');
+  await seedBeatForChapter(fixture.userId, fixture.projectId, fixture.chapterId);
+  await page.reload();
+  await page.locator('#prose-editor').fill('Draf kasar: Maya menemukan peti di gudang.');
+  await expect(page.getByText(/Tersimpan otomatis/)).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole('button', { name: 'Buat adegan' }).click();
   const card = page.getByTestId('credit-quote-card');

@@ -73,8 +73,10 @@ test('journey exec success: paid jobs succeed on mock end to end', async ({ page
     const { seedBeatForChapter } = await import('./support/exec-beat-seed');
     const { beatTitle } = await seedBeatForChapter(ownerId, projectId, chapterId);
 
-    // Tulis: quote → confirm → mock success → candidates → pick → draft.
+    // Tulis: rough draft first (validator reference), then quote → confirm → mock success.
     await page.goto(`/app/proyek/${projectId}/bab/${chapterId}/tulis`);
+    await page.locator('#prose-editor').fill('Draf kasar: Maya membuka peti tua itu perlahan.');
+    await expect(page.getByText(/Tersimpan otomatis/).first()).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Buat adegan' }).click();
     await expect(page.getByTestId('credit-quote-card')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Konfirmasi & mulai' }).click();
