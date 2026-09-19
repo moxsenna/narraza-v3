@@ -59,6 +59,22 @@ export async function getProjectIntakeSignalCount(projectId: string): Promise<nu
   });
 }
 
+/**
+ * Product jalur (no_idea/rough_idea/has_outline/fix_story) from the intake
+ * session payload. NOTE: project.intakePath only holds guided/freeform —
+ * never use it as the jalur.
+ */
+export async function getProjectIntakeJalur(projectId: string): Promise<string | null> {
+  const project = await getMyProject(projectId);
+  if (!project) return null;
+  return getUnitOfWork().execute(async (ports) => {
+    const session = await ports.intake.findSessionByProject(projectId);
+    const payload = session?.payload as Record<string, unknown> | undefined;
+    const jalur = payload?.['jalur'];
+    return typeof jalur === 'string' && jalur.length > 0 ? jalur : null;
+  });
+}
+
 export async function getProjectOutline(projectId: string): Promise<readonly OutlineNodeRecord[]> {
   const project = await getMyProject(projectId);
   if (!project) return [];

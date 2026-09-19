@@ -4,6 +4,7 @@ import { intakeSufficiencyView } from '@narraza/application';
 import { ChatBubble } from '../../../../../components/composites/ChatBubble';
 import {
   getMyProject,
+  getProjectIntakeJalur,
   getProjectIntakeMessages,
   getProjectIntakeSignalCount,
 } from '../../../../../server/domain/queries';
@@ -34,8 +35,9 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
   const signalCount = Math.min(6, Math.max(0, storedSignalCount));
   const sufficiency = intakeSufficiencyView({ collectedSignalCount: storedSignalCount });
   const thread = chatThreadStatus(messages);
+  const jalur = (await getProjectIntakeJalur(projectId)) ?? '';
   const greeting =
-    CHAT_GREETINGS[project.intakePath] ??
+    CHAT_GREETINGS[jalur] ??
     'Ceritakan ide yang ada di kepalamu. Garis besar pun cukup; jawabanmu akan kusimpan sebagai draft.';
 
   return (
@@ -109,7 +111,7 @@ export default async function ChatPage({ params }: { params: Promise<{ projectId
           </div>
         </div>
 
-        <ChatForm projectId={projectId} signalCount={signalCount} jalur={project.intakePath} />
+        <ChatForm projectId={projectId} signalCount={signalCount} jalur={jalur} />
       </section>
 
       <aside className="hidden w-[300px] shrink-0 overflow-y-auto border-l border-default bg-surface p-5 lg:block">
